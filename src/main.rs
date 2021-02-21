@@ -134,7 +134,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     app.actions.previous();
                 }
                 Key::Right => {
-                    app.route = Route::TeamSelect
+                    match app.route {
+                        Route::ActionSelect => match app.actions.state.selected() {
+                            Some(i) => {
+                                match i {
+                                    0 => { app.route = Route::TeamSelect }
+                                    _ => {}
+                                }
+                            }
+                            _ => {}
+                        }
+                        _ => {}
+                    }
                 }
                 _ => {}
             },

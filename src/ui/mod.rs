@@ -43,7 +43,7 @@ where
           ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
       })
       .collect();
-    
+
       // Create a List from all list items and highlight the currently selected one
       let items = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("List"))
@@ -109,14 +109,6 @@ where
     .map(|i| {
         let lines = vec![Spans::from(i)];
         ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
-        /*
-        // let Some(i_val) = i;
-        if let Some(i_val) = i {
-          let lines = vec![Spans::from(i_val)];
-          ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
-        } else {
-          ListItem::new("Trash")
-        }*/
     })
     .collect();
   
