@@ -8,6 +8,8 @@ mod linear;
 mod ui;
 mod util;
 
+mod components;
+
 use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::{
     backend::TermionBackend,
@@ -21,6 +23,13 @@ use tui::{
 use util::{
     event::{Event, Events},
 };
+
+#[macro_use] extern crate log;
+extern crate simplelog;
+
+use simplelog::*;
+
+use std::fs::File;
 
 
 
@@ -51,6 +60,9 @@ pub struct App<'a> {
     input: String,
     // LinearClient
     linear_client: linear::client::LinearClient,
+
+    linear_team_select_state: components::linear_team_select::LinearTeamSelectState,
+
     // Available actions
     actions: util::StatefulList<&'a str>,
 }
@@ -61,6 +73,7 @@ impl<'a> Default for App<'a> {
             route: Route::ActionSelect,
             input: String::new(),
             linear_client: linear::client::LinearClient::default(),
+            linear_team_select_state: components::linear_team_select::LinearTeamSelectState::default(),
             actions: util::StatefulList::with_items(vec![
                 "Create Issue",
                 "Test",
@@ -69,10 +82,24 @@ impl<'a> Default for App<'a> {
     }
 }
 
+impl<'a> App<'a> {
+    fn switch_route(&mut self, route: Route) {
+        match route {
+            Route::ActionSelect => {},
+            Route::TeamSelect => {
+                                    self.linear_team_select_state.load_teams(&mut self.linear_client);
+                                },
+        }
+        self.route = route;
+    }
+}
+
 
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("my_rust_binary.log").unwrap());
 
 
     // Create default app state
@@ -125,20 +152,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
                 Key::Left => {
-                    app.actions.unselect();
+                    match app.route {
+                        Route::ActionSelect => app.actions.unselect(),
+                        Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
+                            Ok(ref mut x) => x.unselect(),
+                            _ => {},
+                        }
+                        _ => {}
+                    }
                 }
                 Key::Down => {
-                    app.actions.next();
+                    match app.route {
+                        Route::ActionSelect => app.actions.next(),
+                        Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
+                            Ok(ref mut x) => x.next(),
+                            _ => {},
+                        }
+                        _ => {}
+                    }
                 }
                 Key::Up => {
-                    app.actions.previous();
+                    match app.route {
+                        Route::ActionSelect => app.actions.previous(),
+                        Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
+                            Ok(ref mut x) => x.previous(),
+                            _ => {},
+                        }
+                        _ => {}
+                    }
                 }
                 Key::Right => {
                     match app.route {
                         Route::ActionSelect => match app.actions.state.selected() {
                             Some(i) => {
                                 match i {
-                                    0 => { app.route = Route::TeamSelect }
+                                    0 => { app.switch_route(Route::TeamSelect) }
                                     _ => {}
                                 }
                             }
@@ -153,39 +201,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             }
         }
-      
-
-        /*
-        terminal.draw(|f| {
-
-
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(1)
-                .constraints(
-                    [
-                        Constraint::Percentage(10),
-                        Constraint::Percentage(15),
-                        Constraint::Percentage(60),
-                        Constraint::Percentage(5),
-                        Constraint::Percentage(10)
-                    ].as_ref()
-                )
-                .split(f.size());
-            let block = Block::default()
-                .title("Block")
-                .borders(Borders::ALL);
-            f.render_widget(block, chunks[0]);
-            let block = Block::default()
-                .title("Block 2")
-                .borders(Borders::ALL);
-            f.render_widget(block, chunks[2]);
-            let block = Block::default()
-                .title("Block 3")
-                .borders(Borders::ALL);
-            f.render_widget(block, chunks[4]);
-        }).expect("Didn't work");
-        */
     }
 
     Ok(())

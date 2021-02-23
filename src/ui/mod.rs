@@ -7,9 +7,14 @@ use tui::{
     Frame,
 };
 
+use std::boxed::{
+  Box
+};
+
 use crate::App;
 use crate::Route;
 use crate::util;
+use crate::components::linear_team_select::LinearTeamSelectState;
 
 pub const BASIC_VIEW_HEIGHT: u16 = 6;
 pub const SMALL_TERMINAL_WIDTH: u16 = 150;
@@ -65,73 +70,35 @@ where
   B: Backend,
 {
 
-  let team_fetch_result = app.linear_client.get_teams();
-  let mut teams: serde_json::Value = serde_json::Value::Null;
+    info!("Calling get_rendered_teams_data_2 with: {:?}", app.linear_team_select_state.teams_data);
 
-  match team_fetch_result {
-    Ok(x) => { teams = x; }
-    Err(_) => return,
-    _ => {}
-  }
+    let items;
+    let items_result = LinearTeamSelectState::get_rendered_teams_data(&app.linear_team_select_state.teams_data);
 
-  // let Ok(teams) = team_fetch_result;
-
-  println!("teams: {}", teams);
-
-
-  match teams {
-      serde_json::Value::Null => {
-        // Reset back to previous screen, and continue past loop
-        println!("Team Fetch failed");
-        app.route = Route::ActionSelect;
-        return; 
-      },
-      serde_json::Value::Array(_) => {},
-      _ => {},
-  }
-
-
-  let teams_vec;
-
-  match teams.as_array() {
-    Some(x) => { teams_vec = x; },
-    None => {
-      return;
+    match items_result {
+      Ok(x) => { items = x },
+      Err(x) => {return;},
     }
-  }
-
-  let mut teams_list = util::StatefulList::with_items(teams_vec.clone());
-
-  let items: Vec<ListItem> = teams_list
-    .items
-    .iter()
-    .filter_map(|x| { x.as_str() })
-    .map(|i| {
-        let lines = vec![Spans::from(i)];
-        ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
-    })
-    .collect();
-  
-    // Create a List from all list items and highlight the currently selected one
-    let items = List::new(items)
-      .block(Block::default().borders(Borders::ALL).title("List"))
-      .highlight_style(
-          Style::default()
-              .bg(Color::LightGreen)
-              .add_modifier(Modifier::BOLD),
-      )
-      .highlight_symbol(">> ");
-
 
     
+    let list_state_result = app.linear_team_select_state.teams_stateful.as_mut();
+    let list_state;
+
+
+    match list_state_result {
+      Ok(x) => { list_state = x },
+      Err(x) => {return;},
+    }
+
+    // info!("items: {:?}", items);
+
+
     let chunks = Layout::default()
       .direction(Direction::Vertical)
       .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
       .split(f.size());
 
     // We can now render the item list
-    f.render_stateful_widget(items, chunks[0], &mut teams_list.state);
-
-  
-
+    f.render_stateful_widget(items, chunks[0], &mut list_state.state);
+    
 }

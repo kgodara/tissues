@@ -1,23 +1,125 @@
+use crate::util;
+use crate::App;
+use crate::graphql;
+use crate::linear;
+
+use tui::{
+    backend::Backend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, List, ListItem},
+    Frame,
+};
 
 
 pub struct LinearTeamSelectState {
-    teams: serde_json::Value::Array,
+    // serde_json::Value::Array
+    pub teams_data: Result<serde_json::Value, graphql::GraphQLError>,
+    pub teams_stateful: Result<util::StatefulList<serde_json::Value>, graphql::GraphQLError>,
 }
 
 impl LinearTeamSelectState {
 
-    fn load(&self) {
+    pub fn load_teams(&mut self, linear_client: &mut linear::client::LinearClient) {
+        let team_fetch_result = linear_client.get_teams();
+        let mut teams: serde_json::Value = serde_json::Value::Null;
+      
+        match team_fetch_result {
+          Ok(x) => { teams = x; }
+          Err(y) => {
+                        self.teams_data = Err(y);
+                        self.teams_stateful = Err(graphql::GraphQLError::Io( std::io::Error::new(std::io::ErrorKind::NotFound, "Not found") ));
+                        return;
+                    },
+          _ => {}
+        }
 
+        // let Ok(teams) = team_fetch_result;
+
+        // println!("teams: {}", teams);
+
+        if teams == serde_json::Value::Null {
+              // Reset back to previous screen, and continue past loop
+              // println!("Team Fetch failed");
+              self.teams_data = Ok(serde_json::Value::Array(vec![]));
+              self.teams_stateful = Ok(util::StatefulList::new());
+              return;
+        }
+
+        let teams_vec;
+
+        match teams.as_array() {
+          Some(x) => { teams_vec = x; },
+          None => {
+            return;
+          }
+        }
+
+        self.teams_stateful = Ok(util::StatefulList::with_items(teams_vec.clone()));
+        self.teams_data = Ok(teams);
     }
 
-    fn 
+    pub fn get_rendered_teams_data(teams_stateful: &Result<serde_json::Value, graphql::GraphQLError>) -> Result<List, &'static str> {
+
+        match teams_stateful {
+            Ok(input_data) => {
+
+                let starter = input_data.as_array();
+
+                match starter {
+                    Some(x) => {
+                        let items: Vec<ListItem> = x
+                        .iter()
+                        .filter_map(|x| {
+                            // info!("Filter map on: {:?}", x);
+                            if let Some(team_name) = x["name"].as_str() {
+                                if let Some(team_key) = x["key"].as_str() {
+                                    return Some(format!("{}    {}", team_name, team_key));
+                                }
+                                else {
+                                    return None;
+                                }
+                            }
+                            else {
+                                return None;
+                            }
+                        })
+                        .map(|i| {
+                            let lines = vec![Spans::from(i)];
+                            ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
+                        })
+                        .collect();
+
+                        info!("get_rendered_teams_data_2 items: Vec<ListItem> - {:?}", items);
+    
+                        // Create a List from all list items and highlight the currently selected one
+                        let items = List::new(items)
+                            .block(Block::default().borders(Borders::ALL).title("List"))
+                            .highlight_style(
+                                Style::default()
+                                    .bg(Color::LightGreen)
+                                    .add_modifier(Modifier::BOLD),
+                            )
+                            .highlight_symbol(">> ");
+                        return Ok(items);
+                    },
+                    None => return Err("Failed to convert teams_stateful to vec"),
+                }
+            }
+            // Goal: Err(error) => return Err(error);
+            Err(_) => {return Err("Stateful List not populated");}
+        }
+
+    }
 
 }
 
 impl Default for LinearTeamSelectState {
     fn default() -> LinearTeamSelectState {
         LinearTeamSelectState {
-            teams: serde_json::Value::Array(vec![])
+            teams_data: Ok(serde_json::Value::Array(vec![])),
+            teams_stateful: Ok(util::StatefulList::new()),
         }
     }
 }
