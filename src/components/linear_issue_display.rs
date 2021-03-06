@@ -75,7 +75,6 @@ impl LinearIssueDisplayState {
 
 
 
-
     pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
 
         let table_items;
