@@ -14,7 +14,10 @@ use std::boxed::{
 use crate::App;
 use crate::Route;
 use crate::util;
+
 use crate::components::linear_team_select::LinearTeamSelectState;
+use crate::components::linear_issue_display::LinearIssueDisplayState;
+
 
 pub const BASIC_VIEW_HEIGHT: u16 = 6;
 pub const SMALL_TERMINAL_WIDTH: u16 = 150;
@@ -70,24 +73,24 @@ where
   B: Backend,
 {
 
-    info!("Calling get_rendered_teams_data_2 with: {:?}", app.linear_team_select_state.teams_data);
+    info!("Calling get_rendered_teams_data with: {:?}", app.linear_team_select_state.teams_data);
 
     let items;
     let items_result = LinearTeamSelectState::get_rendered_teams_data(&app.linear_team_select_state.teams_data);
 
     match items_result {
       Ok(x) => { items = x },
-      Err(x) => {return;},
+      Err(_) => {return;},
     }
 
     
-    let list_state_result = app.linear_team_select_state.teams_stateful.as_mut();
+    let list_state_option = app.linear_team_select_state.teams_stateful.as_mut();
     let list_state;
 
 
-    match list_state_result {
-      Ok(x) => { list_state = x },
-      Err(x) => {return;},
+    match list_state_option {
+      Some(x) => { list_state = x },
+      None => {return;},
     }
 
     // info!("items: {:?}", items);
@@ -101,4 +104,35 @@ where
     // We can now render the item list
     f.render_stateful_widget(items, chunks[0], &mut list_state.state);
     
+}
+
+
+
+pub fn draw_issue_display<B>(f: &mut Frame<B>, app: &mut App)
+where 
+  B: Backend,
+{
+
+  info!("Calling draw_issue_display with: {:?}", app.linear_issue_display_state.issue_table_data);
+
+  let table;
+  let table_result = LinearIssueDisplayState::get_rendered_issue_data(&app.linear_issue_display_state.issue_table_data);
+
+  match table_result {
+    Ok(x) => { table = x },
+    Err(x) => {return;},
+  }
+
+  let mut table_state = app.linear_issue_display_state.issue_table_state.clone();
+
+  // info!("table: {:?}", table);
+
+
+  let chunks = Layout::default()
+    .direction(Direction::Vertical)
+    .constraints([Constraint::Percentage(100)/*, Constraint::Percentage(35)*/].as_ref())
+    .split(f.size());
+
+  f.render_stateful_widget(table, chunks[0], &mut table_state);
+
 }

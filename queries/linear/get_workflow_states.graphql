@@ -1,0 +1,10 @@
+{   "query" : "query {
+        workflowStates {
+            nodes {
+                name
+                color
+                type
+            }
+        }
+    }"
+}

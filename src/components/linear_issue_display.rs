@@ -1,0 +1,146 @@
+use tui::{
+    backend::TermionBackend,
+    layout::{Constraint, Layout},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    Terminal,
+};
+
+use crate::linear::client::LinearClient;
+
+pub struct LinearIssueDisplayState {
+    pub issue_table_data: Option<serde_json::Value>,
+    pub issue_table_state: TableState,
+}
+
+impl LinearIssueDisplayState {
+    pub fn load_issues(&mut self, linear_client: &LinearClient, selected_team: &serde_json::Value) {
+
+        if let serde_json::Value::Object(team) = selected_team {
+            let issue_fetch_result = linear_client.get_issues_by_team(selected_team.as_object()
+                                                                                    .cloned()
+                                                                                    .unwrap_or(serde_json::Map::default())
+                                                                    );
+            
+            let mut issues: serde_json::Value = serde_json::Value::Null;
+
+            match issue_fetch_result {
+                Ok(x) => { issues = x; },
+                Err(y) => {
+                                info!("Get Issues By Team failed: {:?}", y);
+                                self.issue_table_data = None;
+                                return;
+                            },
+            }
+
+            info!("Issue Fetch Result: {:?}", issues);
+
+            match issues {
+                serde_json::Value::Array(_) => {
+                    info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
+                    self.issue_table_data = Some(issues);
+                },
+                _ => {return;},
+            }
+
+        } else {
+            return;
+        }
+    }
+
+
+
+
+    pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
+
+        let table_items;
+
+        match table_data {
+            Some(x) => table_items = x,
+            None => { return Err("Table Items is None"); }
+        }
+
+        let table_array;
+        match table_items.as_array() {
+            Some(x) => table_array = x,
+            None => { return Err("table_data is not an Array") }
+        }
+
+        let selected_style = Style::default().add_modifier(Modifier::REVERSED);
+        let normal_style = Style::default().bg(Color::DarkGray);
+        let header_cells = ["Number", "Title", "Description", "createdAt", "Test"]
+            .iter()
+            .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
+        
+        let header = Row::new(header_cells)
+            .style(normal_style)
+            .height(1)
+            .bottom_margin(1);
+
+        info!("Header: {:?}", header);
+
+
+
+        let rows = table_array.iter().enumerate().map(|(idx, row)| {
+
+            info!("Table Row Raw: {:?}", row);
+
+            let cell_fields: std::vec::Vec<std::string::String> = vec![row["number"].clone(), row["title"].clone(), row["description"].clone(), row["createdAt"].clone()]
+                                .iter()
+                                .map(|field| match field {
+                                    
+                                    serde_json::Value::String(x) => x.clone(),
+                                    serde_json::Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+                                    serde_json::Value::Null => String::default(),
+                                    
+                                    _ => { String::default() },
+                                })
+                                .collect();
+            info!("Cell Fields: {:?}", cell_fields);
+
+            let height = cell_fields
+                .iter()
+                .map(|content| content.chars().filter(|c| *c == '\n').count())
+                .max()
+                .unwrap_or(0)
+                + 1;
+
+            info!("Height: {:?}", height);
+
+            let cells = cell_fields.iter().map(|c| Cell::from(c.clone()));
+            Row::new(cells).height(height as u16).bottom_margin(1)
+        });
+
+
+        let t = Table::new(rows)
+            .header(header)
+            .block(Block::default().borders(Borders::ALL).title("Table"))
+            .highlight_style(selected_style)
+            .highlight_symbol(">> ")
+            .widths(&[
+                Constraint::Percentage(10),
+                Constraint::Percentage(15),
+                Constraint::Percentage(20),
+                Constraint::Percentage(20)
+            ]);
+        
+        return Ok(t);
+
+    }
+
+
+
+
+
+}
+
+impl Default for LinearIssueDisplayState {
+
+    fn default() -> LinearIssueDisplayState {
+        LinearIssueDisplayState {
+            issue_table_data: Some(serde_json::Value::Array(vec![])),
+            issue_table_state: TableState::default(),
+        }
+    }
+}
+

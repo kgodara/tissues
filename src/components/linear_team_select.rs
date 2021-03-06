@@ -15,8 +15,8 @@ use tui::{
 
 pub struct LinearTeamSelectState {
     // serde_json::Value::Array
-    pub teams_data: Result<serde_json::Value, graphql::GraphQLError>,
-    pub teams_stateful: Result<util::StatefulList<serde_json::Value>, graphql::GraphQLError>,
+    pub teams_data: Option<serde_json::Value>,
+    pub teams_stateful: Option<util::StatefulList<serde_json::Value>>,
 }
 
 impl LinearTeamSelectState {
@@ -28,8 +28,8 @@ impl LinearTeamSelectState {
         match team_fetch_result {
           Ok(x) => { teams = x; }
           Err(y) => {
-                        self.teams_data = Err(y);
-                        self.teams_stateful = Err(graphql::GraphQLError::Io( std::io::Error::new(std::io::ErrorKind::NotFound, "Not found") ));
+                        self.teams_data = None;
+                        self.teams_stateful = None;
                         return;
                     },
           _ => {}
@@ -42,8 +42,8 @@ impl LinearTeamSelectState {
         if teams == serde_json::Value::Null {
               // Reset back to previous screen, and continue past loop
               // println!("Team Fetch failed");
-              self.teams_data = Ok(serde_json::Value::Array(vec![]));
-              self.teams_stateful = Ok(util::StatefulList::new());
+              self.teams_data = Some(serde_json::Value::Array(vec![]));
+              self.teams_stateful = Some(util::StatefulList::new());
               return;
         }
 
@@ -56,14 +56,14 @@ impl LinearTeamSelectState {
           }
         }
 
-        self.teams_stateful = Ok(util::StatefulList::with_items(teams_vec.clone()));
-        self.teams_data = Ok(teams);
+        self.teams_stateful = Some(util::StatefulList::with_items(teams_vec.clone()));
+        self.teams_data = Some(teams);
     }
 
-    pub fn get_rendered_teams_data(teams_stateful: &Result<serde_json::Value, graphql::GraphQLError>) -> Result<List, &'static str> {
+    pub fn get_rendered_teams_data(teams_stateful: &Option<serde_json::Value>) -> Result<List, &'static str> {
 
         match teams_stateful {
-            Ok(input_data) => {
+            Some(input_data) => {
 
                 let starter = input_data.as_array();
 
@@ -108,7 +108,7 @@ impl LinearTeamSelectState {
                 }
             }
             // Goal: Err(error) => return Err(error);
-            Err(_) => {return Err("Stateful List not populated");}
+            None => {return Err("Stateful List not populated");}
         }
 
     }
@@ -118,8 +118,8 @@ impl LinearTeamSelectState {
 impl Default for LinearTeamSelectState {
     fn default() -> LinearTeamSelectState {
         LinearTeamSelectState {
-            teams_data: Ok(serde_json::Value::Array(vec![])),
-            teams_stateful: Ok(util::StatefulList::new()),
+            teams_data: Some(serde_json::Value::Array(vec![])),
+            teams_stateful: Some(util::StatefulList::new()),
         }
     }
 }

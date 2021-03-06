@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use std::io;
+use std::fs;
+
 use serde_json;
 
 mod graphql;
@@ -43,6 +45,7 @@ fn get_platform() -> io::Result<String> {
 enum Route {
     ActionSelect,
     TeamSelect,
+    LinearInterface,
 }
 
 /*
@@ -61,7 +64,14 @@ pub struct App<'a> {
     // LinearClient
     linear_client: linear::client::LinearClient,
 
+    // Linear Team Select State
     linear_team_select_state: components::linear_team_select::LinearTeamSelectState,
+
+    // Selected Linear Team
+    linear_selected_team_idx: Option<usize>,
+
+    // Linear Issue Display State
+    linear_issue_display_state: components::linear_issue_display::LinearIssueDisplayState,
 
     // Available actions
     actions: util::StatefulList<&'a str>,
@@ -72,8 +82,15 @@ impl<'a> Default for App<'a> {
         App {
             route: Route::ActionSelect,
             input: String::new(),
+
             linear_client: linear::client::LinearClient::default(),
+
             linear_team_select_state: components::linear_team_select::LinearTeamSelectState::default(),
+            // Null
+            linear_selected_team_idx: None,
+ 
+            linear_issue_display_state: components::linear_issue_display::LinearIssueDisplayState::default(),
+
             actions: util::StatefulList::with_items(vec![
                 "Create Issue",
                 "Test",
@@ -87,8 +104,20 @@ impl<'a> App<'a> {
         match route {
             Route::ActionSelect => {},
             Route::TeamSelect => {
-                                    self.linear_team_select_state.load_teams(&mut self.linear_client);
-                                },
+                self.linear_team_select_state.load_teams(&mut self.linear_client);
+            },
+            Route::LinearInterface => {
+                // Some team is selected
+                match self.linear_selected_team_idx {
+                    Some(idx) => {
+                        match &self.linear_team_select_state.teams_data {
+                            Some(data) => self.linear_issue_display_state.load_issues(&self.linear_client, &data[idx]),
+                            None => {},
+                        }
+                    },
+                    _ => {return;},
+                }
+            },
         }
         self.route = route;
     }
@@ -99,7 +128,19 @@ impl<'a> App<'a> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("my_rust_binary.log").unwrap());
+    let log_remove_result = fs::remove_file("rust_cli.log");
+
+    match log_remove_result {
+        Ok(_) => {},
+        Err(x) => {
+            match x.kind() {
+                io::ErrorKind::NotFound => {},
+                _ => panic!(),
+            }
+        }
+    }
+
+    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap());
 
 
     // Create default app state
@@ -141,6 +182,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Route::TeamSelect => {
               ui::draw_team_select(&mut f, &mut app);
             }
+            Route::LinearInterface => {
+                ui::draw_issue_display(&mut f, &mut app);
+            }
             _ => {
               panic!()
             }
@@ -155,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match app.route {
                         Route::ActionSelect => app.actions.unselect(),
                         Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
-                            Ok(ref mut x) => x.unselect(),
+                            Some(ref mut x) => x.unselect(),
                             _ => {},
                         }
                         _ => {}
@@ -165,7 +209,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match app.route {
                         Route::ActionSelect => app.actions.next(),
                         Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
-                            Ok(ref mut x) => x.next(),
+                            Some(ref mut x) => {
+                                x.next();
+                                app.linear_selected_team_idx = x.state.selected();
+                            }
                             _ => {},
                         }
                         _ => {}
@@ -175,7 +222,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match app.route {
                         Route::ActionSelect => app.actions.previous(),
                         Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
-                            Ok(ref mut x) => x.previous(),
+                            Some(ref mut x) => {
+                                x.previous();
+                                app.linear_selected_team_idx = x.state.selected();
+                            },
                             _ => {},
                         }
                         _ => {}
@@ -191,6 +241,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                             _ => {}
+                        },
+                        // Switch Route as long as a team is selected
+                        Route::TeamSelect => match app.linear_selected_team_idx {
+                            Some(_) => { app.switch_route(Route::LinearInterface) },
+                            None => {},
                         }
                         _ => {}
                     }
@@ -204,7 +259,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-
-
-
 }
