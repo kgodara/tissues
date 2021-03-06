@@ -6,6 +6,10 @@ use tui::{
     Terminal,
 };
 
+use colorsys::{Rgb};
+// use colorsys::Color as CTColor;
+
+
 use crate::linear::client::LinearClient;
 
 pub struct LinearIssueDisplayState {
@@ -21,7 +25,7 @@ impl LinearIssueDisplayState {
                                                                                     .cloned()
                                                                                     .unwrap_or(serde_json::Map::default())
                                                                     );
-            
+
             let mut issues: serde_json::Value = serde_json::Value::Null;
 
             match issue_fetch_result {
@@ -48,6 +52,27 @@ impl LinearIssueDisplayState {
         }
     }
 
+    pub fn style_color_from_hex_str(color: serde_json::Value) -> Option<Color> {
+
+        let hex_str;
+
+        match color {
+            serde_json::Value::String(x) => hex_str = x,
+            _ => { return None }
+        };
+
+        let rgb_struct;
+
+        match Rgb::from_hex_str(hex_str.as_str()).ok() {
+            Some(x) => rgb_struct = x,
+            None => return None,
+        }
+
+
+        return Some(Color::Rgb(rgb_struct.get_red() as u8, rgb_struct.get_green() as u8, rgb_struct.get_blue() as u8));
+
+    }
+
 
 
 
@@ -68,7 +93,7 @@ impl LinearIssueDisplayState {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
-        let header_cells = ["Number", "Title", "Description", "createdAt", "Test"]
+        let header_cells = ["Number", "Title", "State", "Description", "createdAt"]
             .iter()
             .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
         
@@ -88,7 +113,7 @@ impl LinearIssueDisplayState {
             let cell_fields: std::vec::Vec<std::string::String> = vec![row["number"].clone(), row["title"].clone(), row["description"].clone(), row["createdAt"].clone()]
                                 .iter()
                                 .map(|field| match field {
-                                    
+
                                     serde_json::Value::String(x) => x.clone(),
                                     serde_json::Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
                                     serde_json::Value::Null => String::default(),
@@ -96,6 +121,9 @@ impl LinearIssueDisplayState {
                                     _ => { String::default() },
                                 })
                                 .collect();
+            
+            
+            
             info!("Cell Fields: {:?}", cell_fields);
 
             let height = cell_fields
@@ -107,7 +135,31 @@ impl LinearIssueDisplayState {
 
             info!("Height: {:?}", height);
 
-            let cells = cell_fields.iter().map(|c| Cell::from(c.clone()));
+            let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
+
+            let generate_state_cell = || {
+                let state_obj = row["state"].clone();
+                let name = state_obj["name"].clone();
+                let color = state_obj["color"].clone();
+
+                let name = match name {
+                    serde_json::Value::String(x) => Some(x),
+                    _ => None,
+                };
+
+                let style_color = super::linear_issue_display::LinearIssueDisplayState::style_color_from_hex_str(color);
+
+                match name {
+                    Some(x) => { match style_color {
+                        Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
+                        None => return Cell::from(String::default()),
+                    }},
+                    None => return Cell::from(String::default()),
+                }
+            };
+
+            cells.insert(2, generate_state_cell());
+
             Row::new(cells).height(height as u16).bottom_margin(1)
         });
 
@@ -119,6 +171,7 @@ impl LinearIssueDisplayState {
             .highlight_symbol(">> ")
             .widths(&[
                 Constraint::Percentage(10),
+                Constraint::Percentage(15),
                 Constraint::Percentage(15),
                 Constraint::Percentage(20),
                 Constraint::Percentage(20)

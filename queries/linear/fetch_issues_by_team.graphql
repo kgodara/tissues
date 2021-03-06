@@ -10,6 +10,8 @@
                     priority
                     estimate
                     state {
+                        name
+                        type
                         description
                         color
                     }
