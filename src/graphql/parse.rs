@@ -1,6 +1,6 @@
 use std::fs;
 
-use super::error::GraphQLError;
+use crate::errors::GraphQLError;
 
 
 

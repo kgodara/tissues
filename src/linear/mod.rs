@@ -2,6 +2,7 @@
 pub mod client;
 mod mutation;
 mod config;
+mod error;
 
 mod query;
 /*

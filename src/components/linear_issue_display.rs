@@ -69,7 +69,7 @@ impl LinearIssueDisplayState {
         }
 
 
-        return Some(Color::Rgb(rgb_struct.get_red() as u8, rgb_struct.get_green() as u8, rgb_struct.get_blue() as u8));
+        return Some(Color::Rgb(rgb_struct.red() as u8, rgb_struct.green() as u8, rgb_struct.blue() as u8));
 
     }
 
@@ -120,9 +120,9 @@ impl LinearIssueDisplayState {
                                     _ => { String::default() },
                                 })
                                 .collect();
-            
-            
-            
+
+
+
             info!("Cell Fields: {:?}", cell_fields);
 
             let height = cell_fields

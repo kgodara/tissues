@@ -9,8 +9,14 @@ mod graphql;
 mod linear;
 mod ui;
 mod util;
+mod errors;
 
 mod components;
+
+extern crate dotenv;
+
+use dotenv::dotenv;
+use std::env;
 
 use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::{
@@ -127,6 +133,8 @@ impl<'a> App<'a> {
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    dotenv().ok();
 
     let log_remove_result = fs::remove_file("rust_cli.log");
 

@@ -1,4 +1,4 @@
-use crate::graphql::GraphQLError;
+use crate::errors::GraphQLError;
 use crate::graphql::parse_graphql_from_file;
 
 const LINEAR_CREATE_ISSUE_PATH: &str = "queries/linear/create_issue.graphql";

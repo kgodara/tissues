@@ -1,6 +1,9 @@
 use crate::graphql::{
     parse_graphql_from_file,
-    GraphQLError
+};
+
+use crate::errors::{
+    GraphQLError,
 };
 
 use serde_json::{
