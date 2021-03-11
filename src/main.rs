@@ -10,6 +10,7 @@ mod linear;
 mod ui;
 mod util;
 mod errors;
+mod command;
 
 mod components;
 
@@ -17,6 +18,8 @@ extern crate dotenv;
 
 use dotenv::dotenv;
 use std::env;
+
+use tokio::sync::mpsc;
 
 use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::{
@@ -38,6 +41,8 @@ extern crate simplelog;
 use simplelog::*;
 
 use std::fs::File;
+
+use command::Command;
 
 
 
@@ -106,18 +111,55 @@ impl<'a> Default for App<'a> {
 }
 
 impl<'a> App<'a> {
-    fn switch_route(&mut self, route: Route) {
+    async fn switch_route(&mut self, route: Route) {
         match route {
             Route::ActionSelect => {},
             Route::TeamSelect => {
-                self.linear_team_select_state.load_teams(&mut self.linear_client);
+                self.linear_team_select_state.load_teams(&mut self.linear_client).await;
             },
             Route::LinearInterface => {
                 // Some team is selected
                 match self.linear_selected_team_idx {
                     Some(idx) => {
-                        match &self.linear_team_select_state.teams_data {
-                            Some(data) => self.linear_issue_display_state.load_issues(&self.linear_client, &data[idx]),
+                        // Arc<Option<T>> -> Option<&T>
+                        match &*self.linear_team_select_state.teams_data {
+                            Some(data) => self.linear_issue_display_state.load_issues(&self.linear_client, &data[idx]).await,
+                            None => {},
+                        }
+                    },
+                    _ => {return;},
+                }
+            },
+        }
+        self.route = route;
+    }
+
+
+    async fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<Command>) {
+        match route {
+            Route::ActionSelect => {},
+            Route::TeamSelect => {
+
+                let tx2 = tx.clone();
+
+                let api_key = self.linear_client.config.api_key.clone();
+
+
+                let t1 = tokio::spawn(async move {
+                    let cmd = Command::LoadLinearTeams { api_key: api_key };
+                    tx2.send(cmd).await.unwrap();
+                });
+
+
+                // self.linear_team_select_state.load_teams(&mut self.linear_client).await;
+            },
+            Route::LinearInterface => {
+                // Some team is selected
+                match self.linear_selected_team_idx {
+                    Some(idx) => {
+                        // Arc<Option<T>> -> Option<&T>
+                        match &*self.linear_team_select_state.teams_data {
+                            Some(data) => self.linear_issue_display_state.load_issues(&self.linear_client, &data[idx]).await,
                             None => {},
                         }
                     },
@@ -130,9 +172,8 @@ impl<'a> App<'a> {
 }
 
 
-
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     dotenv().ok();
 
@@ -148,29 +189,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap());
+    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap()).unwrap();
+
+    // Create a new channel with a capacity of at most 32.
+    let (tx, mut rx) = mpsc::channel(8);
+
+
+    let manager = tokio::spawn(async move {
+        // Establish a connection to the server
+        // let mut client = client::connect("127.0.0.1:6379").await.unwrap();
+    
+        // Start receiving messages
+        while let Some(cmd) = rx.recv().await {
+    
+            info!("Manager received Command::{:?}", cmd);
+            match cmd {
+                Command::LoadLinearTeams { api_key } => {
+                    let ( data, stateful ) = components::linear_team_select::LinearTeamSelectState::load_teams_2(api_key).await;
+                    info!("LoadLinearTeams data: {:?}", data);
+                    // client.get(&key).await;
+                },
+                Command::LoadLinearIssues { selected_team } => {
+                    // client.set(&key, val).await;
+                }
+            }
+        }
+    });
 
 
     // Create default app state
     let mut app = App::default();
 
-
-    /*
-    let mut issue_variables = serde_json::Map::new();
-
-    issue_variables.insert(String::from("title"), serde_json::Value::String(String::from("Test Rust-CLI 1")));
-    issue_variables.insert(String::from("description"), serde_json::Value::String(String::from("Made From Rust")));
-    issue_variables.insert(String::from("teamId"), serde_json::Value::String(String::from("3e2c3a3a-c883-432f-9877-dcbb8785650a")));
-
-
-    let mutation_response;
-    mutation_response = create_linear_issue(&contents, issue_variables);
-
-    match mutation_response {
-        Ok(mutation_response) => {println!("Mutation Success: {}", mutation_response)},
-        Err(mutation_response) => {println!("Mutation Failed: {}", mutation_response)},
-    }
-    */
 
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
@@ -244,7 +293,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Route::ActionSelect => match app.actions.state.selected() {
                             Some(i) => {
                                 match i {
-                                    0 => { app.switch_route(Route::TeamSelect) }
+                                    0 => { /*app.switch_route(Route::TeamSelect).await*/ app.change_route( Route::TeamSelect, &tx).await }
                                     _ => {}
                                 }
                             }
@@ -252,7 +301,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         // Switch Route as long as a team is selected
                         Route::TeamSelect => match app.linear_selected_team_idx {
-                            Some(_) => { app.switch_route(Route::LinearInterface) },
+                            Some(_) => { app.switch_route(Route::LinearInterface).await },
                             None => {},
                         }
                         _ => {}

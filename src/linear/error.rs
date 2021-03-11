@@ -8,4 +8,7 @@ pub enum LinearClientError {
     InvalidConfig(#[from] errors::ConfigError),
     #[error("GraphQL failure")]
     GraphQL(#[from] errors::GraphQLError),
+
+    #[error("GraphQL request failure")]
+    RequestError(#[from] errors::GraphQLRequestError)
 }
