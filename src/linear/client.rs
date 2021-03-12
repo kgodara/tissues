@@ -87,6 +87,25 @@ impl LinearClient {
         Ok(issue_nodes.clone())
     }
 
+
+    pub async fn get_issues_by_team_2(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+
+        info!("Calling exec_get_issues_by_team - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = exec_get_issues_by_team(linear_api_key, variables).await?;
+
+        let ref issue_nodes = query_response["data"]["team"]["issues"]["nodes"];
+
+        Ok(issue_nodes.clone())
+    }
+
 }
 
     /*

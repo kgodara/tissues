@@ -15,7 +15,7 @@ use colorsys::{Rgb};
 use crate::linear::client::LinearClient;
 
 pub struct LinearIssueDisplayState {
-    pub issue_table_data: Arc<Option<serde_json::Value>>,
+    pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
     pub issue_table_state: TableState,
 }
 
@@ -34,7 +34,7 @@ impl LinearIssueDisplayState {
                 Ok(x) => { issues = x; },
                 Err(y) => {
                                 info!("Get Issues By Team failed: {:?}", y);
-                                self.issue_table_data = Arc::new(None);
+                                self.issue_table_data = Arc::new(Mutex::new(None));
                                 return;
                             },
             }
@@ -44,13 +44,47 @@ impl LinearIssueDisplayState {
             match issues {
                 serde_json::Value::Array(_) => {
                     info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
-                    self.issue_table_data = Arc::new(Some(issues));
+                    self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
                 },
                 _ => {return;},
             }
 
         } else {
             return;
+        }
+    }
+
+    pub async fn load_issues_2(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
+
+        if let serde_json::Value::Object(team) = selected_team {
+            let issue_fetch_result = LinearClient::get_issues_by_team_2(api_key, selected_team.as_object()
+                                                                                    .cloned()
+                                                                                    .unwrap_or(serde_json::Map::default())
+                                                                    ).await;
+
+            let mut issues: serde_json::Value = serde_json::Value::Null;
+
+            match issue_fetch_result {
+                Ok(x) => { issues = x; },
+                Err(y) => {
+                                info!("Get Issues By Team failed: {:?}", y);
+                                return None;
+                            },
+            }
+
+            info!("Issue Fetch Result: {:?}", issues);
+
+            match issues {
+                serde_json::Value::Array(_) => {
+                    info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
+                    // self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
+                    return Some(issues);
+                },
+                _ => {return None;},
+            }
+
+        } else {
+            return None;
         }
     }
 
@@ -192,7 +226,7 @@ impl Default for LinearIssueDisplayState {
 
     fn default() -> LinearIssueDisplayState {
         LinearIssueDisplayState {
-            issue_table_data: Arc::new(Some(serde_json::Value::Array(vec![]))),
+            issue_table_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
             issue_table_state: TableState::default(),
         }
     }

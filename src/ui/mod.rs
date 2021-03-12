@@ -75,24 +75,35 @@ where
 
     info!("Calling get_rendered_teams_data with: {:?}", app.linear_team_select_state.teams_data);
 
-    let items;
-    let items_result = LinearTeamSelectState::get_rendered_teams_data(&app.linear_team_select_state.teams_data);
+    let mut items;
+    let items_result;
+
+    // let mut handle = app.linear_team_select_state.teams_data.lock().unwrap();
+
+    let handle = app.linear_team_select_state.teams_data.lock().unwrap();
+    items_result = LinearTeamSelectState::get_rendered_teams_data_2(&*handle);//.to_owned();
+
 
     match items_result {
       Ok(x) => { items = x },
       Err(_) => {return;},
     }
 
-    
-    let list_state_option = app.linear_team_select_state.teams_stateful.as_mut();
+
+    // items = items.clone();
+
+    // drop(handle);
+
+    // let mut list_state_option = app.linear_team_select_state.teams_data.lock().unwrap();//.as_mut();
+    /*
     let list_state;
 
 
-    match list_state_option {
+    match &*handle {
       Some(x) => { list_state = x },
       None => {return;},
     }
-
+    */
     // info!("items: {:?}", items);
 
 
@@ -101,9 +112,9 @@ where
       .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
       .split(f.size());
 
+    info!("About to render team select");
     // We can now render the item list
-    f.render_stateful_widget(items, chunks[0], &mut list_state.state);
-    
+    f.render_stateful_widget(items, chunks[0], &mut app.linear_team_select_state.teams_state);
 }
 
 
@@ -115,8 +126,10 @@ where
 
   info!("Calling draw_issue_display with: {:?}", app.linear_issue_display_state.issue_table_data);
 
+  let handle = app.linear_issue_display_state.issue_table_data.lock().unwrap();
+
   let table;
-  let table_result = LinearIssueDisplayState::get_rendered_issue_data(&app.linear_issue_display_state.issue_table_data);
+  let table_result = LinearIssueDisplayState::get_rendered_issue_data(&handle);
 
   match table_result {
     Ok(x) => { table = x },
