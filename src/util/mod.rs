@@ -1,8 +1,11 @@
 use tui::widgets::ListState;
 
 pub mod event;
+pub mod state_list;
 
+// pub use state_list;
 
+#[derive(Debug)]
 pub struct StatefulList<T> {
     pub state: ListState,
     pub items: Vec<T>,
@@ -37,6 +40,7 @@ impl<T> StatefulList<T> {
         self.state.select(Some(i));
     }
 
+
     pub fn previous(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
@@ -54,4 +58,5 @@ impl<T> StatefulList<T> {
     pub fn unselect(&mut self) {
         self.state.select(None);
     }
+
 }

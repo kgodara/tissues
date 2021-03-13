@@ -10,6 +10,7 @@ mod linear;
 mod ui;
 mod util;
 mod errors;
+mod command;
 
 mod components;
 
@@ -17,6 +18,9 @@ extern crate dotenv;
 
 use dotenv::dotenv;
 use std::env;
+
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 
 use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::{
@@ -30,6 +34,7 @@ use tui::{
 
 use util::{
     event::{Event, Events},
+    StatefulList,
 };
 
 #[macro_use] extern crate log;
@@ -38,6 +43,8 @@ extern crate simplelog;
 use simplelog::*;
 
 use std::fs::File;
+
+use command::Command;
 
 
 
@@ -106,33 +113,114 @@ impl<'a> Default for App<'a> {
 }
 
 impl<'a> App<'a> {
-    fn switch_route(&mut self, route: Route) {
+
+
+    async fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<Command>) {
         match route {
             Route::ActionSelect => {},
             Route::TeamSelect => {
-                self.linear_team_select_state.load_teams(&mut self.linear_client);
+
+                let tx2 = tx.clone();
+
+                let api_key = self.linear_client.config.api_key.clone();
+
+                let team_data_handle = self.linear_team_select_state.teams_data.clone();
+
+
+                let t1 = tokio::spawn(async move {
+
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    let cmd = Command::LoadLinearTeams { api_key: api_key, resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
+
+                    let res = resp_rx.await.ok();
+
+                    info!("LoadLinearTeams Command returned: {:?}", res);
+
+                    let mut team_data_lock = team_data_handle.lock().unwrap();
+
+                    match res {
+                        Some(x) => {
+                            *team_data_lock = x;
+                        }
+                        None => {},
+                    }
+
+                    info!("New self.linear_team_select_state.teams_data: {:?}", team_data_lock);
+                });
+
+
+                // self.linear_team_select_state.load_teams(&mut self.linear_client).await;
             },
+            
             Route::LinearInterface => {
-                // Some team is selected
+
+                let tx3 = tx.clone();
+                
+                let api_key = self.linear_client.config.api_key.clone();
+
+                let team_data_handle = self.linear_team_select_state.teams_data.clone();
+                let team_issue_handle = self.linear_issue_display_state.issue_table_data.clone();
+
+                info!("Linear Interface Loading Process Begun");
+
                 match self.linear_selected_team_idx {
                     Some(idx) => {
-                        match &self.linear_team_select_state.teams_data {
-                            Some(data) => self.linear_issue_display_state.load_issues(&self.linear_client, &data[idx]),
+                        // Arc<Option<T>> -> Option<&T>
+                        match &*team_data_handle.lock().unwrap() {
+                            Some(data) => {
+                                
+                                // self.linear_issue_display_state.load_issues(&self.linear_client, &data.items[idx]).await;
+
+                                let team = data[idx].clone();
+
+                                match team {
+                                    serde_json::Value::Null => return,
+                                    _ => {},
+                                }
+
+                                let t2 = tokio::spawn(async move {
+                    
+                                    let (resp2_tx, resp2_rx) = oneshot::channel();
+                
+                                    let cmd = Command::LoadLinearIssues { api_key: api_key, selected_team: team, resp: resp2_tx };
+                                    tx3.send(cmd).await.unwrap();
+                
+                                    let res = resp2_rx.await.ok();
+                
+                                    info!("LoadLinearIssues Command returned: {:?}", res);
+                
+                                    let mut issue_data_lock = team_issue_handle.lock().unwrap();
+                
+                                    match res {
+                                        Some(x) => {
+                                            *issue_data_lock = x;
+                                        }
+                                        None => {},
+                                    }
+                
+                                    // info!("New self.linear_team_select_state.teams_data: {:?}", issue_data_lock);
+                
+                
+                                });
+                            }
                             None => {},
                         }
                     },
                     _ => {return;},
                 }
             },
+            
+            _ => {},
         }
         self.route = route;
     }
 }
 
 
-
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     dotenv().ok();
 
@@ -148,29 +236,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap());
+    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap()).unwrap();
+
+    // Create a new channel with a capacity of at most 32.
+    let (tx, mut rx) = mpsc::channel(8);
+
+
+    let manager = tokio::spawn(async move {
+        // Establish a connection to the server
+        // let mut client = client::connect("127.0.0.1:6379").await.unwrap();
+    
+        // Start receiving messages
+        while let Some(cmd) = rx.recv().await {
+    
+            info!("Manager received Command::{:?}", cmd);
+            match cmd {
+                Command::LoadLinearTeams { api_key, resp } => {
+                    let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
+                    info!("LoadLinearTeams data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+
+                    // client.get(&key).await;
+                },
+                Command::LoadLinearIssues { api_key, selected_team, resp } => {
+                    // client.set(&key, val).await;
+                    let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues(api_key, &selected_team).await;
+                    info!("LoadLinearIssuesByTeam data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                }
+            }
+        }
+    });
 
 
     // Create default app state
     let mut app = App::default();
 
-
-    /*
-    let mut issue_variables = serde_json::Map::new();
-
-    issue_variables.insert(String::from("title"), serde_json::Value::String(String::from("Test Rust-CLI 1")));
-    issue_variables.insert(String::from("description"), serde_json::Value::String(String::from("Made From Rust")));
-    issue_variables.insert(String::from("teamId"), serde_json::Value::String(String::from("3e2c3a3a-c883-432f-9877-dcbb8785650a")));
-
-
-    let mutation_response;
-    mutation_response = create_linear_issue(&contents, issue_variables);
-
-    match mutation_response {
-        Ok(mutation_response) => {println!("Mutation Success: {}", mutation_response)},
-        Err(mutation_response) => {println!("Mutation Failed: {}", mutation_response)},
-    }
-    */
 
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
@@ -206,35 +309,59 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Key::Left => {
                     match app.route {
                         Route::ActionSelect => app.actions.unselect(),
-                        Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
-                            Some(ref mut x) => x.unselect(),
-                            _ => {},
+                        Route::TeamSelect => {
+                            // TODO: Why Doesn't the below line work?
+                            // util::state_list::unselect_2(&mut app.linear_team_select_state.teams_state);
+                            app.linear_team_select_state.teams_state.select(None);
                         }
+                        
                         _ => {}
+                        
                     }
                 }
                 Key::Down => {
                     match app.route {
-                        Route::ActionSelect => app.actions.next(),
-                        Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
-                            Some(ref mut x) => {
-                                x.next();
-                                app.linear_selected_team_idx = x.state.selected();
+                        Route::ActionSelect => app.actions.next(),                        
+                        Route::TeamSelect => {
+                            let handle = &mut *app.linear_team_select_state.teams_data.lock().unwrap();
+                            match *handle {
+                                Some(ref mut x) => {
+                                    // util::state_list::next(&mut app.linear_team_select_state.teams_state, &x.items);
+                                    // app.linear_selected_team_idx = app.linear_team_select_state.teams_state.selected();
+                                    match x.as_array() {
+                                        Some(y) => {
+                                            util::state_list::next(&mut app.linear_team_select_state.teams_state, y);
+                                            app.linear_selected_team_idx = app.linear_team_select_state.teams_state.selected();
+                                        },
+                                        None => {},
+                                    }
+                                }
+                                _ => {},
                             }
-                            _ => {},
                         }
+                        
                         _ => {}
                     }
                 }
                 Key::Up => {
                     match app.route {
                         Route::ActionSelect => app.actions.previous(),
-                        Route::TeamSelect => match  app.linear_team_select_state.teams_stateful {
-                            Some(ref mut x) => {
-                                x.previous();
-                                app.linear_selected_team_idx = x.state.selected();
-                            },
-                            _ => {},
+                        Route::TeamSelect => {
+                            let handle = &mut *app.linear_team_select_state.teams_data.lock().unwrap();
+                            match handle {
+                                Some(ref mut x) => {
+                                    // x.previous();
+                                    // app.linear_selected_team_idx = x.state.selected();
+                                    match x.as_array() {
+                                        Some(y) => {
+                                            util::state_list::previous(&mut app.linear_team_select_state.teams_state, y);
+                                            app.linear_selected_team_idx = app.linear_team_select_state.teams_state.selected();
+                                        },
+                                        None => {},
+                                    }
+                                },
+                                _ => {},
+                            }
                         }
                         _ => {}
                     }
@@ -244,7 +371,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Route::ActionSelect => match app.actions.state.selected() {
                             Some(i) => {
                                 match i {
-                                    0 => { app.switch_route(Route::TeamSelect) }
+                                    0 => { /*app.switch_route(Route::TeamSelect).await*/ app.change_route( Route::TeamSelect, &tx).await }
                                     _ => {}
                                 }
                             }
@@ -252,7 +379,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         // Switch Route as long as a team is selected
                         Route::TeamSelect => match app.linear_selected_team_idx {
-                            Some(_) => { app.switch_route(Route::LinearInterface) },
+                            Some(_) => { app.change_route(Route::LinearInterface, &tx).await },
                             None => {},
                         }
                         _ => {}

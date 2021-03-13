@@ -6,6 +6,8 @@ use tui::{
     Terminal,
 };
 
+use std::sync::{Arc, Mutex};
+
 use colorsys::{Rgb};
 // use colorsys::Color as CTColor;
 
@@ -13,18 +15,19 @@ use colorsys::{Rgb};
 use crate::linear::client::LinearClient;
 
 pub struct LinearIssueDisplayState {
-    pub issue_table_data: Option<serde_json::Value>,
+    pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
     pub issue_table_state: TableState,
 }
 
 impl LinearIssueDisplayState {
-    pub fn load_issues(&mut self, linear_client: &LinearClient, selected_team: &serde_json::Value) {
+
+    pub async fn load_issues(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = linear_client.get_issues_by_team(selected_team.as_object()
+            let issue_fetch_result = LinearClient::get_issues_by_team_2(api_key, selected_team.as_object()
                                                                                     .cloned()
                                                                                     .unwrap_or(serde_json::Map::default())
-                                                                    );
+                                                                    ).await;
 
             let mut issues: serde_json::Value = serde_json::Value::Null;
 
@@ -32,8 +35,7 @@ impl LinearIssueDisplayState {
                 Ok(x) => { issues = x; },
                 Err(y) => {
                                 info!("Get Issues By Team failed: {:?}", y);
-                                self.issue_table_data = None;
-                                return;
+                                return None;
                             },
             }
 
@@ -42,13 +44,14 @@ impl LinearIssueDisplayState {
             match issues {
                 serde_json::Value::Array(_) => {
                     info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
-                    self.issue_table_data = Some(issues);
+                    // self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
+                    return Some(issues);
                 },
-                _ => {return;},
+                _ => {return None;},
             }
 
         } else {
-            return;
+            return None;
         }
     }
 
@@ -101,13 +104,13 @@ impl LinearIssueDisplayState {
             .height(1)
             .bottom_margin(1);
 
-        info!("Header: {:?}", header);
+        // info!("Header: {:?}", header);
 
 
 
         let rows = table_array.iter().enumerate().map(|(idx, row)| {
 
-            info!("Table Row Raw: {:?}", row);
+            // info!("Table Row Raw: {:?}", row);
 
             let cell_fields: std::vec::Vec<std::string::String> = vec![row["number"].clone(), row["title"].clone(), row["description"].clone(), row["createdAt"].clone()]
                                 .iter()
@@ -123,7 +126,7 @@ impl LinearIssueDisplayState {
 
 
 
-            info!("Cell Fields: {:?}", cell_fields);
+            // info!("Cell Fields: {:?}", cell_fields);
 
             let height = cell_fields
                 .iter()
@@ -132,7 +135,7 @@ impl LinearIssueDisplayState {
                 .unwrap_or(0)
                 + 1;
 
-            info!("Height: {:?}", height);
+            // info!("Height: {:?}", height);
 
             let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
 
@@ -190,9 +193,8 @@ impl Default for LinearIssueDisplayState {
 
     fn default() -> LinearIssueDisplayState {
         LinearIssueDisplayState {
-            issue_table_data: Some(serde_json::Value::Array(vec![])),
+            issue_table_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
             issue_table_state: TableState::default(),
         }
     }
 }
-

@@ -8,57 +8,58 @@ use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans, Text},
-    widgets::{Block, Borders, List, ListItem},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Frame,
 };
+
+use std::sync::{ Arc, Mutex };
 
 
 pub struct LinearTeamSelectState {
     // serde_json::Value::Array
-    pub teams_data: Option<serde_json::Value>,
-    pub teams_stateful: Option<util::StatefulList<serde_json::Value>>,
+    pub teams_data: Arc<Mutex<Option<serde_json::Value>>>,
+    pub teams_state: ListState,
 }
 
 impl LinearTeamSelectState {
 
-    pub fn load_teams(&mut self, linear_client: &mut linear::client::LinearClient) {
-        let team_fetch_result = linear_client.get_teams();
+    pub async fn load_teams(api_key: Option<String>) -> Option<serde_json::Value> {
+
+        info!("Loading teams");
+
+        let team_fetch_result = linear::client::LinearClient::get_teams_2(api_key).await;
         let mut teams: serde_json::Value = serde_json::Value::Null;
       
         match team_fetch_result {
           Ok(x) => { teams = x; }
           Err(y) => {
-                        self.teams_data = None;
-                        self.teams_stateful = None;
-                        return;
+                        return None;
                     },
           _ => {}
         }
 
         // let Ok(teams) = team_fetch_result;
 
-        // println!("teams: {}", teams);
+        info!("teams: {}", teams);
 
         if teams == serde_json::Value::Null {
               // Reset back to previous screen, and continue past loop
               // println!("Team Fetch failed");
-              self.teams_data = Some(serde_json::Value::Array(vec![]));
-              self.teams_stateful = Some(util::StatefulList::new());
-              return;
+              return Some(serde_json::Value::Array(vec![]));
         }
 
-        let teams_vec;
-
-        match teams.as_array() {
-          Some(x) => { teams_vec = x; },
-          None => {
-            return;
-          }
+        match teams {
+            serde_json::Value::Array(_) => {
+                info!("Populating LinearTeamSelectState::teams_data with: {:?}", teams);
+                // self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
+                return Some(teams);
+            },
+            _ => {return None;},
         }
-
-        self.teams_stateful = Some(util::StatefulList::with_items(teams_vec.clone()));
-        self.teams_data = Some(teams);
     }
+
+
+
 
     pub fn get_rendered_teams_data(teams_stateful: &Option<serde_json::Value>) -> Result<List, &'static str> {
 
@@ -91,7 +92,6 @@ impl LinearTeamSelectState {
                         })
                         .collect();
 
-                        info!("get_rendered_teams_data_2 items: Vec<ListItem> - {:?}", items);
     
                         // Create a List from all list items and highlight the currently selected one
                         let items = List::new(items)
@@ -113,13 +113,15 @@ impl LinearTeamSelectState {
 
     }
 
+
 }
 
 impl Default for LinearTeamSelectState {
     fn default() -> LinearTeamSelectState {
         LinearTeamSelectState {
-            teams_data: Some(serde_json::Value::Array(vec![])),
-            teams_stateful: Some(util::StatefulList::new()),
+            // teams_data: Arc::new(Some(serde_json::Value::Array(vec![]))),
+            teams_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
+            teams_state: ListState::default(),
         }
     }
 }

@@ -1,4 +1,22 @@
 use thiserror::Error;
+use std::io;
+
+
+#[derive(Error, Debug)]
+pub enum GraphQLParseError {
+    #[error("Failed to read GraphQL query file")]
+    FileReadFailure(#[from] io::Error),
+    #[error("Failed to parse GraphQL query into JSON")]
+    JSONParseFailure(#[from] serde_json::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum GraphQLRequestError {
+    #[error("GraphQL operation parse failed")]
+    GraphQLParseFailure(#[from] GraphQLParseError),
+    #[error("GraphQL request failed")]
+    GraphQLRequestError(#[from] reqwest::Error)
+}
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -23,5 +41,6 @@ pub enum ConfigError {
     #[error("Credentials not found for ${platform:?}")]
     CredentialsNotFound {
         platform: String,
-    }    
+    },
+
 }
