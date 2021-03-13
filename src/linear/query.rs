@@ -16,6 +16,7 @@ use std::result::Result;
 const LINEAR_GET_VIEWER_PATH: &str = "queries/linear/get_viewer.graphql";
 const LINEAR_GET_TEAMS_PATH: &str = "queries/linear/get_teams.graphql";
 const LINEAR_FETCH_ISSUES_BY_TEAM_PATH: &str = "queries/linear/fetch_issues_by_team.graphql";
+const LINEAR_GET_WORKFLOW_STATES: &str = "queries/linear/get_workflow_states.graphql";
 
 pub async fn get_viewer(api_key: &str) -> Result<Value, GraphQLRequestError> {
 
@@ -111,4 +112,25 @@ pub async fn get_issues_by_team(api_key: &str, variables: serde_json::Map<String
 
     Ok(resp)
 
+}
+
+
+pub async fn get_workflow_states(api_key: &str) -> Result<Value, GraphQLRequestError> {
+
+    let query;
+
+    query = parse_graphql_from_file(&LINEAR_GET_WORKFLOW_STATES)?;
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
 }

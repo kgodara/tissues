@@ -27,7 +27,7 @@ impl LinearTeamSelectState {
 
         info!("Loading teams");
 
-        let team_fetch_result = linear::client::LinearClient::get_teams_2(api_key).await;
+        let team_fetch_result = linear::client::LinearClient::get_teams(api_key).await;
         let mut teams: serde_json::Value = serde_json::Value::Null;
       
         match team_fetch_result {

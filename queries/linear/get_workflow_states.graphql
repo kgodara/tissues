@@ -2,8 +2,9 @@
         workflowStates {
             nodes {
                 name
-                color
                 type
+                color
+                description
             }
         }
     }"

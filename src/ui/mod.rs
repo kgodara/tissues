@@ -17,6 +17,8 @@ use crate::util;
 
 use crate::components::linear_team_select::LinearTeamSelectState;
 use crate::components::linear_issue_display::LinearIssueDisplayState;
+use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
+
 
 
 pub const BASIC_VIEW_HEIGHT: u16 = 6;
@@ -73,7 +75,7 @@ where
   B: Backend,
 {
 
-    info!("Calling get_rendered_teams_data with: {:?}", app.linear_team_select_state.teams_data);
+    // info!("Calling get_rendered_teams_data with: {:?}", app.linear_team_select_state.teams_data);
 
     let mut items;
     let items_result;
@@ -93,7 +95,7 @@ where
       .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
       .split(f.size());
 
-    info!("About to render team select");
+    // info!("About to render team select");
     // We can now render the item list
     f.render_stateful_widget(items, chunks[0], &mut app.linear_team_select_state.teams_state);
 }
@@ -105,7 +107,7 @@ where
   B: Backend,
 {
 
-  info!("Calling draw_issue_display with: {:?}", app.linear_issue_display_state.issue_table_data);
+  // info!("Calling draw_issue_display with: {:?}", app.linear_issue_display_state.issue_table_data);
 
   let handle = app.linear_issue_display_state.issue_table_data.lock().unwrap();
 
@@ -128,5 +130,26 @@ where
     .split(f.size());
 
   f.render_stateful_widget(table, chunks[0], &mut table_state);
+
+  if app.linear_draw_workflow_state_select == true {
+
+    let handle = app.linear_workflow_select_state.workflow_states_data.lock().unwrap();
+
+    // let block = Block::default().title("Popup").borders(Borders::ALL);
+    let table;
+    let table_result = LinearWorkflowStateDisplayState::get_rendered_workflow_state_select(&handle);
+
+    match table_result {
+      Ok(x) => { table = x },
+      Err(x) => {return;},
+    }
+
+    let area = util::ui::centered_rect(60, 60, f.size());
+    f.render_widget(Clear, area); //this clears out the background
+    f.render_widget(table, area);
+
+  }
+
+
 
 }

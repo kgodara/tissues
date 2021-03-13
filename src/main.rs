@@ -89,6 +89,13 @@ pub struct App<'a> {
     // Selected Linear Issue
     linear_selected_issue_idx: Option<usize>,
 
+    // Linear Workflow Select State
+    linear_workflow_select_state: components::linear_workflow_state_display::LinearWorkflowStateDisplayState,
+
+    // Draw Workflow State Selection panel
+    linear_draw_workflow_state_select: bool,
+
+
     // Available actions
     actions: util::StatefulList<&'a str>,
 }
@@ -107,6 +114,9 @@ impl<'a> Default for App<'a> {
  
             linear_issue_display_state: components::linear_issue_display::LinearIssueDisplayState::default(),
             linear_selected_issue_idx: None,
+            
+            linear_workflow_select_state: components::linear_workflow_state_display::LinearWorkflowStateDisplayState::default(),
+            linear_draw_workflow_state_select: false,
 
             actions: util::StatefulList::with_items(vec![
                 "Create Issue",
@@ -220,6 +230,46 @@ impl<'a> App<'a> {
         }
         self.route = route;
     }
+
+    fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<Command>) {
+
+        match event_name {
+            "load_workflows" => {
+                let tx2 = tx.clone();
+
+                let api_key = self.linear_client.config.api_key.clone();
+
+                let workflow_data_handle = self.linear_workflow_select_state.workflow_states_data.clone();
+
+
+                let t1 = tokio::spawn(async move {
+
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    let cmd = Command::LoadWorkflowStates { api_key: api_key, resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
+
+                    let res = resp_rx.await.ok();
+
+                    info!("LoadWorkflowStates Command returned: {:?}", res);
+                    
+                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
+
+                    match res {
+                        Some(x) => {
+                            *workflow_data_lock = x;
+                        }
+                        None => {},
+                    }
+
+                    info!("New self.linear_workflow_select_state.workflow_states_data: {:?}", workflow_data_lock);                    
+                });
+            }
+            _ => {return},
+        }
+
+    }
+
 }
 
 
@@ -269,6 +319,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     info!("LoadLinearIssuesByTeam data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
+                },
+                Command::LoadWorkflowStates {api_key, resp} => {
+                    let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states(api_key).await;
+                    info!("LoadWorkflowStates data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
                 }
             }
         }
@@ -309,6 +365,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::Input(input) => match input {
                 Key::Char('q') => {
                     break;
+                },
+                Key::Char('m') => {
+                    match app.route {
+                        // Create pop-up on top of issue display component
+                        Route::LinearInterface => {
+                            // Dispatch event to begin loading new data
+                            app.dispatch_event("load_workflows", &tx);
+
+                            // Enable drawing of workflow state selection pop-up
+                            app.linear_draw_workflow_state_select = true;
+                        }
+                        _ => {},
+                    }
                 }
                 Key::Left => {
                     match app.route {

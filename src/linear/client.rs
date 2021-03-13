@@ -1,6 +1,7 @@
 use super::config::LinearConfig;
 use super::query::get_teams as exec_get_teams;
 use super::query::get_issues_by_team as exec_get_issues_by_team;
+use super::query::get_workflow_states as exec_get_workflow_states;
 
 use super::error::LinearClientError;
 
@@ -22,30 +23,8 @@ impl LinearClient {
         self.config = new_config;
     }
 
-    pub async fn get_teams(&self) -> Result<serde_json::Value, LinearClientError> {
 
-        let linear_api_key;
-
-        info!("self.config.api_key: {:?}", self.config.api_key);
-
-        match &self.config.api_key {
-            Some(x) => linear_api_key = x,
-            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
-        };
-
-        info!("linear_api_key: {:?}", linear_api_key);
-
-
-        let query_response = exec_get_teams(linear_api_key).await?;
-
-        let ref team_nodes = query_response["data"]["teams"]["nodes"];
-
-        Ok(team_nodes.clone())
-    }
-
-
-
-    pub async fn get_teams_2(api_key: Option<String>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_teams(api_key: Option<String>) -> Result<serde_json::Value, LinearClientError> {
 
         let linear_api_key;
 
@@ -67,28 +46,7 @@ impl LinearClient {
     }
 
 
-
-
-    pub async fn get_issues_by_team(&self, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
-
-        info!("Calling exec_get_issues_by_team - variables: {:?}", variables);
-
-        let linear_api_key;
-        match &self.config.api_key {
-            Some(x) => linear_api_key = x,
-            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
-        };
-
-
-        let query_response = exec_get_issues_by_team(linear_api_key, variables).await?;
-
-        let ref issue_nodes = query_response["data"]["team"]["issues"]["nodes"];
-
-        Ok(issue_nodes.clone())
-    }
-
-
-    pub async fn get_issues_by_team_2(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_issues_by_team(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
 
         info!("Calling exec_get_issues_by_team - variables: {:?}", variables);
 
@@ -105,6 +63,30 @@ impl LinearClient {
 
         Ok(issue_nodes.clone())
     }
+
+    pub async fn get_workflow_states(api_key: Option<String>) -> Result<serde_json::Value, LinearClientError> {
+
+        let linear_api_key;
+
+        info!("self.config.api_key: {:?}", api_key);
+
+        match &api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+        info!("linear_api_key: {:?}", linear_api_key);
+
+
+        let query_response = exec_get_workflow_states(linear_api_key).await?;
+
+        let ref workflow_state_nodes = query_response["data"]["workflowStates"]["nodes"];
+
+        Ok(workflow_state_nodes.clone())
+
+    }
+
+
 
 }
 
