@@ -92,6 +92,9 @@ pub struct App<'a> {
     // Linear Workflow Select State
     linear_workflow_select_state: components::linear_workflow_state_display::LinearWorkflowStateDisplayState,
 
+    // Selected Linear Workflow State
+    linear_selected_workflow_state_idx: Option<usize>,
+
     // Draw Workflow State Selection panel
     linear_draw_workflow_state_select: bool,
 
@@ -116,6 +119,8 @@ impl<'a> Default for App<'a> {
             linear_selected_issue_idx: None,
             
             linear_workflow_select_state: components::linear_workflow_state_display::LinearWorkflowStateDisplayState::default(),
+            linear_selected_workflow_state_idx: None,
+
             linear_draw_workflow_state_select: false,
 
             actions: util::StatefulList::with_items(vec![
@@ -363,9 +368,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match events.next()? {
             Event::Input(input) => match input {
+                // Quit program
                 Key::Char('q') => {
                     break;
                 },
+                // Only relevant when user is in position to modify an issue's workflow state
                 Key::Char('m') => {
                     match app.route {
                         // Create pop-up on top of issue display component
@@ -381,12 +388,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Key::Left => {
                     match app.route {
+
+                        // Unselect from List of Actions
                         Route::ActionSelect => app.actions.unselect(),
+
+                        // Unselect from Selection of Teams
                         Route::TeamSelect => {
-                            // TODO: Why Doesn't the below line work?
-                            // util::state_list::unselect_2(&mut app.linear_team_select_state.teams_state);
-                            app.linear_team_select_state.teams_state.select(None);
+                            util::state_list::unselect(&mut app.linear_team_select_state.teams_state);
                         },
+
+                        // Unselect from list of Linear Issues
                         Route::LinearInterface => {
                             util::state_table::unselect(&mut app.linear_issue_display_state.issue_table_state);
                         }
@@ -397,13 +408,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Key::Down => {
                     match app.route {
-                        Route::ActionSelect => app.actions.next(),                        
+                        // Select next Action
+                        Route::ActionSelect => app.actions.next(),
+
+                        // Select next team from list of Linear teams and update 'app.linear_selected_team_idx'
                         Route::TeamSelect => {
                             let handle = &mut *app.linear_team_select_state.teams_data.lock().unwrap();
                             match *handle {
                                 Some(ref mut x) => {
-                                    // util::state_list::next(&mut app.linear_team_select_state.teams_state, &x.items);
-                                    // app.linear_selected_team_idx = app.linear_team_select_state.teams_state.selected();
                                     match x.as_array() {
                                         Some(y) => {
                                             util::state_list::next(&mut app.linear_team_select_state.teams_state, y);
@@ -415,19 +427,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 _ => {},
                             }
                         },
+
+                        // Select next issue from list of Linear issues and update 'app.linear_selected_issue_idx'
                         Route::LinearInterface => {
-                            let handle = &mut *app.linear_issue_display_state.issue_table_data.lock().unwrap();
-                            match *handle {
-                                Some(ref mut x) => {
-                                    match x.as_array() {
-                                        Some(y) => {
-                                            util::state_table::next(&mut app.linear_issue_display_state.issue_table_state, y);
-                                            app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
-                                        },
-                                        None => {},
+                            // If User is not selecting a new workflow state for an issue, select next issue
+                            if app.linear_draw_workflow_state_select == false {
+                                let handle = &mut *app.linear_issue_display_state.issue_table_data.lock().unwrap();
+                                match *handle {
+                                    Some(ref mut x) => {
+                                        match x.as_array() {
+                                            Some(y) => {
+                                                util::state_table::next(&mut app.linear_issue_display_state.issue_table_state, y);
+                                                app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
+                                            },
+                                            None => {},
+                                        }
                                     }
+                                    _ => {},
                                 }
-                                _ => {},
+                            }
+                            // If User is selecting a new workflow state for an issue, select next workflow state
+                            else {
+                                info!("Attempting to scroll down on Workflow State Selection");
+                                let handle = &mut *app.linear_workflow_select_state.workflow_states_data.lock().unwrap();
+                                match *handle {
+                                    Some(ref mut x) => {
+                                        match x.as_array() {
+                                            Some(y) => {
+                                                util::state_table::next(&mut app.linear_workflow_select_state.workflow_states_state, y);
+                                                app.linear_selected_workflow_state_idx = app.linear_workflow_select_state.workflow_states_state.selected();
+                                                info!("app.linear_selected_workflow_state_idx: {:?}", app.linear_selected_workflow_state_idx);
+                                            },
+                                            None => {},
+                                        }
+                                    },
+                                    None => {}
+                                }
                             }
                         }
                         
@@ -441,8 +476,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let handle = &mut *app.linear_team_select_state.teams_data.lock().unwrap();
                             match handle {
                                 Some(ref mut x) => {
-                                    // x.previous();
-                                    // app.linear_selected_team_idx = x.state.selected();
                                     match x.as_array() {
                                         Some(y) => {
                                             util::state_list::previous(&mut app.linear_team_select_state.teams_state, y);
@@ -455,18 +488,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         },
                         Route::LinearInterface => {
-                            let handle = &mut *app.linear_issue_display_state.issue_table_data.lock().unwrap();
-                            match *handle {
-                                Some(ref mut x) => {
-                                    match x.as_array() {
-                                        Some(y) => {
-                                            util::state_table::previous(&mut app.linear_issue_display_state.issue_table_state, y);
-                                            app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
-                                        },
-                                        None => {},
+                            // If User is not selecting a new workflow state for an issue, select previous issue
+                            if app.linear_draw_workflow_state_select == false {
+                                let handle = &mut *app.linear_issue_display_state.issue_table_data.lock().unwrap();
+                                match *handle {
+                                    Some(ref mut x) => {
+                                        match x.as_array() {
+                                            Some(y) => {
+                                                util::state_table::previous(&mut app.linear_issue_display_state.issue_table_state, y);
+                                                app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
+                                            },
+                                            None => {},
+                                        }
                                     }
+                                    _ => {},
                                 }
-                                _ => {},
+                            }
+                            // If User is selecting a new workflow state for an issue, select previous workflow state
+                            else {
+                                let handle = &mut *app.linear_workflow_select_state.workflow_states_data.lock().unwrap();
+                                match *handle {
+                                    Some(ref mut x) => {
+                                        match x.as_array() {
+                                            Some(y) => {
+                                                util::state_table::previous(&mut app.linear_workflow_select_state.workflow_states_state, y);
+                                                app.linear_selected_workflow_state_idx = app.linear_workflow_select_state.workflow_states_state.selected();
+                                            },
+                                            None => {},
+                                        }
+                                    },
+                                    None => {}
+                                }
                             }
                         }
                         _ => {}
@@ -487,7 +539,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Route::TeamSelect => match app.linear_selected_team_idx {
                             Some(_) => { app.change_route(Route::LinearInterface, &tx).await },
                             None => {},
-                        }
+                        },
                         _ => {}
                     }
                 }

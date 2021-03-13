@@ -146,10 +146,11 @@ where
 
     let area = util::ui::centered_rect(60, 60, f.size());
     f.render_widget(Clear, area); //this clears out the background
-    f.render_widget(table, area);
+    // f.render_widget(table, area);
+
+    let mut table_state = app.linear_workflow_select_state.workflow_states_state.clone();
+
+    f.render_stateful_widget(table, area, &mut table_state);
 
   }
-
-
-
 }
