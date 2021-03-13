@@ -78,33 +78,14 @@ where
     let mut items;
     let items_result;
 
-    // let mut handle = app.linear_team_select_state.teams_data.lock().unwrap();
-
     let handle = app.linear_team_select_state.teams_data.lock().unwrap();
-    items_result = LinearTeamSelectState::get_rendered_teams_data_2(&*handle);//.to_owned();
+    items_result = LinearTeamSelectState::get_rendered_teams_data(&*handle);
 
 
     match items_result {
       Ok(x) => { items = x },
       Err(_) => {return;},
     }
-
-
-    // items = items.clone();
-
-    // drop(handle);
-
-    // let mut list_state_option = app.linear_team_select_state.teams_data.lock().unwrap();//.as_mut();
-    /*
-    let list_state;
-
-
-    match &*handle {
-      Some(x) => { list_state = x },
-      None => {return;},
-    }
-    */
-    // info!("items: {:?}", items);
 
 
     let chunks = Layout::default()
