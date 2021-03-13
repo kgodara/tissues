@@ -2,6 +2,7 @@ use tui::widgets::ListState;
 
 pub mod event;
 pub mod state_list;
+pub mod state_table;
 
 // pub use state_list;
 

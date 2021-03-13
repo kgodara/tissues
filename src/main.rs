@@ -86,6 +86,9 @@ pub struct App<'a> {
     // Linear Issue Display State
     linear_issue_display_state: components::linear_issue_display::LinearIssueDisplayState,
 
+    // Selected Linear Issue
+    linear_selected_issue_idx: Option<usize>,
+
     // Available actions
     actions: util::StatefulList<&'a str>,
 }
@@ -103,6 +106,7 @@ impl<'a> Default for App<'a> {
             linear_selected_team_idx: None,
  
             linear_issue_display_state: components::linear_issue_display::LinearIssueDisplayState::default(),
+            linear_selected_issue_idx: None,
 
             actions: util::StatefulList::with_items(vec![
                 "Create Issue",
@@ -188,9 +192,9 @@ impl<'a> App<'a> {
                                     tx3.send(cmd).await.unwrap();
                 
                                     let res = resp2_rx.await.ok();
-                
+
                                     info!("LoadLinearIssues Command returned: {:?}", res);
-                
+
                                     let mut issue_data_lock = team_issue_handle.lock().unwrap();
                 
                                     match res {
@@ -238,7 +242,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap()).unwrap();
 
-    // Create a new channel with a capacity of at most 32.
+    // Create a new channel with a capacity of at most 8.
     let (tx, mut rx) = mpsc::channel(8);
 
 
@@ -313,8 +317,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // TODO: Why Doesn't the below line work?
                             // util::state_list::unselect_2(&mut app.linear_team_select_state.teams_state);
                             app.linear_team_select_state.teams_state.select(None);
+                        },
+                        Route::LinearInterface => {
+                            util::state_table::unselect(&mut app.linear_issue_display_state.issue_table_state);
                         }
-                        
+
                         _ => {}
                         
                     }
@@ -332,6 +339,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         Some(y) => {
                                             util::state_list::next(&mut app.linear_team_select_state.teams_state, y);
                                             app.linear_selected_team_idx = app.linear_team_select_state.teams_state.selected();
+                                        },
+                                        None => {},
+                                    }
+                                }
+                                _ => {},
+                            }
+                        },
+                        Route::LinearInterface => {
+                            let handle = &mut *app.linear_issue_display_state.issue_table_data.lock().unwrap();
+                            match *handle {
+                                Some(ref mut x) => {
+                                    match x.as_array() {
+                                        Some(y) => {
+                                            util::state_table::next(&mut app.linear_issue_display_state.issue_table_state, y);
+                                            app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
                                         },
                                         None => {},
                                     }
@@ -360,6 +382,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         None => {},
                                     }
                                 },
+                                _ => {},
+                            }
+                        },
+                        Route::LinearInterface => {
+                            let handle = &mut *app.linear_issue_display_state.issue_table_data.lock().unwrap();
+                            match *handle {
+                                Some(ref mut x) => {
+                                    match x.as_array() {
+                                        Some(y) => {
+                                            util::state_table::previous(&mut app.linear_issue_display_state.issue_table_state, y);
+                                            app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
+                                        },
+                                        None => {},
+                                    }
+                                }
                                 _ => {},
                             }
                         }
