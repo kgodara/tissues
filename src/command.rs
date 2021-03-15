@@ -19,6 +19,12 @@ pub enum Command {
         api_key: Option<String>,
         resp: Responder<serde_json::Value>,
     },
+    UpdateIssueWorkflowState {
+        api_key: Option<String>,
+        selected_issue: serde_json::Value,
+        selected_workflow_state: serde_json::Value,
+        resp: Responder<serde_json::Value>,
+    },
 }
 
 type Responder<T> = oneshot::Sender<Option<T>>;

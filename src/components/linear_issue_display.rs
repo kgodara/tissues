@@ -129,7 +129,7 @@ impl LinearIssueDisplayState {
                     _ => None,
                 };
 
-                let style_color = style_color_from_hex_str(color);
+                let style_color = style_color_from_hex_str(&color);
 
                 match name {
                     Some(x) => { match style_color {

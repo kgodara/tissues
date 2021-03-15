@@ -30,7 +30,7 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-pub fn style_color_from_hex_str(color: serde_json::Value) -> Option<Color> {
+pub fn style_color_from_hex_str(color: &serde_json::Value) -> Option<Color> {
 
     let hex_str;
 

@@ -182,8 +182,6 @@ impl<'a> App<'a> {
                 let team_data_handle = self.linear_team_select_state.teams_data.clone();
                 let team_issue_handle = self.linear_issue_display_state.issue_table_data.clone();
 
-                info!("Linear Interface Loading Process Begun");
-
                 match self.linear_selected_team_idx {
                     Some(idx) => {
                         // Arc<Option<T>> -> Option<&T>
@@ -230,7 +228,7 @@ impl<'a> App<'a> {
                     _ => {return;},
                 }
             },
-            
+
             _ => {},
         }
         self.route = route;
@@ -257,7 +255,7 @@ impl<'a> App<'a> {
                     let res = resp_rx.await.ok();
 
                     info!("LoadWorkflowStates Command returned: {:?}", res);
-                    
+
                     let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
 
                     match res {
@@ -267,8 +265,76 @@ impl<'a> App<'a> {
                         None => {},
                     }
 
-                    info!("New self.linear_workflow_select_state.workflow_states_data: {:?}", workflow_data_lock);                    
+                    info!("New self.linear_workflow_select_state.workflow_states_data: {:?}", workflow_data_lock);
                 });
+            },
+            "update_issue_workflow" => {
+                let tx3 = tx.clone();
+
+                let api_key = self.linear_client.config.api_key.clone();
+
+                // Need to get selected Workflow State and selected Issue
+                let issue_data_handle = self.linear_issue_display_state.issue_table_data.clone();
+                let workflow_state_data_handle = self.linear_workflow_select_state.workflow_states_data.clone();
+
+                // Get Linear selected Issue index
+                match self.linear_selected_issue_idx {
+                    Some(issue_idx) => {
+                        // Acquire a lock on Linear Issue data
+                        match &*issue_data_handle.lock().unwrap() {
+                            Some(issue_data) => {
+                                // Get Linear selected Workflow State index
+                                match self.linear_selected_workflow_state_idx {
+                                    Some(workflow_idx) => {
+                                        // Acquire a lock on Linear Workflow state data
+                                        match &*workflow_state_data_handle.lock().unwrap() {
+                                            Some(workflow_data) => {
+                                                // Acquire relevant issue and workflow state
+                                                let selected_issue = issue_data[issue_idx].clone();
+                                                let selected_workflow_state = workflow_data[workflow_idx].clone();
+
+                                                // Spawn task to issue command to update workflow state
+                                                let t3 = tokio::spawn( async move {
+                                                    let (resp2_tx, resp2_rx) = oneshot::channel();
+
+                                                    let cmd = Command::UpdateIssueWorkflowState {   api_key: api_key,
+                                                                                                    selected_issue: selected_issue,
+                                                                                                    selected_workflow_state: selected_workflow_state,
+                                                                                                    resp: resp2_tx  
+                                                                                                };
+                                                    tx3.send(cmd).await.unwrap();
+
+                                                    let res = resp2_rx.await.ok();
+
+                                                    info!("UpdateIssueWorkflowState Command returned: {:?}", res);
+
+                                                    // Match existing Issue in display and update with returned issue
+
+                                                    /*
+                                                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
+                                
+                                                    match res {
+                                                        Some(x) => {
+                                                            *workflow_data_lock = x;
+                                                        }
+                                                        None => {},
+                                                    }
+                                                    */
+
+                                                });
+                                            },
+                                            None => {},
+                                        }
+
+                                    },
+                                    None => {}
+                                };
+                            },
+                            None => {},
+                        };
+                    },
+                    None => {},
+                }
             }
             _ => {return},
         }
@@ -325,11 +391,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(option_stateful);
                 },
-                Command::LoadWorkflowStates {api_key, resp} => {
+                Command::LoadWorkflowStates { api_key, resp } => {
                     let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states(api_key).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
+                },
+                Command::UpdateIssueWorkflowState { api_key, selected_issue, selected_workflow_state, resp } => {
+
+                    // Get id field from issue Object
+                    let issue_id = selected_issue["id"].clone();
+                    // Get id field from workflow state Object
+                    let workflow_state_id = selected_workflow_state["id"].clone();
+
+                    // Return if id not found for the issue or workflow state
+                    if issue_id == serde_json::Value::Null || workflow_state_id == serde_json::Value::Null {
+                        let _ = resp.send(None);
+                    }
+                    else {
+                        let mut issue_update_variables = serde_json::Map::new();
+
+                        issue_update_variables.insert(String::from("issueId"), issue_id);
+                        issue_update_variables.insert(String::from("newStateId"), workflow_state_id);
+
+                        let option_stateful = linear::client::LinearClient::update_issue_workflow_state(api_key, issue_update_variables).await;
+
+                        let _ = resp.send(option_stateful.ok());
+                    }
                 }
             }
         }
@@ -439,6 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(y) => {
                                                 util::state_table::next(&mut app.linear_issue_display_state.issue_table_state, y);
                                                 app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
+                                                info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
                                             },
                                             None => {},
                                         }
@@ -456,7 +545,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(y) => {
                                                 util::state_table::next(&mut app.linear_workflow_select_state.workflow_states_state, y);
                                                 app.linear_selected_workflow_state_idx = app.linear_workflow_select_state.workflow_states_state.selected();
-                                                info!("app.linear_selected_workflow_state_idx: {:?}", app.linear_selected_workflow_state_idx);
+                                                // info!("app.linear_selected_workflow_state_idx: {:?}", app.linear_selected_workflow_state_idx);
                                             },
                                             None => {},
                                         }
@@ -497,6 +586,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             Some(y) => {
                                                 util::state_table::previous(&mut app.linear_issue_display_state.issue_table_state, y);
                                                 app.linear_selected_issue_idx = app.linear_issue_display_state.issue_table_state.selected();
+                                                info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
                                             },
                                             None => {},
                                         }
@@ -506,6 +596,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             // If User is selecting a new workflow state for an issue, select previous workflow state
                             else {
+                                info!("Attempting to scroll up on Workflow State Selection");
                                 let handle = &mut *app.linear_workflow_select_state.workflow_states_data.lock().unwrap();
                                 match *handle {
                                     Some(ref mut x) => {
@@ -539,6 +630,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Route::TeamSelect => match app.linear_selected_team_idx {
                             Some(_) => { app.change_route(Route::LinearInterface, &tx).await },
                             None => {},
+                        },
+                        // Dispatch Update Issue Workflow State command if User selects a workflow state for a given Issue
+                        Route::LinearInterface => {
+                            app.dispatch_event("update_issue_workflow", &tx);
                         },
                         _ => {}
                     }
