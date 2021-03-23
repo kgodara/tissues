@@ -1,0 +1,15 @@
+{   "query": "query fetchWorkflowStatesByTeam($id: String!) {
+        team(id: $id) {
+            states {
+                nodes {
+                    id
+                    name
+                    type
+                    color
+                    description
+                }
+            }
+        }
+    }",
+    "operationName": "fetchWorkflowStatesByTeam"
+}

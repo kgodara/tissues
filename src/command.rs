@@ -17,6 +17,7 @@ pub enum Command {
     },
     LoadWorkflowStates {
         api_key: Option<String>,
+        selected_team: serde_json::Value,
         resp: Responder<serde_json::Value>,
     },
     UpdateIssueWorkflowState {

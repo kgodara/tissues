@@ -1,7 +1,7 @@
 use super::config::LinearConfig;
 use super::query::get_teams as exec_get_teams;
 use super::query::get_issues_by_team as exec_get_issues_by_team;
-use super::query::get_workflow_states as exec_get_workflow_states;
+use super::query::get_workflow_states_by_team as exec_get_workflow_states_by_team;
 use super::query::update_issue_workflow_state as exec_update_issue_workflow_state;
 
 use std::result::Result;
@@ -70,9 +70,11 @@ impl LinearClient {
         Ok(issue_nodes.clone())
     }
 
-    pub async fn get_workflow_states(api_key: Option<String>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_workflow_states_by_team(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
 
         let linear_api_key;
+
+        info!("Calling exec_get_workflow_states_by_team - variables: {:?}", variables);
 
         info!("self.config.api_key: {:?}", api_key);
 
@@ -84,9 +86,11 @@ impl LinearClient {
         info!("linear_api_key: {:?}", linear_api_key);
 
 
-        let query_response = exec_get_workflow_states(linear_api_key).await?;
+        let query_response = exec_get_workflow_states_by_team(linear_api_key, variables).await?;
 
-        let ref workflow_state_nodes = query_response["data"]["workflowStates"]["nodes"];
+        info!("get_workflow_states_by_team query_response: {:?}", query_response);
+
+        let ref workflow_state_nodes = query_response["data"]["team"]["states"]["nodes"];
 
         Ok(workflow_state_nodes.clone())
 

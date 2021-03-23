@@ -242,31 +242,54 @@ impl<'a> App<'a> {
 
                 let api_key = self.linear_client.config.api_key.clone();
 
+                let team_data_handle = self.linear_team_select_state.teams_data.clone();
+
                 let workflow_data_handle = self.linear_workflow_select_state.workflow_states_data.clone();
 
 
-                let t1 = tokio::spawn(async move {
+                match self.linear_selected_team_idx {
+                    Some(idx) => {
+                        // Arc<Option<T>> -> Option<&T>
+                        match &*team_data_handle.lock().unwrap() {
+                            Some(data) => {
+                                
+                                // self.linear_issue_display_state.load_issues(&self.linear_client, &data.items[idx]).await;
 
-                    let (resp_tx, resp_rx) = oneshot::channel();
+                                let team = data[idx].clone();
 
-                    let cmd = Command::LoadWorkflowStates { api_key: api_key, resp: resp_tx };
-                    tx2.send(cmd).await.unwrap();
+                                match team {
+                                    serde_json::Value::Null => return,
+                                    _ => {},
+                                }
 
-                    let res = resp_rx.await.ok();
+                                let t1 = tokio::spawn(async move {
 
-                    info!("LoadWorkflowStates Command returned: {:?}", res);
+                                    let (resp_tx, resp_rx) = oneshot::channel();
 
-                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
+                                    let cmd = Command::LoadWorkflowStates { api_key: api_key, selected_team: team, resp: resp_tx };
+                                    tx2.send(cmd).await.unwrap();
 
-                    match res {
-                        Some(x) => {
-                            *workflow_data_lock = x;
+                                    let res = resp_rx.await.ok();
+
+                                    info!("LoadWorkflowStates Command returned: {:?}", res);
+
+                                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
+
+                                    match res {
+                                        Some(x) => {
+                                            *workflow_data_lock = x;
+                                        }
+                                        None => {},
+                                    }
+
+                                    info!("New self.linear_workflow_select_state.workflow_states_data: {:?}", workflow_data_lock);
+                                });
+                            }
+                            None => {}
                         }
-                        None => {},
                     }
-
-                    info!("New self.linear_workflow_select_state.workflow_states_data: {:?}", workflow_data_lock);
-                });
+                    None => {return;}
+                }
             },
             "update_issue_workflow" => {
                 let tx3 = tx.clone();
@@ -391,8 +414,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(option_stateful);
                 },
-                Command::LoadWorkflowStates { api_key, resp } => {
-                    let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states(api_key).await;
+                Command::LoadWorkflowStates { api_key, selected_team, resp } => {
+                    let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states_by_team(api_key, &selected_team).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);

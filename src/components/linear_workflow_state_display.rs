@@ -23,11 +23,14 @@ pub struct LinearWorkflowStateDisplayState {
 
 impl LinearWorkflowStateDisplayState {
 
-    pub async fn load_workflow_states(api_key: Option<String>) -> Option<serde_json::Value> {
+    pub async fn load_workflow_states_by_team(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
         info!("Loading workflow states");
 
-        let workflow_states_result = LinearClient::get_workflow_states(api_key).await;
+        let workflow_states_result = LinearClient::get_workflow_states_by_team(api_key, selected_team.as_object()
+                                                                                                        .cloned()
+                                                                                                        .unwrap_or(serde_json::Map::default())
+                                                                                ).await;
         let mut workflow_states: serde_json::Value = serde_json::Value::Null;
 
         match workflow_states_result {
