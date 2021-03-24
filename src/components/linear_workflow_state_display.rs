@@ -2,63 +2,60 @@ use tui::{
     backend::TermionBackend,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    widgets::{Block, Borders, Cell, Row, List, Table, TableState, ListState},
     Terminal,
 };
 
 use std::sync::{Arc, Mutex};
 
+use colorsys::{Rgb};
 // use colorsys::Color as CTColor;
 
 
 use crate::linear::client::LinearClient;
-
 use crate::util::ui::style_color_from_hex_str;
 
-pub struct LinearIssueDisplayState {
-    pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
-    pub issue_table_state: TableState,
+pub struct LinearWorkflowStateDisplayState {
+    pub workflow_states_data: Arc<Mutex<Option<serde_json::Value>>>,
+    pub workflow_states_state: TableState,
 }
 
-impl LinearIssueDisplayState {
 
-    pub async fn load_issues(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
+impl LinearWorkflowStateDisplayState {
 
-        if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(api_key, selected_team.as_object()
-                                                                                    .cloned()
-                                                                                    .unwrap_or(serde_json::Map::default())
-                                                                    ).await;
+    pub async fn load_workflow_states_by_team(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
-            let mut issues: serde_json::Value = serde_json::Value::Null;
+        info!("Loading workflow states");
 
-            match issue_fetch_result {
-                Ok(x) => { issues = x; },
-                Err(y) => {
-                                info!("Get Issues By Team failed: {:?}", y);
-                                return None;
-                            },
-            }
+        let workflow_states_result = LinearClient::get_workflow_states_by_team(api_key, selected_team.as_object()
+                                                                                                        .cloned()
+                                                                                                        .unwrap_or(serde_json::Map::default())
+                                                                                ).await;
+        let mut workflow_states: serde_json::Value = serde_json::Value::Null;
 
-            info!("Issue Fetch Result: {:?}", issues);
+        match workflow_states_result {
+          Ok(x) => { workflow_states = x; }
+          Err(y) => {
+                        return None;
+                    },
+          _ => {}
+        }
 
-            match issues {
-                serde_json::Value::Array(_) => {
-                    info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
-                    // self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
-                    return Some(issues);
-                },
-                _ => {return None;},
-            }
+        if workflow_states == serde_json::Value::Null {
+              return Some(serde_json::Value::Array(vec![]));
+        }
 
-        } else {
-            return None;
+        match workflow_states {
+            serde_json::Value::Array(_) => {
+                info!("Populating LinearWorkflowStateDisplayState::workflow_states_data with: {:?}", workflow_states);
+                // self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
+                return Some(workflow_states);
+            },
+            _ => {return None;},
         }
     }
 
-
-
-    pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
+    pub fn get_rendered_workflow_state_select(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
 
         let table_items;
 
@@ -73,9 +70,11 @@ impl LinearIssueDisplayState {
             None => { return Err("table_data is not an Array") }
         }
 
+
+
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
-        let header_cells = ["Number", "Title", "State ('m' to modify)", "Description", "createdAt"]
+        let header_cells = ["Name", "Type", "Description"]
             .iter()
             .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
         
@@ -84,15 +83,9 @@ impl LinearIssueDisplayState {
             .height(1)
             .bottom_margin(1);
 
-        // info!("Header: {:?}", header);
-
-
-
         let rows = table_array.iter().enumerate().map(|(idx, row)| {
 
-            // info!("Table Row Raw: {:?}", row);
-
-            let cell_fields: std::vec::Vec<std::string::String> = vec![row["number"].clone(), row["title"].clone(), row["description"].clone(), row["createdAt"].clone()]
+            let cell_fields: std::vec::Vec<std::string::String> = vec![row["type"].clone(), row["description"].clone()]
                                 .iter()
                                 .map(|field| match field {
 
@@ -119,10 +112,10 @@ impl LinearIssueDisplayState {
 
             let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
 
-            let generate_state_cell = || {
-                let state_obj = row["state"].clone();
-                let name = state_obj["name"].clone();
-                let color = state_obj["color"].clone();
+            let generate_name_cell = || {
+                // let state_obj = row["state"].clone();
+                let name = row["name"].clone();
+                let color = row["color"].clone();
 
                 let name = match name {
                     serde_json::Value::String(x) => Some(x),
@@ -140,7 +133,7 @@ impl LinearIssueDisplayState {
                 }
             };
 
-            cells.insert(2, generate_state_cell());
+            cells.insert(0, generate_name_cell());
 
             Row::new(cells).height(height as u16).bottom_margin(1)
         });
@@ -148,33 +141,28 @@ impl LinearIssueDisplayState {
 
         let t = Table::new(rows)
             .header(header)
-            .block(Block::default().borders(Borders::ALL).title("Table"))
+            .block(Block::default().borders(Borders::ALL).title("Select New Workflow State"))
             .highlight_style(selected_style)
             .highlight_symbol(">> ")
             .widths(&[
-                Constraint::Percentage(10),
+                Constraint::Percentage(15),
                 Constraint::Percentage(15),
                 Constraint::Percentage(25),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20)
             ]);
         
         return Ok(t);
 
     }
 
-
-
-
-
 }
 
-impl Default for LinearIssueDisplayState {
 
-    fn default() -> LinearIssueDisplayState {
-        LinearIssueDisplayState {
-            issue_table_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
-            issue_table_state: TableState::default(),
+
+impl Default for LinearWorkflowStateDisplayState {
+    fn default() -> LinearWorkflowStateDisplayState {
+        LinearWorkflowStateDisplayState {
+            workflow_states_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
+            workflow_states_state: TableState::default(),
         }
     }
 }
