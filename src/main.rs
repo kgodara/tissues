@@ -281,8 +281,8 @@ impl<'a> App<'a> {
                                         }
                                         None => {},
                                     }
-
                                     info!("New self.linear_workflow_select_state.workflow_states_data: {:?}", workflow_data_lock);
+
                                 });
                             }
                             None => {}
@@ -315,14 +315,15 @@ impl<'a> App<'a> {
                                                 // Acquire relevant issue and workflow state
                                                 let selected_issue = issue_data[issue_idx].clone();
                                                 let selected_workflow_state = workflow_data[workflow_idx].clone();
+                                                let mut issue_update_data_handle = self.linear_issue_display_state.issue_table_data.clone();
 
                                                 // Spawn task to issue command to update workflow state
                                                 let t3 = tokio::spawn( async move {
                                                     let (resp2_tx, resp2_rx) = oneshot::channel();
 
                                                     let cmd = Command::UpdateIssueWorkflowState {   api_key: api_key,
-                                                                                                    selected_issue: selected_issue,
-                                                                                                    selected_workflow_state: selected_workflow_state,
+                                                                                                    selected_issue: selected_issue.clone(),
+                                                                                                    selected_workflow_state: selected_workflow_state.clone(),
                                                                                                     resp: resp2_tx  
                                                                                                 };
                                                     tx3.send(cmd).await.unwrap();
@@ -331,7 +332,77 @@ impl<'a> App<'a> {
 
                                                     info!("UpdateIssueWorkflowState Command returned: {:?}", res);
 
-                                                    // Match existing Issue in display and update with returned issue
+                                                    // UpdateIssueWorkflowState Command returned: Some(Some(Object({"issue_response": Object({"createdAt": String("2021-02-06T17:47:01.039Z"), "id": String("ace38e69-8a64-46f8-ad57-dc70c61f5599"), "number": Number(11), "title": String("Test Insomnia 1")}), "success": Bool(true)})))
+                                                    // If Some(Some(Object({"success": Bool(true)})))
+                                                    // then can match linear_issue_display_state.issue_table_data using selected_issue["id"]
+                                                    // and update linear_issue_display_state.issue_table_data[x]["state"] with selected_workflow_state
+
+                                                    let mut update_succeeded = false;
+                                                    
+                                                    match res {
+                                                        Some(x) => {
+                                                            match x {
+                                                                Some(query_response) => {
+                                                                    // update_succeeded = queryResponse["success"].as_bool().get_or_insert(false);
+                                                                    if let serde_json::Value::Bool(value) = query_response["success"] {
+                                                                        update_succeeded = value;//.as_bool().get_or_insert(false);
+                                                                    }
+                                                                },
+                                                                None => {}
+                                                            }
+                                                        },
+                                                        None => {},
+                                                    }
+
+                                                    let updated_issue_id = String::from(*selected_issue["id"].as_str().get_or_insert(""));// = selected_issue["id"];
+                                                    /*
+                                                    match &selected_issue["id"] {
+                                                        serde_json::Value::String(x) => updated_issue_id = x,
+                                                        _ => { update_succeeded = false }
+                                                    };
+                                                    */
+
+                                                    // match linear_issue_display_state.issue_table_data using selected_issue["id"]
+                                                    if update_succeeded == true && updated_issue_id.chars().count() > 0 {
+
+                                                        let mut state = &mut *issue_update_data_handle.lock().unwrap();                                                        
+
+                                                        
+                                                        match state.as_mut() {// &*issue_update_data_handle.lock().unwrap() { 
+                                                            Some(issue_update_target_data) =>  {
+                                                                match issue_update_target_data.as_array_mut() {
+                                                                    Some(table_array) => {
+                                                                        let issue_to_update_option = table_array.iter()
+                                                                                                                .position(|r| {
+                                                                                                                                if let serde_json::Value::String(issue_id) = &r["id"] {
+                                                                                                                                    if *issue_id == *updated_issue_id {
+                                                                                                                                        return true;
+                                                                                                                                    }
+                                                                                                                                }
+                                                                                                                                return false;
+                                                                                                                });
+                                                                        // Should be Some(x{0..})
+                                                                        info!("issue_to_update_option: {:?}", issue_to_update_option);
+
+                                                                        if let Some(issue_to_update_index) = issue_to_update_option {
+                                                                            //table_array[issue_to_update_index]["state"] = selected_workflow_state;
+                                                                            match table_array[issue_to_update_index].as_object_mut() {
+                                                                                Some(issue_object_to_update) => {
+                                                                                    issue_object_to_update["state"] = selected_workflow_state.clone();
+                                                                                },
+                                                                                None => {}
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    None => {}
+                                                                }
+                                                            }
+                                                            None => {}
+                                                        }
+                                                        // Get index where: linear_issue_display_state.issue_table_data[index]["id"] == selected_issue["id"]
+
+
+                                                    }
 
                                                     /*
                                                     let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
@@ -657,6 +728,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // Dispatch Update Issue Workflow State command if User selects a workflow state for a given Issue
                         Route::LinearInterface => {
                             app.dispatch_event("update_issue_workflow", &tx);
+                            // Close Workflow States Panel
+                            app.linear_draw_workflow_state_select = false;
+
                         },
                         _ => {}
                     }
