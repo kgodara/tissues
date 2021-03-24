@@ -1,25 +1,30 @@
-use tui::{
-    backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
-    Frame,
-};
+
+
+use std::fmt::Write;
 
 use std::boxed::{
   Box
 };
 
-use std::fmt::Write;
-
-use crate::App;
+use crate::app;
 use crate::Route;
 use crate::util;
+
+use app::App as App;
 
 use crate::components::linear_team_select::LinearTeamSelectState;
 use crate::components::linear_issue_display::LinearIssueDisplayState;
 use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
+
+
+use tui::{
+  backend::Backend,
+  layout::{Alignment, Constraint, Direction, Layout, Rect},
+  style::{Color, Modifier, Style},
+  text::{Span, Spans, Text},
+  widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
+  Frame,
+};
 
 
 
@@ -79,12 +84,12 @@ where
   B: Backend,
 {
 
-    // info!("Calling get_rendered_teams_data with: {:?}", app.linear_team_select_state.teams_data);
+    // info!("Calling get_rendered_teams_data with: {:?}", app.linear_team_select.teams_data);
 
     let mut items;
     let items_result;
 
-    let handle = app.linear_team_select_state.teams_data.lock().unwrap();
+    let handle = app.linear_team_select.teams_data.lock().unwrap();
     items_result = LinearTeamSelectState::get_rendered_teams_data(&*handle);
 
 
@@ -101,7 +106,7 @@ where
 
     // info!("About to render team select");
     // We can now render the item list
-    f.render_stateful_widget(items, chunks[0], &mut app.linear_team_select_state.teams_state);
+    f.render_stateful_widget(items, chunks[0], &mut app.linear_team_select.teams_state);
 }
 
 
@@ -111,9 +116,9 @@ where
   B: Backend,
 {
 
-  // info!("Calling draw_issue_display with: {:?}", app.linear_issue_display_state.issue_table_data);
+  // info!("Calling draw_issue_display with: {:?}", app.linear_issue_display.issue_table_data);
 
-  let issue_data_handle = app.linear_issue_display_state.issue_table_data.lock().unwrap();
+  let issue_data_handle = app.linear_issue_display.issue_table_data.lock().unwrap();
 
   let table;
   let table_result = LinearIssueDisplayState::get_rendered_issue_data(&issue_data_handle);
@@ -123,7 +128,7 @@ where
     Err(x) => {return;},
   }
 
-  let mut table_state = app.linear_issue_display_state.issue_table_state.clone();
+  let mut table_state = app.linear_issue_display.issue_table_state.clone();
 
   // info!("table: {:?}", table);
 
@@ -138,7 +143,7 @@ where
   // Draw Workflow State Selection 
   if app.linear_draw_workflow_state_select == true {
 
-    let workflow_states_handle = app.linear_workflow_select_state.workflow_states_data.lock().unwrap();
+    let workflow_states_handle = app.linear_workflow_select.workflow_states_data.lock().unwrap();
 
     // let block = Block::default().title("Popup").borders(Borders::ALL);
     let table;
@@ -161,10 +166,10 @@ where
     // info!("Cleared out space for Workflow States pop-up component");
     
     
-    // let issue_data_handle = app.linear_issue_display_state.issue_table_data.lock().unwrap();
+    // let issue_data_handle = app.linear_issue_display.issue_table_data.lock().unwrap();
     let issue_data_inner;
-    
-    let issue_list_option = app.linear_issue_display_state.issue_table_state.selected();
+
+    let issue_list_option = app.linear_issue_display.issue_table_state.selected();
     let issue_list_idx;
 
     // Check that an Issue is selected, if not:
@@ -256,7 +261,7 @@ where
     f.render_widget(paragraph, workflow_chunks[0]);
 
 
-    let mut table_state = app.linear_workflow_select_state.workflow_states_state.clone();
+    let mut table_state = app.linear_workflow_select.workflow_states_state.clone();
 
     // Render workflow state selection table in lower chunk
     f.render_stateful_widget(table, workflow_chunks[1], &mut table_state);

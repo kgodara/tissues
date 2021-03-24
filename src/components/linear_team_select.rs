@@ -1,5 +1,5 @@
 use crate::util;
-use crate::App;
+use crate::app;
 use crate::graphql;
 use crate::linear;
 
