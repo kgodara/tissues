@@ -22,7 +22,7 @@ pub enum Platform {
 }
 // linear_team_select
 
-/// App holds the state of the application
+// App holds the state of the application
 pub struct App<'a> {
     // current route
     pub route: Route,
@@ -153,7 +153,8 @@ impl<'a> App<'a> {
 
                 let tx3 = tx.clone();
                 
-                let api_key = self.linear_client.config.api_key.clone();
+                // let api_key = self.linear_client.config.api_key.clone();
+                let linear_config = self.linear_client.config.clone();
 
                 let team_data_handle = self.linear_team_select.teams_data.clone();
                 let team_issue_handle = self.linear_issue_display.issue_table_data.clone();
@@ -164,8 +165,6 @@ impl<'a> App<'a> {
                         match &*team_data_handle.lock().unwrap() {
                             Some(data) => {
                                 
-                                // self.linear_issue_display.load_issues(&self.linear_client, &data.items[idx]).await;
-
                                 let team = data[idx].clone();
 
                                 match team {
@@ -177,7 +176,7 @@ impl<'a> App<'a> {
                     
                                     let (resp2_tx, resp2_rx) = oneshot::channel();
                 
-                                    let cmd = Command::LoadLinearIssues { api_key: api_key, selected_team: team, resp: resp2_tx };
+                                    let cmd = Command::LoadLinearIssues { linear_config: linear_config, selected_team: team, resp: resp2_tx };
                                     tx3.send(cmd).await.unwrap();
                 
                                     let res = resp2_rx.await.ok();
@@ -229,8 +228,6 @@ impl<'a> App<'a> {
                         match &*team_data_handle.lock().unwrap() {
                             Some(data) => {
                                 
-                                // self.linear_issue_display.load_issues(&self.linear_client, &data.items[idx]).await;
-
                                 let team = data[idx].clone();
 
                                 match team {

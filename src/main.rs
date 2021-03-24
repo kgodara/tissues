@@ -100,9 +100,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // client.get(&key).await;
                 },
-                Command::LoadLinearIssues { api_key, selected_team, resp } => {
+                Command::LoadLinearIssues { linear_config, selected_team, resp } => {
                     // client.set(&key, val).await;
-                    let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues(api_key, &selected_team).await;
+                    let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues(linear_config, &selected_team).await;
                     info!("LoadLinearIssuesByTeam data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);

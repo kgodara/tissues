@@ -85,11 +85,14 @@ pub async fn get_teams(api_key: &str) -> Result<Value, GraphQLRequestError> {
 }
 
 
-pub async fn get_issues_by_team(api_key: &str, variables: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn get_issues_by_team(api_key: &str, issue_page_size: u32, team: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
     let mut query;
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_TEAM_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    query["variables"] = serde_json::Value::Object(team);
+    query["variables"]["firstNum"] = serde_json::Value::Number(serde_json::Number::from(issue_page_size));
+
+    info!("get_issues_by_team variables: {:?}", query["variables"]);
 
     /*
     let resp: serde_json::Value = ureq::post("https://api.linear.app/graphql")

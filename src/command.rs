@@ -2,6 +2,8 @@
 use tokio::sync::oneshot;
 use crate::util::StatefulList;
 
+use crate::linear::LinearConfig as LinearConfig;
+
 use std::sync::{ Arc, Mutex };
 
 #[derive(Debug)]
@@ -11,7 +13,8 @@ pub enum Command {
         resp: Responder<serde_json::Value>
     },
     LoadLinearIssues {
-        api_key: Option<String>,
+        // api_key: Option<String>,
+        linear_config: LinearConfig,
         selected_team: serde_json::Value,
         resp: Responder<serde_json::Value>
     },

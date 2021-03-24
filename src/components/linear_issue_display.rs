@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 
 
 use crate::linear::client::LinearClient;
+use crate::linear::LinearConfig;
 
 use crate::util::ui::style_color_from_hex_str;
 
@@ -22,10 +23,10 @@ pub struct LinearIssueDisplayState {
 
 impl LinearIssueDisplayState {
 
-    pub async fn load_issues(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
+    pub async fn load_issues(linear_config: LinearConfig, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(api_key, selected_team.as_object()
+            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, selected_team.as_object()
                                                                                     .cloned()
                                                                                     .unwrap_or(serde_json::Map::default())
                                                                     ).await;
