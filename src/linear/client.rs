@@ -66,8 +66,11 @@ impl LinearClient {
         let query_response = exec_get_issues_by_team(linear_api_key, linear_config.issue_page_size, variables).await?;
 
         let ref issue_nodes = query_response["data"]["team"]["issues"]["nodes"];
+        let ref cursor_info = query_response["data"]["team"]["issues"]["pageInfo"];
 
-        Ok(issue_nodes.clone())
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+        // Ok(issue_nodes.clone())
     }
 
     pub async fn get_workflow_states_by_team(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
@@ -139,20 +142,3 @@ impl LinearClient {
 
 
 }
-
-    /*
-    let mut issue_variables = serde_json::Map::new();
-
-    issue_variables.insert(String::from("title"), serde_json::Value::String(String::from("Test Rust-CLI 1")));
-    issue_variables.insert(String::from("description"), serde_json::Value::String(String::from("Made From Rust")));
-    issue_variables.insert(String::from("teamId"), serde_json::Value::String(String::from("3e2c3a3a-c883-432f-9877-dcbb8785650a")));
-
-
-    let mutation_response;
-    mutation_response = create_linear_issue(&contents, issue_variables);
-
-    match mutation_response {
-        Ok(mutation_response) => {println!("Mutation Success: {}", mutation_response)},
-        Err(mutation_response) => {println!("Mutation Failed: {}", mutation_response)},
-    }
-    */

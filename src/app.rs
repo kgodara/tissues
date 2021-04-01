@@ -6,8 +6,11 @@ use crate::command;
 use command::Command as Command;
 
 use util::StatefulList as StatefulList;
+use util::GraphQLCursor;
 
 use tokio::sync::oneshot;
+
+use std::sync::{Arc, Mutex};
 
 
 pub enum Route {
@@ -16,7 +19,9 @@ pub enum Route {
     LinearInterface,
 }
 
+#[derive(Debug)]
 pub enum Platform {
+    Na,
     Linear,
     Github,
 }
@@ -42,6 +47,9 @@ pub struct App<'a> {
 
     // Selected Linear Issue
     pub linear_selected_issue_idx: Option<usize>,
+
+    // Linear Issue Display Cursor
+    pub linear_issue_cursor: Arc<Mutex<util::GraphQLCursor>>,
 
     // Linear Workflow Select State
     pub linear_workflow_select: components::linear_workflow_state_display::LinearWorkflowStateDisplayState,
@@ -73,6 +81,8 @@ impl<'a> Default for App<'a> {
  
             linear_issue_display: components::linear_issue_display::LinearIssueDisplayState::default(),
             linear_selected_issue_idx: None,
+            linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
+
             
             linear_workflow_select: components::linear_workflow_state_display::LinearWorkflowStateDisplayState::default(),
             linear_selected_workflow_state_idx: None,
@@ -159,6 +169,8 @@ impl<'a> App<'a> {
                 let team_data_handle = self.linear_team_select.teams_data.clone();
                 let team_issue_handle = self.linear_issue_display.issue_table_data.clone();
 
+                let team_issue_cursor_handle = self.linear_issue_cursor.clone();
+
                 match self.linear_selected_team_idx {
                     Some(idx) => {
                         // Arc<Option<T>> -> Option<&T>
@@ -184,10 +196,30 @@ impl<'a> App<'a> {
                                     info!("LoadLinearIssues Command returned: {:?}", res);
 
                                     let mut issue_data_lock = team_issue_handle.lock().unwrap();
-                
+                                    let mut issue_cursor_data_lock = team_issue_cursor_handle.lock().unwrap();
+
                                     match res {
                                         Some(x) => {
-                                            *issue_data_lock = x;
+                                            match x {
+                                                Some(y) => {
+                                                    match y["issues"] {
+                                                        serde_json::Value::Array(_) => {
+                                                            *issue_data_lock = Some(y["issues"].clone());
+                                                        },
+                                                        _ => {},
+                                                    };
+                                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
+                                                        Some(z) => {
+                                                            info!("Updating issue_cursor_data_lock to: {:?}", z);
+                                                            *issue_cursor_data_lock = z;
+                                                        },
+                                                        None => {},
+                                                    }
+                                                },
+                                                None => {
+
+                                                }
+                                            };
                                         }
                                         None => {},
                                     }
@@ -212,6 +244,9 @@ impl<'a> App<'a> {
     pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<Command>) {
 
         match event_name {
+            "paginate_issue_list" => {
+
+            },
             "load_workflows" => {
                 let tx2 = tx.clone();
 

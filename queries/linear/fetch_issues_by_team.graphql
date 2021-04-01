@@ -19,6 +19,12 @@
                         name
                     }
                 }
+                pageInfo {
+                    hasPreviousPage
+                    hasNextPage
+                    startCursor
+                    endCursor
+                }
             }
         }
     }",

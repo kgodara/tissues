@@ -7,10 +7,11 @@ use tui::{
 };
 
 use std::sync::{Arc, Mutex};
+use serde_json::json;
 
 // use colorsys::Color as CTColor;
 
-
+use crate::util::GraphQLCursor;
 use crate::linear::client::LinearClient;
 use crate::linear::LinearConfig;
 
@@ -32,9 +33,13 @@ impl LinearIssueDisplayState {
                                                                     ).await;
 
             let mut issues: serde_json::Value = serde_json::Value::Null;
+            let mut cursor_info: serde_json::Value = serde_json::Value::Null;
 
             match issue_fetch_result {
-                Ok(x) => { issues = x; },
+                Ok(x) => { 
+                    issues = x["issue_nodes"].clone();
+                    cursor_info = x["cursor_info"].clone();
+                },
                 Err(y) => {
                                 info!("Get Issues By Team failed: {:?}", y);
                                 return None;
@@ -46,8 +51,9 @@ impl LinearIssueDisplayState {
             match issues {
                 serde_json::Value::Array(_) => {
                     info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
-                    // self.issue_table_data = Arc::new(Mutex::new(Some(issues)));
-                    return Some(issues);
+
+                    // return Some(issues);
+                    return Some(json!( { "issues": issues, "cursor_info": cursor_info } ));
                 },
                 _ => {return None;},
             }

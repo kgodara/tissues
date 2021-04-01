@@ -2,6 +2,8 @@
 use tokio::sync::oneshot;
 use crate::util::StatefulList;
 
+use crate::util::GraphQLCursor;
+
 use crate::linear::LinearConfig as LinearConfig;
 
 use std::sync::{ Arc, Mutex };

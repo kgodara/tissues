@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
         // Start receiving messages
         while let Some(cmd) = rx.recv().await {
-    
+
             info!("Manager received Command::{:?}", cmd);
             match cmd {
                 Command::LoadLinearTeams { api_key, resp } => {
