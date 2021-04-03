@@ -159,6 +159,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let events = Events::new();
 
+    terminal.clear()?;
+
+    let mut tick_idx = 0u32;
+
     loop {
 
         terminal.draw(|mut f| match app.route {
@@ -175,7 +179,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
               panic!()
             }
         })?;
-
         match events.next()? {
             Event::Input(input) => match input {
                 // Quit program
@@ -277,7 +280,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                 }
 
-                                if (load_paginated) {
+                                if load_paginated == true {
                                     app.dispatch_event("load_issues_paginated", &tx);
                                 }
                             }
@@ -389,6 +392,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 _ => {}
             },
+            Event::Tick => {                
+                // info!("tick_idx: {}", tick_idx);
+                tick_idx += 1;
+            }
             _ => {
 
             }
