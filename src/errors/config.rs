@@ -1,5 +1,6 @@
 use thiserror::Error;
 use std::io;
+use crate::util::GraphQLCursor;
 
 
 #[derive(Error, Debug)]
@@ -15,7 +16,9 @@ pub enum GraphQLRequestError {
     #[error("GraphQL operation parse failed")]
     GraphQLParseFailure(#[from] GraphQLParseError),
     #[error("GraphQL request failed")]
-    GraphQLRequestError(#[from] reqwest::Error)
+    GraphQLRequestError(#[from] reqwest::Error),
+    #[error("GraphQL Invalid Cursor: {0:?}")]
+    GraphQLInvalidCursor(GraphQLCursor),
 }
 
 #[derive(Error, Debug)]

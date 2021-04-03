@@ -11,6 +11,8 @@ use serde_json::json;
 
 use crate::errors::*;
 
+use crate::util::GraphQLCursor;
+
 pub struct LinearClient {
     pub config: LinearConfig,
 }
@@ -52,7 +54,7 @@ impl LinearClient {
     }
 
 
-    pub async fn get_issues_by_team( linear_config: LinearConfig, /*api_key: Option<String>,*/ variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_issues_by_team( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
 
         info!("Calling exec_get_issues_by_team - variables: {:?}", variables);
 
@@ -63,7 +65,7 @@ impl LinearClient {
         };
 
 
-        let query_response = exec_get_issues_by_team(linear_api_key, linear_config.issue_page_size, variables).await?;
+        let query_response = exec_get_issues_by_team(linear_api_key, linear_cursor, linear_config.issue_page_size, variables).await?;
 
         let ref issue_nodes = query_response["data"]["team"]["issues"]["nodes"];
         let ref cursor_info = query_response["data"]["team"]["issues"]["pageInfo"];

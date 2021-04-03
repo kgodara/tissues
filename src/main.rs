@@ -107,6 +107,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(option_stateful);
                 },
+                Command::LoadLinearIssuesPaginate { linear_config, linear_cursor, selected_team, resp } => {
+                    let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues_paginate(linear_config, Some(linear_cursor), &selected_team).await;
+                    info!("LoadLinearIssuesPaginate data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                },
                 Command::LoadWorkflowStates { api_key, selected_team, resp } => {
                     let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states_by_team(api_key, &selected_team).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
@@ -235,20 +241,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // Select next issue from list of Linear issues and update 'app.linear_selected_issue_idx'
                         Route::LinearInterface => {
                             // If User is not selecting a new workflow state for an issue, select next issue
+                            let mut load_paginated = false;
                             if *app.draw_issue_state_select(Platform::Linear) == false {
-                                let handle = &mut *app.linear_issue_display.issue_table_data.lock().unwrap();
-                                match *handle {
-                                    Some(ref mut x) => {
-                                        match x.as_array() {
-                                            Some(y) => {
-                                                util::state_table::next(&mut app.linear_issue_display.issue_table_state, y);
-                                                app.linear_selected_issue_idx = app.linear_issue_display.issue_table_state.selected();
-                                                info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
-                                            },
-                                            None => {},
+                                {
+                                    let handle = &mut *app.linear_issue_display.issue_table_data.lock().unwrap();
+                                    match *handle {
+                                        Some(ref mut x) => {
+                                            match x.as_array() {
+                                                Some(y) => {
+                                                    // Check if at end of linear_issue_display.issue_table_state
+                                                    //  If true: Check if app.linear_issue_cursor.has_next_page = true
+                                                    //      If true: dispatch event to load next page of linear issues
+                                                    //          and merge with current linear_issue_display.issue_table_state
+
+                                                    let is_last_element = util::state_table::is_last_element(& app.linear_issue_display.issue_table_state, y);
+                                                    let mut cursor_has_next_page = false;
+                                                    {
+                                                        let issue_cursor_data_handle = app.linear_issue_cursor.lock().unwrap();
+                                                        cursor_has_next_page = issue_cursor_data_handle.has_next_page;
+                                                    }
+
+                                                    if is_last_element == true && cursor_has_next_page == true {
+                                                        load_paginated = true;
+                                                    }
+                                                    else {
+                                                        util::state_table::next(&mut app.linear_issue_display.issue_table_state, y);
+                                                        app.linear_selected_issue_idx = app.linear_issue_display.issue_table_state.selected();
+                                                        info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
+                                                    }
+                                                },
+                                                None => {},
+                                            }
                                         }
+                                        _ => {},
                                     }
-                                    _ => {},
+                                }
+
+                                if (load_paginated) {
+                                    app.dispatch_event("load_issues_paginated", &tx);
                                 }
                             }
                             // If User is selecting a new workflow state for an issue, select next workflow state

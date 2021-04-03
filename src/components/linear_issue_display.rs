@@ -27,7 +27,47 @@ impl LinearIssueDisplayState {
     pub async fn load_issues(linear_config: LinearConfig, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, selected_team.as_object()
+            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, 
+                                                                        None,
+                                                                        selected_team.as_object()
+                                                                        .cloned()
+                                                                        .unwrap_or(serde_json::Map::default())
+                                                                    ).await;
+
+            let mut issues: serde_json::Value = serde_json::Value::Null;
+            let mut cursor_info: serde_json::Value = serde_json::Value::Null;
+
+            match issue_fetch_result {
+                Ok(x) => { 
+                    issues = x["issue_nodes"].clone();
+                    cursor_info = x["cursor_info"].clone();
+                },
+                Err(y) => {
+                                info!("Get Issues By Team failed: {:?}", y);
+                                return None;
+                            },
+            }
+
+            info!("Issue Fetch Result: {:?}", issues);
+
+            match issues {
+                serde_json::Value::Array(_) => {
+                    info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
+
+                    // return Some(issues);
+                    return Some(json!( { "issues": issues, "cursor_info": cursor_info } ));
+                },
+                _ => {return None;},
+            }
+
+        } else {
+            return None;
+        }
+    }
+
+    pub async fn load_issues_paginate(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
+        if let serde_json::Value::Object(team) = selected_team {
+            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, linear_cursor, selected_team.as_object()
                                                                                     .cloned()
                                                                                     .unwrap_or(serde_json::Map::default())
                                                                     ).await;

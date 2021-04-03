@@ -19,7 +19,7 @@ pub enum Route {
     LinearInterface,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Platform {
     Na,
     Linear,
@@ -244,8 +244,114 @@ impl<'a> App<'a> {
     pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<Command>) {
 
         match event_name {
-            "paginate_issue_list" => {
+            // Acquire these values to dispatch LoadLinearIssuesPaginate:
+            //  linear_config: LinearConfig,
+            //  linear_cursor: GraphQLCursor,
+            //  selected_team: serde_json::Value,
+            "load_issues_paginated" => {
+                let tx2 = tx.clone();
 
+                let linear_config = self.linear_client.config.clone();
+
+                let linear_cursor_data_handle = self.linear_issue_cursor.lock().unwrap();
+                let linear_cursor: GraphQLCursor = linear_cursor_data_handle.clone();
+                drop(linear_cursor_data_handle);
+
+                let team_issue_handle = self.linear_issue_display.issue_table_data.clone();
+                let team_issue_cursor_handle = self.linear_issue_cursor.clone();
+
+                let team_data_handle = self.linear_team_select.teams_data.clone();
+
+                match self.linear_selected_team_idx {
+                    Some(idx) => {
+                        // Arc<Option<T>> -> Option<&T>
+                        match &*team_data_handle.lock().unwrap() {
+                            Some(data) => {
+                                
+                                let team = data[idx].clone();
+
+                                match team {
+                                    serde_json::Value::Null => return,
+                                    _ => {},
+                                }
+
+                                let t1 = tokio::spawn(async move {
+
+                                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                                    let cmd = Command::LoadLinearIssuesPaginate { linear_config: linear_config,
+                                                                                  linear_cursor: linear_cursor,
+                                                                                  selected_team: team,
+                                                                                  resp: resp_tx 
+                                                                                };
+                                    tx2.send(cmd).await.unwrap();
+
+                                    let res = resp_rx.await.ok();
+
+                                    info!("LoadLinearIssuesPaginate Command returned: {:?}", res);
+
+                                    let mut issue_data_lock = team_issue_handle.lock().unwrap();
+                                    let mut issue_cursor_data_lock = team_issue_cursor_handle.lock().unwrap();
+                                    let mut current_issues = issue_data_lock.clone();
+                                    let mut merged_issues = false;
+
+                                    match res {
+                                        Some(x) => {
+                                            match x {
+                                                Some(y) => {
+                                                    match y["issues"] {
+                                                        serde_json::Value::Array(_) => {
+                                                            // Append to existing list of Issues
+                                                            match current_issues {
+                                                                Some(mut issue_data) => {
+                                                                    match issue_data {
+                                                                        serde_json::Value::Array(ref mut issue_vec) => {
+                                                                            issue_vec.append(
+                                                                                &mut y["issues"]
+                                                                                    .clone()
+                                                                                    .as_array_mut()
+                                                                                    .get_or_insert(&mut vec![]));
+                                                                            *issue_data_lock = Some( serde_json::Value::Array(issue_vec.clone()) );
+                                                                            merged_issues = true;
+                                                                        },
+                                                                        _ => {},
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+
+                                                            if merged_issues == false {
+                                                                *issue_data_lock = Some( y["issues"].clone());
+                                                            }
+
+                                                        },
+                                                        _ => {},
+                                                    };
+                                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
+                                                        Some(z) => {
+                                                            info!("Updating issue_cursor_data_lock to: {:?}", z);
+                                                            *issue_cursor_data_lock = z;
+                                                        },
+                                                        None => {},
+                                                    }
+                                                },
+                                                None => {
+
+                                                }
+                                            };
+                                        }
+                                        None => {},
+                                    }
+
+                                });
+
+
+                            },
+                            None => {},
+                        };
+                    },
+                    None => {return;}
+                }
             },
             "load_workflows" => {
                 let tx2 = tx.clone();
