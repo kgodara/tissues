@@ -1,9 +1,9 @@
 use crate::util;
 use crate::linear;
 use crate::components;
-use crate::command;
+use crate::network;
 
-use command::Command as Command;
+use network::IOEvent as IOEvent;
 
 use util::StatefulList as StatefulList;
 use util::GraphQLCursor;
@@ -31,8 +31,8 @@ pub enum Platform {
 pub struct App<'a> {
     // current route
     pub route: Route,
-    /// Current value of the input box
-    input: String,
+    /// Current value of the Command string
+    pub cmd_str: String,
     // LinearClient
     linear_client: linear::client::LinearClient,
 
@@ -71,7 +71,7 @@ impl<'a> Default for App<'a> {
     fn default() -> App<'a> {
         App {
             route: Route::ActionSelect,
-            input: String::new(),
+            cmd_str: String::new(),
 
             linear_client: linear::client::LinearClient::default(),
 
@@ -120,7 +120,7 @@ impl<'a> App<'a> {
         };
     }
 
-    pub async fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<Command>) {
+    pub async fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
         match route {
             Route::ActionSelect => {},
             Route::TeamSelect => {
@@ -136,12 +136,12 @@ impl<'a> App<'a> {
 
                     let (resp_tx, resp_rx) = oneshot::channel();
 
-                    let cmd = Command::LoadLinearTeams { api_key: api_key, resp: resp_tx };
+                    let cmd = IOEvent::LoadLinearTeams { api_key: api_key, resp: resp_tx };
                     tx2.send(cmd).await.unwrap();
 
                     let res = resp_rx.await.ok();
 
-                    info!("LoadLinearTeams Command returned: {:?}", res);
+                    info!("LoadLinearTeams IOEvent returned: {:?}", res);
 
                     let mut team_data_lock = team_data_handle.lock().unwrap();
 
@@ -188,12 +188,12 @@ impl<'a> App<'a> {
                     
                                     let (resp2_tx, resp2_rx) = oneshot::channel();
                 
-                                    let cmd = Command::LoadLinearIssues { linear_config: linear_config, selected_team: team, resp: resp2_tx };
+                                    let cmd = IOEvent::LoadLinearIssues { linear_config: linear_config, selected_team: team, resp: resp2_tx };
                                     tx3.send(cmd).await.unwrap();
                 
                                     let res = resp2_rx.await.ok();
 
-                                    info!("LoadLinearIssues Command returned: {:?}", res);
+                                    info!("LoadLinearIssues IOEvent returned: {:?}", res);
 
                                     let mut issue_data_lock = team_issue_handle.lock().unwrap();
                                     let mut issue_cursor_data_lock = team_issue_cursor_handle.lock().unwrap();
@@ -241,7 +241,7 @@ impl<'a> App<'a> {
         self.route = route;
     }
 
-    pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<Command>) {
+    pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
 
         match event_name {
             // Acquire these values to dispatch LoadLinearIssuesPaginate:
@@ -279,7 +279,7 @@ impl<'a> App<'a> {
 
                                     let (resp_tx, resp_rx) = oneshot::channel();
 
-                                    let cmd = Command::LoadLinearIssuesPaginate { linear_config: linear_config,
+                                    let cmd = IOEvent::LoadLinearIssuesPaginate { linear_config: linear_config,
                                                                                   linear_cursor: linear_cursor,
                                                                                   selected_team: team,
                                                                                   resp: resp_tx 
@@ -288,7 +288,7 @@ impl<'a> App<'a> {
 
                                     let res = resp_rx.await.ok();
 
-                                    info!("LoadLinearIssuesPaginate Command returned: {:?}", res);
+                                    info!("LoadLinearIssuesPaginate IOEvent returned: {:?}", res);
 
                                     let mut issue_data_lock = team_issue_handle.lock().unwrap();
                                     let mut issue_cursor_data_lock = team_issue_cursor_handle.lock().unwrap();
@@ -380,12 +380,12 @@ impl<'a> App<'a> {
 
                                     let (resp_tx, resp_rx) = oneshot::channel();
 
-                                    let cmd = Command::LoadWorkflowStates { api_key: api_key, selected_team: team, resp: resp_tx };
+                                    let cmd = IOEvent::LoadWorkflowStates { api_key: api_key, selected_team: team, resp: resp_tx };
                                     tx2.send(cmd).await.unwrap();
 
                                     let res = resp_rx.await.ok();
 
-                                    info!("LoadWorkflowStates Command returned: {:?}", res);
+                                    info!("LoadWorkflowStates IOEvent returned: {:?}", res);
 
                                     let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
 
@@ -435,7 +435,7 @@ impl<'a> App<'a> {
                                                 let t3 = tokio::spawn( async move {
                                                     let (resp2_tx, resp2_rx) = oneshot::channel();
 
-                                                    let cmd = Command::UpdateIssueWorkflowState {   api_key: api_key,
+                                                    let cmd = IOEvent::UpdateIssueWorkflowState {   api_key: api_key,
                                                                                                     selected_issue: selected_issue.clone(),
                                                                                                     selected_workflow_state: selected_workflow_state.clone(),
                                                                                                     resp: resp2_tx  
@@ -444,9 +444,9 @@ impl<'a> App<'a> {
 
                                                     let res = resp2_rx.await.ok();
 
-                                                    info!("UpdateIssueWorkflowState Command returned: {:?}", res);
+                                                    info!("UpdateIssueWorkflowState IOEvent returned: {:?}", res);
 
-                                                    // UpdateIssueWorkflowState Command returned: Some(Some(Object({"issue_response": Object({"createdAt": String("2021-02-06T17:47:01.039Z"), "id": String("ace38e69-8a64-46f8-ad57-dc70c61f5599"), "number": Number(11), "title": String("Test Insomnia 1")}), "success": Bool(true)})))
+                                                    // UpdateIssueWorkflowState IOEvent returned: Some(Some(Object({"issue_response": Object({"createdAt": String("2021-02-06T17:47:01.039Z"), "id": String("ace38e69-8a64-46f8-ad57-dc70c61f5599"), "number": Number(11), "title": String("Test Insomnia 1")}), "success": Bool(true)})))
                                                     // If Some(Some(Object({"success": Bool(true)})))
                                                     // then can match linear_issue_display.issue_table_data using selected_issue["id"]
                                                     // and update linear_issue_display.issue_table_data[x]["state"] with selected_workflow_state
