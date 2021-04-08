@@ -6,6 +6,7 @@ use std::sync::{
 };
 use std::thread;
 use std::time::Duration;
+use std::env;
 
 use termion::event::Key;
 use termion::input::TermRead;
@@ -24,6 +25,9 @@ pub struct Events {
     tick_handle: thread::JoinHandle<()>,
 }
 
+const DEFAULT_TICK_RATE: u64 = 250;
+
+
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
     pub exit_key: Key,
@@ -34,7 +38,10 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             exit_key: Key::Char('q'),
-            tick_rate: Duration::from_millis(250),
+            tick_rate: match env::var("TICK_RATE").ok() {
+                Some(x) => Duration::from_millis(*x.parse::<u64>().ok().get_or_insert(DEFAULT_TICK_RATE)),
+                None => Duration::from_millis(DEFAULT_TICK_RATE),
+            },
         }
     }
 }

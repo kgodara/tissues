@@ -12,6 +12,7 @@ mod ui;
 mod util;
 mod errors;
 mod command;
+mod network;
 
 mod components;
 
@@ -48,7 +49,15 @@ use simplelog::*;
 
 use std::fs::File;
 
-use command::Command;
+use command::{ Command,
+                get_cmd,
+                exec_open_linear_workflow_state_selection_cmd,
+                exec_move_back_cmd,
+                exec_confirm_cmd,
+                exec_scroll_down_cmd,
+                exec_scroll_up_cmd,
+            };
+use network::IOEvent;
 
 
 
@@ -90,9 +99,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Start receiving messages
         while let Some(cmd) = rx.recv().await {
 
-            info!("Manager received Command::{:?}", cmd);
+            info!("Manager received IOEvent::{:?}", cmd);
             match cmd {
-                Command::LoadLinearTeams { api_key, resp } => {
+                IOEvent::LoadLinearTeams { api_key, resp } => {
                     let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
                     info!("LoadLinearTeams data: {:?}", option_stateful);
 
@@ -100,26 +109,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // client.get(&key).await;
                 },
-                Command::LoadLinearIssues { linear_config, selected_team, resp } => {
+                IOEvent::LoadLinearIssues { linear_config, selected_team, resp } => {
                     // client.set(&key, val).await;
                     let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues(linear_config, &selected_team).await;
                     info!("LoadLinearIssuesByTeam data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
-                Command::LoadLinearIssuesPaginate { linear_config, linear_cursor, selected_team, resp } => {
+                IOEvent::LoadLinearIssuesPaginate { linear_config, linear_cursor, selected_team, resp } => {
                     let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues_paginate(linear_config, Some(linear_cursor), &selected_team).await;
                     info!("LoadLinearIssuesPaginate data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
-                Command::LoadWorkflowStates { api_key, selected_team, resp } => {
+                IOEvent::LoadWorkflowStates { api_key, selected_team, resp } => {
                     let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states_by_team(api_key, &selected_team).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
-                Command::UpdateIssueWorkflowState { api_key, selected_issue, selected_workflow_state, resp } => {
+                IOEvent::UpdateIssueWorkflowState { api_key, selected_issue, selected_workflow_state, resp } => {
 
                     // Get id field from issue Object
                     let issue_id = selected_issue["id"].clone();
@@ -159,6 +168,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let events = Events::new();
 
+    terminal.clear()?;
+
+    let mut tick_idx = 0u64;
+    let mut cmd_option: Option<Command>;
+
     loop {
 
         terminal.draw(|mut f| match app.route {
@@ -175,224 +189,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
               panic!()
             }
         })?;
+        let event_next = events.next()?;
 
-        match events.next()? {
-            Event::Input(input) => match input {
-                // Quit program
-                Key::Char('q') => {
-                    break;
-                },
-                // Only relevant when user is in position to modify an issue's workflow state
-                Key::Char('m') => {
-                    match app.route {
-                        // Create pop-up on top of issue display component
-                        Route::LinearInterface => {
-                            // Dispatch event to begin loading new data
-                            app.dispatch_event("load_workflows", &tx);
+        match event_next {
+            Event::Input(input) => {
+                // Update Command String / Get Command to apply
+                cmd_option = get_cmd(&mut app.cmd_str, input);
+                info!("cmd_option: {:?}", cmd_option);
 
-                            // Enable drawing of workflow state selection pop-up
-                            app.set_draw_issue_state_select(Platform::Linear, true);
+                if let Some(cmd) = cmd_option {
+                    tick_idx = 0;
+                    app.cmd_str.clear();
+
+                    // Execute Command
+                    match cmd {
+                        Command::Quit => {
+                            break;
+                        },
+                        Command::OpenLinearWorkflowStateSelection => {
+                            exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
+                        },
+                        Command::MoveBack => {
+                            exec_move_back_cmd(&mut app);
+                        },
+                        Command::Confirm => {
+                            exec_confirm_cmd(&mut app, &tx).await;
+                        },
+                        Command::ScrollDown => {
+                            exec_scroll_down_cmd(&mut app, &tx);
+                        },
+                        Command::ScrollUp => {
+                            exec_scroll_up_cmd(&mut app);
                         }
-                        _ => {},
+                    };
+                }
+                else {
+                    tick_idx += 1;
+                    if tick_idx >= 4 {
+                        info!("Clearing Command String");
+                        app.cmd_str.clear();
                     }
                 }
-                Key::Left => {
-                    match app.route {
-
-                        // Unselect from List of Actions
-                        Route::ActionSelect => app.actions.unselect(),
-
-                        // Unselect from Selection of Teams
-                        Route::TeamSelect => {
-                            util::state_list::unselect(&mut app.linear_team_select.teams_state);
-                        },
-
-                        // Unselect from list of Linear Issues
-                        Route::LinearInterface => {
-                            util::state_table::unselect(&mut app.linear_issue_display.issue_table_state);
-                        }
-
-                        _ => {}
-                        
-                    }
-                }
-                Key::Down => {
-                    match app.route {
-                        // Select next Action
-                        Route::ActionSelect => app.actions.next(),
-
-                        // Select next team from list of Linear teams and update 'app.linear_selected_team_idx'
-                        Route::TeamSelect => {
-                            let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
-                            match *handle {
-                                Some(ref mut x) => {
-                                    match x.as_array() {
-                                        Some(y) => {
-                                            util::state_list::next(&mut app.linear_team_select.teams_state, y);
-                                            app.linear_selected_team_idx = app.linear_team_select.teams_state.selected();
-                                        },
-                                        None => {},
-                                    }
-                                }
-                                _ => {},
-                            }
-                        },
-
-                        // Select next issue from list of Linear issues and update 'app.linear_selected_issue_idx'
-                        Route::LinearInterface => {
-                            // If User is not selecting a new workflow state for an issue, select next issue
-                            let mut load_paginated = false;
-                            if *app.draw_issue_state_select(Platform::Linear) == false {
-                                {
-                                    let handle = &mut *app.linear_issue_display.issue_table_data.lock().unwrap();
-                                    match *handle {
-                                        Some(ref mut x) => {
-                                            match x.as_array() {
-                                                Some(y) => {
-                                                    // Check if at end of linear_issue_display.issue_table_state
-                                                    //  If true: Check if app.linear_issue_cursor.has_next_page = true
-                                                    //      If true: dispatch event to load next page of linear issues
-                                                    //          and merge with current linear_issue_display.issue_table_state
-
-                                                    let is_last_element = util::state_table::is_last_element(& app.linear_issue_display.issue_table_state, y);
-                                                    let mut cursor_has_next_page = false;
-                                                    {
-                                                        let issue_cursor_data_handle = app.linear_issue_cursor.lock().unwrap();
-                                                        cursor_has_next_page = issue_cursor_data_handle.has_next_page;
-                                                    }
-
-                                                    if is_last_element == true && cursor_has_next_page == true {
-                                                        load_paginated = true;
-                                                    }
-                                                    else {
-                                                        util::state_table::next(&mut app.linear_issue_display.issue_table_state, y);
-                                                        app.linear_selected_issue_idx = app.linear_issue_display.issue_table_state.selected();
-                                                        info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
-                                                    }
-                                                },
-                                                None => {},
-                                            }
-                                        }
-                                        _ => {},
-                                    }
-                                }
-
-                                if (load_paginated) {
-                                    app.dispatch_event("load_issues_paginated", &tx);
-                                }
-                            }
-                            // If User is selecting a new workflow state for an issue, select next workflow state
-                            else {
-                                info!("Attempting to scroll down on Workflow State Selection");
-                                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
-                                match *handle {
-                                    Some(ref mut x) => {
-                                        match x.as_array() {
-                                            Some(y) => {
-                                                util::state_table::next(&mut app.linear_workflow_select.workflow_states_state, y);
-                                                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
-                                                // info!("app.linear_selected_workflow_state_idx: {:?}", app.linear_selected_workflow_state_idx);
-                                            },
-                                            None => {},
-                                        }
-                                    },
-                                    None => {}
-                                }
-                            }
-                        }
-                        
-                        _ => {}
-                    }
-                }
-                Key::Up => {
-                    match app.route {
-                        Route::ActionSelect => app.actions.previous(),
-                        Route::TeamSelect => {
-                            let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
-                            match handle {
-                                Some(ref mut x) => {
-                                    match x.as_array() {
-                                        Some(y) => {
-                                            util::state_list::previous(&mut app.linear_team_select.teams_state, y);
-                                            app.linear_selected_team_idx = app.linear_team_select.teams_state.selected();
-                                        },
-                                        None => {},
-                                    }
-                                },
-                                _ => {},
-                            }
-                        },
-                        Route::LinearInterface => {
-                            // If User is not selecting a new workflow state for an issue, select previous issue
-                            if *app.draw_issue_state_select(Platform::Linear) == false {
-                                let handle = &mut *app.linear_issue_display.issue_table_data.lock().unwrap();
-                                match *handle {
-                                    Some(ref mut x) => {
-                                        match x.as_array() {
-                                            Some(y) => {
-                                                util::state_table::previous(&mut app.linear_issue_display.issue_table_state, y);
-                                                app.linear_selected_issue_idx = app.linear_issue_display.issue_table_state.selected();
-                                                info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
-                                            },
-                                            None => {},
-                                        }
-                                    }
-                                    _ => {},
-                                }
-                            }
-                            // If User is selecting a new workflow state for an issue, select previous workflow state
-                            else {
-                                info!("Attempting to scroll up on Workflow State Selection");
-                                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
-                                match *handle {
-                                    Some(ref mut x) => {
-                                        match x.as_array() {
-                                            Some(y) => {
-                                                util::state_table::previous(&mut app.linear_workflow_select.workflow_states_state, y);
-                                                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
-                                            },
-                                            None => {},
-                                        }
-                                    },
-                                    None => {}
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Key::Right => {
-                    match app.route {
-                        Route::ActionSelect => match app.actions.state.selected() {
-                            Some(i) => {
-                                match i {
-                                    0 => { app.change_route( Route::TeamSelect, &tx).await }
-                                    _ => {}
-                                }
-                            }
-                            _ => {}
-                        },
-                        // Switch Route as long as a team is selected
-                        Route::TeamSelect => match app.linear_selected_team_idx {
-                            Some(_) => { app.change_route(Route::LinearInterface, &tx).await },
-                            None => {},
-                        },
-                        // Dispatch Update Issue Workflow State command if User selects a workflow state for a given Issue
-                        Route::LinearInterface => {
-                            app.dispatch_event("update_issue_workflow", &tx);
-                            // Close Workflow States Panel
-                            app.set_draw_issue_state_select(Platform::Linear, false);
-
-                        },
-                        _ => {}
-                    }
-                }
-                _ => {}
             },
-            _ => {
-
-            }
-        }
+            Event::Tick => {
+                // info!("tick_idx: {}", tick_idx);
+                info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
+                tick_idx += 1;
+            },
+            _ => {}
+        };
     }
 
     Ok(())
