@@ -93,11 +93,20 @@ impl LinearCustomViewSelect {
 
             let cell_fields: std::vec::Vec<std::string::String> = vec![row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
                                 .iter()
-                                .map(|field| match field {
+                                .enumerate()
+                                .map(|(i,field)| match field {
 
                                     serde_json::Value::String(x) => x.clone(),
                                     serde_json::Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                    serde_json::Value::Null => String::default(),
+                                    serde_json::Value::Null => {
+                                        // If 'team' is Null, the view is for all teams
+                                        if i == 2 {
+                                            String::from("All Teams")
+                                        }
+                                        else {
+                                            String::default()
+                                        }
+                                    },
                                     
                                     _ => { String::default() },
                                 })
