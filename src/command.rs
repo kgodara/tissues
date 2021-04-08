@@ -140,6 +140,48 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         // Select next Action
         Route::ActionSelect => app.actions.next(),
 
+        // Select next custom view from list of Linear custom views and update 'app.linear__selected_custom_view_idx'
+        Route::CustomViewSelect => {
+            let mut load_paginated = false;
+            {
+                let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
+                match *handle {
+                    Some(ref mut x) => {
+                        match x.as_array() {
+                            Some(y) => {
+                                // Check if at end of linear_custom_view_select.view_table_data
+                                //  If true: Check if app.linear_custom_view_cursor.has_next_page = true
+                                //      If true: dispatch event to load next page of linear issues
+                                //          and merge with current linear_custom_view_select.view_table_data
+
+                                let is_last_element = state_table::is_last_element(& app.linear_custom_view_select.view_table_state, y);
+                                let mut cursor_has_next_page = false;
+                                {
+                                    let view_cursor_data_handle = app.linear_custom_view_cursor.lock().unwrap();
+                                    cursor_has_next_page = view_cursor_data_handle.has_next_page;
+                                }
+
+                                if is_last_element == true && cursor_has_next_page == true {
+                                    load_paginated = true;
+                                }
+                                else {
+                                    state_table::next(&mut app.linear_custom_view_select.view_table_state, y);
+                                    app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
+                                    info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
+                                }
+                            },
+                            None => {},
+                        }
+                    }
+                    _ => {},
+                }
+            }
+
+            if load_paginated == true {
+                app.dispatch_event("load_custom_views", &tx);
+            }
+        },
+
         // Select next team from list of Linear teams and update 'app.linear_selected_team_idx'
         Route::TeamSelect => {
             let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
@@ -227,6 +269,22 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
         Route::ActionSelect => app.actions.previous(),
+        Route::CustomViewSelect => {
+            let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
+            match *handle {
+                Some(ref mut x) => {
+                    match x.as_array() {
+                        Some(y) => {
+                            state_table::previous(&mut app.linear_custom_view_select.view_table_state, y);
+                            app.linear_selected_issue_idx = app.linear_custom_view_select.view_table_state.selected();
+                            info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
+                        },
+                        None => {},
+                    }
+                }
+                _ => {},
+            }
+        }
         Route::TeamSelect => {
             let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
             match handle {

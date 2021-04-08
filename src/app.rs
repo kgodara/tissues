@@ -133,71 +133,8 @@ impl<'a> App<'a> {
             Route::CustomViewSelect => {
                 // TODO: Clear any previous CustomViewSelect related values on self
 
-                let tx2 = tx.clone();
+                self.dispatch_event("load_custom_views", tx);
 
-                let linear_config = self.linear_client.config.clone();
-
-                let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
-
-                let view_cursor_handle = self.linear_custom_view_cursor.clone();
-
-                let view_cursor_handle = self.linear_custom_view_cursor.lock().unwrap();
-                let view_cursor: GraphQLCursor = view_cursor_handle.clone();
-                drop(view_cursor_handle);
-
-                let view_cursor_handle = self.linear_custom_view_cursor.clone();
-
-
-
-                let t1 = tokio::spawn(async move {
-
-                    let (resp_tx, resp_rx) = oneshot::channel();
-
-                    let cmd = IOEvent::LoadCustomViews { linear_config: linear_config,
-                                                            linear_cursor: view_cursor,
-                                                            resp: resp_tx };
-                    tx2.send(cmd).await.unwrap();
-
-                    let res = resp_rx.await.ok();
-
-                    info!("LoadCustomViews IOEvent returned: {:?}", res);
-
-                    let mut view_data_lock = view_data_handle.lock().unwrap();
-                        
-                    let mut view_cursor_data_lock = view_cursor_handle.lock().unwrap();
-
-                    match res {
-                        Some(x) => {
-                            match x {
-                                Some(y) => {
-                                    match y["views"] {
-                                        serde_json::Value::Array(_) => {
-                                            info!("Updating view_data_lock to: {:?}", y["views"]);
-                                            *view_data_lock = Some(y["views"].clone());
-                                        },
-                                        _ => {},
-                                    };
-                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
-                                        Some(z) => {
-                                            info!("Updating view_cursor_data_lock to: {:?}", z);
-                                            *view_cursor_data_lock = z;
-                                        },
-                                        None => {},
-                                    }
-                                },
-                                None => {
-
-                                }
-                            };
-                        }
-                        None => {},
-                    }
-
-
-                    info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
-                });
-
-                
             },
             Route::TeamSelect => {
 
@@ -320,6 +257,100 @@ impl<'a> App<'a> {
     pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
 
         match event_name {
+
+            "load_custom_views" => {
+                // TODO: Clear any previous CustomViewSelect related values on self
+
+                let tx2 = tx.clone();
+
+                let linear_config = self.linear_client.config.clone();
+
+                let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
+
+                let view_cursor_handle = self.linear_custom_view_cursor.clone();
+
+                let view_cursor_handle = self.linear_custom_view_cursor.lock().unwrap();
+                let view_cursor: GraphQLCursor = view_cursor_handle.clone();
+                drop(view_cursor_handle);
+
+                let view_cursor_handle = self.linear_custom_view_cursor.clone();
+
+
+
+                let t1 = tokio::spawn(async move {
+
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    let cmd = IOEvent::LoadCustomViews { linear_config: linear_config,
+                                                            linear_cursor: view_cursor,
+                                                            resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
+
+                    let res = resp_rx.await.ok();
+
+                    info!("LoadCustomViews IOEvent returned: {:?}", res);
+
+                    let mut view_data_lock = view_data_handle.lock().unwrap();
+                    let mut view_cursor_data_lock = view_cursor_handle.lock().unwrap();
+
+                    let mut current_views = view_data_lock.clone();
+                    let mut merged_views = false;
+
+                    match res {
+                        Some(x) => {
+                            match x {
+                                Some(y) => {
+                                    match y["views"] {
+                                        serde_json::Value::Array(_) => {
+                                            // info!("Updating view_data_lock to: {:?}", y["views"]);
+                                            // *view_data_lock = Some(y["views"].clone());
+
+                                            // Append to existing list of Views
+                                            match current_views {
+                                                Some(mut view_data) => {
+                                                    match view_data {
+                                                        serde_json::Value::Array(ref mut view_vec) => {
+                                                            view_vec.append(
+                                                                &mut y["views"]
+                                                                    .clone()
+                                                                    .as_array_mut()
+                                                                    .get_or_insert(&mut vec![]));
+                                                            *view_data_lock = Some( serde_json::Value::Array(view_vec.clone()) );
+                                                            merged_views = true;
+                                                        },
+                                                        _ => {},
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+
+                                            if merged_views == false {
+                                                *view_data_lock = Some( y["views"].clone());
+                                            }                                            
+                                        },
+                                        _ => {},
+                                    };
+                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
+                                        Some(z) => {
+                                            info!("Updating view_cursor_data_lock to: {:?}", z);
+                                            *view_cursor_data_lock = z;
+                                        },
+                                        None => {},
+                                    }
+                                },
+                                None => {
+
+                                }
+                            };
+                        }
+                        None => {},
+                    }
+
+
+                    info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
+                });
+            }
+
             // Acquire these values to dispatch LoadLinearIssuesPaginate:
             //  linear_config: LinearConfig,
             //  linear_cursor: GraphQLCursor,
