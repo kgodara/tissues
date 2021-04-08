@@ -1,5 +1,4 @@
 use tui::{
-    backend::TermionBackend,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},

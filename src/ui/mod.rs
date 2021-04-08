@@ -12,6 +12,7 @@ use crate::util;
 
 use app::App as App;
 
+use crate::components::linear_custom_view_select::LinearCustomViewSelect;
 use crate::components::linear_team_select::LinearTeamSelectState;
 use crate::components::linear_issue_display::LinearIssueDisplayState;
 use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
@@ -77,6 +78,36 @@ where
       f.render_stateful_widget(items, chunks[0], &mut app.actions.state);
 }
 
+pub fn draw_view_select<B>(f: &mut Frame<B>, app: &mut App)
+where 
+  B: Backend,
+{
+
+  // info!("Calling draw_issue_display with: {:?}", app.linear_issue_display.issue_table_data);
+
+  let view_data_handle = app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+  let table;
+  let table_result = LinearCustomViewSelect::get_rendered_view_data(&view_data_handle);
+
+  match table_result {
+    Ok(x) => { table = x },
+    Err(x) => {return;},
+  }
+
+  let mut table_state = app.linear_custom_view_select.view_table_state.clone();
+
+  // info!("table: {:?}", table);
+
+
+  let chunks = Layout::default()
+    .direction(Direction::Vertical)
+    .constraints([Constraint::Percentage(100)/*, Constraint::Percentage(35)*/].as_ref())
+    .split(f.size());
+
+  f.render_stateful_widget(table, chunks[0], &mut table_state);
+}
+
 
 
 pub fn draw_team_select<B>(f: &mut Frame<B>, app: &mut App)
@@ -139,7 +170,7 @@ where
     .split(f.size());
 
   f.render_stateful_widget(table, chunks[0], &mut table_state);
-  
+
   // Draw Workflow State Selection 
   if app.linear_draw_workflow_state_select == true {
 

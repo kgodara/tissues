@@ -101,6 +101,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("Manager received IOEvent::{:?}", cmd);
             match cmd {
+                IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
+                    let option_stateful = components::linear_custom_view_select::LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
+                    info!("LoadCustomViews data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                },
                 IOEvent::LoadLinearTeams { api_key, resp } => {
                     let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
                     info!("LoadLinearTeams data: {:?}", option_stateful);
@@ -178,7 +184,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         terminal.draw(|mut f| match app.route {
             Route::ActionSelect => {
               ui::draw_action_select(&mut f, &mut app);
-            }
+            },
+            Route::CustomViewSelect => {
+                ui::draw_view_select(&mut f, &mut app);
+            },
             Route::TeamSelect => {
               ui::draw_team_select(&mut f, &mut app);
             }

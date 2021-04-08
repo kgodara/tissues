@@ -112,7 +112,8 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
         Route::ActionSelect => match app.actions.state.selected() {
             Some(i) => {
                 match i {
-                    0 => { app.change_route( Route::TeamSelect, &tx).await }
+                    0 => { app.change_route( Route::CustomViewSelect, &tx).await },
+                    1 => { app.change_route( Route::TeamSelect, &tx).await }
                     _ => {}
                 }
             }

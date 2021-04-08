@@ -1,0 +1,30 @@
+
+
+{   "query": "query fetchCustomViews($firstNum: Int, $afterCursor: String) {
+        customViews(first: $firstNum, after: $afterCursor) {
+            nodes {
+                name
+                description
+                color
+                filters
+                organization {
+                    id
+                    name
+                }
+                team {
+                    id
+                    name
+                    key
+                    description
+                }
+            }
+            pageInfo {
+                hasPreviousPage
+                hasNextPage
+                startCursor
+                endCursor
+            }
+        }
+    }",
+    "operationName": "fetchCustomViews"
+}
