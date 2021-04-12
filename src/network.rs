@@ -17,6 +17,11 @@ pub enum IOEvent {
         linear_cursor: GraphQLCursor,
         resp: Responder<Value>
     },
+    LoadViewIssues {
+        linear_config: LinearConfig,
+        view: Value,
+        resp: Responder<Value>,
+    },
     LoadLinearTeams {
         api_key: Option<String>,
         resp: Responder<Value>

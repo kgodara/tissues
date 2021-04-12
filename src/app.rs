@@ -44,6 +44,9 @@ pub struct App<'a> {
     // Linear Custom View Cursor
     pub linear_custom_view_cursor: Arc<Mutex<GraphQLCursor>>,
 
+    // Linear Dashbaord Custom View List
+    pub linear_dashboard_view_list: Vec<serde_json::Value>,
+
     // Linear Team Select State
     pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
     // Selected Linear Team
@@ -81,6 +84,8 @@ impl<'a> Default for App<'a> {
             linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect::default(),
             linear_selected_custom_view_idx: None,
             linear_custom_view_cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
+
+            linear_dashboard_view_list: vec!(),
 
             linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
             // Null
@@ -326,7 +331,7 @@ impl<'a> App<'a> {
 
                                             if merged_views == false {
                                                 *view_data_lock = Some( y["views"].clone());
-                                            }                                            
+                                            }
                                         },
                                         _ => {},
                                     };
@@ -349,7 +354,34 @@ impl<'a> App<'a> {
 
                     info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
                 });
-            }
+            },
+            "load_view_issues" => {
+                let tx2 = tx.clone();
+
+                let linear_config = self.linear_client.config.clone();
+
+                let dashboard_view_data = self.linear_dashboard_view_list.clone();
+                
+                if dashboard_view_data.len() > 0 {
+
+                    let view = dashboard_view_data[0].clone();
+
+                    let t1 = tokio::spawn(async move {
+
+                        let (resp_tx, resp_rx) = oneshot::channel();
+    
+                        let cmd = IOEvent::LoadViewIssues { linear_config: linear_config,
+                                                                view: view,
+                                                                resp: resp_tx };
+                        tx2.send(cmd).await.unwrap();
+    
+                        let res = resp_rx.await.ok();
+    
+                        info!("LoadViewIssues IOEvent returned: {:?}", res);
+    
+                    });
+                }
+            },
 
             // Acquire these values to dispatch LoadLinearIssuesPaginate:
             //  linear_config: LinearConfig,

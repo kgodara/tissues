@@ -107,7 +107,7 @@ impl LinearCustomViewSelect {
                                             String::default()
                                         }
                                     },
-                                    
+
                                     _ => { String::default() },
                                 })
                                 .collect();

@@ -119,6 +119,26 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
             }
             _ => {}
         },
+        // Add Custom View to app.linear_dashboard_view_list if a view is selected
+        Route::CustomViewSelect => match app.linear_selected_custom_view_idx {
+            // Add Custom View to app.linear_dashboard_view_list
+            Some(idx) => {
+                let custom_view_data_lock = app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+                match &*custom_view_data_lock {
+                    Some(view_data) => {
+                        let selected_view = view_data[idx].clone();
+                        app.linear_dashboard_view_list.push(selected_view);
+                    },
+                    None => {}
+                };
+                drop(custom_view_data_lock);
+                // TEMP: Dispatch "load_view_issues" Command
+                app.dispatch_event("load_view_issues", &tx);
+            },
+            None => {},
+        }
+
         // Switch Route as long as a team is selected
         Route::TeamSelect => match app.linear_selected_team_idx {
             Some(_) => { app.change_route(Route::LinearInterface, &tx).await },

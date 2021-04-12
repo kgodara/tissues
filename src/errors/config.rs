@@ -40,6 +40,11 @@ pub enum ConfigError {
     #[error("unknown data store error")]
     Unknown,
     */
+
+    #[error("Invalid Parameter: ${parameter:?}")]
+    InvalidParameter {
+        parameter: String,
+    },
     
     #[error("Credentials not found for ${platform:?}")]
     CredentialsNotFound {

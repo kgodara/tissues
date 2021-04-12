@@ -107,6 +107,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(option_stateful);
                 },
+                IOEvent::LoadViewIssues { linear_config, view, resp } => {
+                    let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
+                    info!("LoadViewIssues data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                },
                 IOEvent::LoadLinearTeams { api_key, resp } => {
                     let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
                     info!("LoadLinearTeams data: {:?}", option_stateful);
@@ -242,7 +248,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             Event::Tick => {
                 // info!("tick_idx: {}", tick_idx);
-                info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
+                // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
                 tick_idx += 1;
             },
             _ => {}
