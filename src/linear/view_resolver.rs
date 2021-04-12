@@ -30,7 +30,6 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
                 _ => {},
             };
 
-
         },
         Value::Null => { return None },
         _ => { panic!("view.filters was not an Object or Null") },
@@ -76,7 +75,17 @@ async fn get_issues_by_state_filters( state_list: Vec<Value>, linear_config: Lin
         info!("get_issues_by_workflow_state Result: {:?}", item);
     }
 
-    return None;
+    let issues: Vec<Value> = items
+                    .into_iter()
+                    .filter_map(|e| match e {
+                        Ok(val) => Some(val),
+                        Err(_) => None,
+                    })
+                    .collect();
+    info!("get_issues_by_workflow_state Issues: {:?}", issues);
+                    
+
+    return Some(issues);
 }
 
 // async fn  ()

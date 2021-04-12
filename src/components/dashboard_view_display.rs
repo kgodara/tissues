@@ -1,4 +1,3 @@
-
 use tui::{
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
@@ -6,10 +5,10 @@ use tui::{
     Terminal,
 };
 
-use std::sync::{ Arc, Mutex };
-
-use serde_json::Value;
+use std::sync::{Arc, Mutex};
 use serde_json::json;
+
+// use colorsys::Color as CTColor;
 
 use crate::util::GraphQLCursor;
 use crate::linear::client::LinearClient;
@@ -18,59 +17,15 @@ use crate::linear::LinearConfig;
 use crate::util::ui::style_color_from_hex_str;
 
 
+use serde_json::Value;
 
-pub struct LinearCustomViewSelect {
-    pub view_table_data: Arc<Mutex<Option<Value>>>,
+pub struct DashboardViewDisplay {
     pub view_table_state: TableState,
 }
 
+impl DashboardViewDisplay {
 
-impl LinearCustomViewSelect {
-    pub async fn load_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Option<Value> {
-        let view_fetch_result = LinearClient::get_custom_views(linear_config, linear_cursor).await;
-
-        let mut views: serde_json::Value = serde_json::Value::Null;
-        let mut cursor_info: serde_json::Value = serde_json::Value::Null;
-
-        match view_fetch_result {
-            Ok(x) => { 
-                views = x["view_nodes"].clone();
-                cursor_info = x["cursor_info"].clone();
-            },
-            Err(y) => {
-                info!("Get Custom Views failed: {:?}", y);
-                return None;
-            },
-        }
-
-        info!("Custom View Fetch Result: {:?}", views);
-
-        match views {
-            serde_json::Value::Array(_) => {
-                info!("Populating LinearCustomViewSelect::view_table_data with: {:?}", views);
-
-                // return Some(issues);
-                return Some(json!( { "views": views, "cursor_info": cursor_info } ));
-            },
-            _ => {return None;},
-        }
-    }
-
-
-    pub fn get_rendered_view_data(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
-
-        let table_items;
-
-        match table_data {
-            Some(x) => table_items = x,
-            None => { return Err("Table Items is None"); }
-        }
-
-        let table_array;
-        match table_items.as_array() {
-            Some(x) => table_array = x,
-            None => { return Err("table_data is not an Array") }
-        }
+    pub fn get_rendered_view_table(view_list: &Vec<Option<Value>>) -> Result<Table, &'static str> {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
@@ -87,11 +42,14 @@ impl LinearCustomViewSelect {
 
 
 
-        let rows = table_array.iter().enumerate().map(|(idx, row)| {
+        let rows = view_list.iter().enumerate().map(|(idx, row_option)| {
 
             // info!("Table Row Raw: {:?}", row);
 
-            let cell_fields: std::vec::Vec<std::string::String> = vec![row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
+            let cell_fields: std::vec::Vec<std::string::String> = match row_option {
+            
+                Some(row) => {
+                    vec![row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
                                 .iter()
                                 .enumerate()
                                 .map(|(i,field)| match field {
@@ -110,7 +68,10 @@ impl LinearCustomViewSelect {
 
                                     _ => { String::default() },
                                 })
-                                .collect();
+                                .collect()
+                },
+                None => vec![String::default(), String::default(), String::default()],
+            };
 
 
 
@@ -128,22 +89,27 @@ impl LinearCustomViewSelect {
             let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
 
             let generate_name_cell = || {
-                let name = row["name"].clone();
-                let color = row["color"].clone();
+                match row_option {
+                    Some(row) => {
+                        let name = row["name"].clone();
+                        let color = row["color"].clone();
 
-                let name = match name {
-                    serde_json::Value::String(x) => Some(x),
-                    _ => None,
-                };
+                        let name = match name {
+                            serde_json::Value::String(x) => Some(x),
+                            _ => None,
+                        };
 
-                let style_color = style_color_from_hex_str(&color);
+                        let style_color = style_color_from_hex_str(&color);
 
-                match name {
-                    Some(x) => { match style_color {
-                        Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
-                        None => return Cell::from(x),
-                    }},
-                    None => return Cell::from(String::default()),
+                        match name {
+                            Some(x) => { match style_color {
+                                Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
+                                None => return Cell::from(x),
+                            }},
+                            None => return Cell::from(String::default()),
+                        }
+                    },
+                    None => {return Cell::from(String::from("Empty Slot"))}
                 }
             };
 
@@ -155,7 +121,7 @@ impl LinearCustomViewSelect {
 
         let t = Table::new(rows)
             .header(header)
-            .block(Block::default().borders(Borders::ALL).title("Select a Custom View"))
+            .block(Block::default().borders(Borders::ALL).title("Dashboard View Configuration"))
             .highlight_style(selected_style)
             .highlight_symbol(">> ")
             .widths(&[
@@ -170,14 +136,10 @@ impl LinearCustomViewSelect {
     }
 }
 
+impl Default for DashboardViewDisplay {
 
-
-
-impl Default for LinearCustomViewSelect {
-
-    fn default() -> LinearCustomViewSelect {
-        LinearCustomViewSelect {
-            view_table_data: Arc::new(Mutex::new(None)),
+    fn default() -> DashboardViewDisplay {
+        DashboardViewDisplay {
             view_table_state: TableState::default(),
         }
     }

@@ -191,6 +191,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Route::ActionSelect => {
               ui::draw_action_select(&mut f, &mut app);
             },
+            Route::DashboardViewDisplay => {
+                ui::draw_dashboard_view_display(&mut f, &mut app);
+            },
             Route::CustomViewSelect => {
                 ui::draw_view_select(&mut f, &mut app);
             },

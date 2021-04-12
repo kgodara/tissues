@@ -12,6 +12,7 @@ use crate::util;
 
 use app::App as App;
 
+use crate::components::dashboard_view_display;
 use crate::components::linear_custom_view_select::LinearCustomViewSelect;
 use crate::components::linear_team_select::LinearTeamSelectState;
 use crate::components::linear_issue_display::LinearIssueDisplayState;
@@ -76,6 +77,32 @@ where
 
       // We can now render the item list
       f.render_stateful_widget(items, chunks[0], &mut app.actions.state);
+}
+
+pub fn draw_dashboard_view_display<B>(f: &mut Frame<B>, app: &mut App)
+where
+  B: Backend,
+{
+
+  let table;
+  let table_result = dashboard_view_display::DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list);
+
+  match table_result {
+    Ok(x) => { table = x },
+    Err(x) => {return;},
+  }
+
+  let mut table_state = app.dashboard_view_display.view_table_state.clone();
+
+  // info!("table: {:?}", table);
+
+
+  let chunks = Layout::default()
+    .direction(Direction::Vertical)
+    .constraints([Constraint::Percentage(100)/*, Constraint::Percentage(35)*/].as_ref())
+    .split(f.size());
+
+  f.render_stateful_widget(table, chunks[0], &mut table_state);
 }
 
 pub fn draw_view_select<B>(f: &mut Frame<B>, app: &mut App)

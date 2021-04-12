@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 
 pub enum Route {
     ActionSelect,
+    DashboardViewDisplay,
     CustomViewSelect,
     TeamSelect,
     LinearInterface,
@@ -44,8 +45,11 @@ pub struct App<'a> {
     // Linear Custom View Cursor
     pub linear_custom_view_cursor: Arc<Mutex<GraphQLCursor>>,
 
+    // Linear Dashboard Custom View List Display
+    pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
     // Linear Dashbaord Custom View List
-    pub linear_dashboard_view_list: Vec<serde_json::Value>,
+    pub linear_dashboard_view_list: Vec<Option<serde_json::Value>>,
+    pub linear_dashboard_view_idx: Option<usize>,
 
     // Linear Team Select State
     pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
@@ -85,7 +89,9 @@ impl<'a> Default for App<'a> {
             linear_selected_custom_view_idx: None,
             linear_custom_view_cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
 
-            linear_dashboard_view_list: vec!(),
+            dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
+            linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
+            linear_dashboard_view_idx: None,
 
             linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
             // Null
@@ -135,6 +141,7 @@ impl<'a> App<'a> {
     pub async fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
         match route {
             Route::ActionSelect => {},
+            Route::DashboardViewDisplay => {},
             Route::CustomViewSelect => {
                 // TODO: Clear any previous CustomViewSelect related values on self
 
@@ -355,6 +362,7 @@ impl<'a> App<'a> {
                     info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
                 });
             },
+            /*
             "load_view_issues" => {
                 let tx2 = tx.clone();
 
@@ -382,6 +390,7 @@ impl<'a> App<'a> {
                     });
                 }
             },
+            */
 
             // Acquire these values to dispatch LoadLinearIssuesPaginate:
             //  linear_config: LinearConfig,

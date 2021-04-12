@@ -112,7 +112,7 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
         Route::ActionSelect => match app.actions.state.selected() {
             Some(i) => {
                 match i {
-                    0 => { app.change_route( Route::CustomViewSelect, &tx).await },
+                    0 => { app.change_route( Route::DashboardViewDisplay, &tx).await },
                     1 => { app.change_route( Route::TeamSelect, &tx).await }
                     _ => {}
                 }
@@ -128,13 +128,28 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
                 match &*custom_view_data_lock {
                     Some(view_data) => {
                         let selected_view = view_data[idx].clone();
-                        app.linear_dashboard_view_list.push(selected_view);
+
+                        // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
+                        // If no empty slots, do nothing
+                        let slot_idx_option = app.linear_dashboard_view_list
+                                            .iter()
+                                            .position(|x| match x {
+                                                Some(_) => return true,
+                                                None => return false,
+                                            });
+                        
+                        match slot_idx_option {
+                            Some(slot_idx) => {
+                                app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
+                            },
+                            None => {},
+                        };
                     },
                     None => {}
                 };
                 drop(custom_view_data_lock);
                 // TEMP: Dispatch "load_view_issues" Command
-                app.dispatch_event("load_view_issues", &tx);
+                // app.dispatch_event("load_view_issues", &tx);
             },
             None => {},
         }
