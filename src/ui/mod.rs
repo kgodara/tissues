@@ -18,6 +18,8 @@ use crate::components::linear_team_select::LinearTeamSelectState;
 use crate::components::linear_issue_display::LinearIssueDisplayState;
 use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
 
+use crate::util::colors;
+
 
 use tui::{
   backend::Backend,
@@ -27,6 +29,8 @@ use tui::{
   widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
   Frame,
 };
+
+use serde_json::Value;
 
 
 
@@ -84,6 +88,8 @@ where
   B: Backend,
 {
 
+  let DASHBOARD_VIEW_CMD_LIST: Vec<&str> = vec![ "Add View", "Replace View", "Remove View" ];
+
   let table;
   let table_result = dashboard_view_display::DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list);
 
@@ -99,10 +105,78 @@ where
 
   let chunks = Layout::default()
     .direction(Direction::Vertical)
-    .constraints([Constraint::Percentage(100)/*, Constraint::Percentage(35)*/].as_ref())
+    .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
     .split(f.size());
 
-  f.render_stateful_widget(table, chunks[0], &mut table_state);
+  // Draw Command Bar to display Applicable Commands
+
+  // Get Selected Custom View from app.linear_dashboard_view_list using app.linear_dashboard_view_idx
+  let mut view_is_selected = false;
+  let mut selected_view: Option<Value> = None;
+
+  if let Some(view_idx) = app.linear_dashboard_view_idx {
+    view_is_selected = true;
+    selected_view = app.linear_dashboard_view_list[view_idx].clone();
+  }
+
+  // Determine which Commands are allowed based on state of selection
+  let mut add_view_cmd_active = false;
+  let mut replace_view_cmd_active = false;
+  let mut remove_view_cmd_active = false;
+
+  // If a View is not selected, no Commands allowed
+  if view_is_selected == true {
+    // A filled view slot is selected, allow Replace View and Remove View Commands
+    if let Some(view) = selected_view {
+      replace_view_cmd_active = true;
+      remove_view_cmd_active = true;
+    }
+    // An empty view slot is selected, only Add View Command is allowed
+    else {
+      add_view_cmd_active = true;
+    }
+  }
+
+  // Draw Command Bar with Command Color brightness based on active state
+  let list_items: Vec<ListItem> = DASHBOARD_VIEW_CMD_LIST
+    .iter()
+    .enumerate()
+    .map(|(i, e)| {
+        let lines = vec![Spans::from(Span::styled(
+          *e,
+          match *e {
+
+            "Add View" => { if add_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::ADD_VIEW_CMD_ACTIVE) }
+                            else { Style::default().add_modifier(Modifier::DIM).fg(colors::ADD_VIEW_CMD_INACTIVE) } 
+                          },
+
+            "Replace View" => { if replace_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REPLACE_VIEW_CMD_ACTIVE) }
+                                else { Style::default().add_modifier(Modifier::DIM).fg(colors::REPLACE_VIEW_CMD_INACTIVE) } 
+                              },
+
+            "Remove View" => { if remove_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REMOVE_VIEW_CMD_ACTIVE) }
+                              else { Style::default().add_modifier(Modifier::DIM).fg(colors::REMOVE_VIEW_CMD_INACTIVE) } 
+                            },
+            _ => {Style::default().add_modifier(Modifier::ITALIC)}
+          },
+        ))];
+        ListItem::new(lines).style(Style::default())
+    })
+    .collect();
+
+  // Create a List from all list items and highlight the currently selected one
+  let items = List::new(list_items)
+    .block(Block::default().borders(Borders::ALL).title("Commands"))
+    .highlight_style(
+        Style::default()
+            .bg(Color::LightGreen)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol(">> ");
+
+
+  f.render_widget(items, chunks[0]);
+  f.render_stateful_widget(table, chunks[1], &mut table_state);
 }
 
 pub fn draw_view_select<B>(f: &mut Frame<B>, app: &mut App)
@@ -129,7 +203,7 @@ where
 
   let chunks = Layout::default()
     .direction(Direction::Vertical)
-    .constraints([Constraint::Percentage(100)/*, Constraint::Percentage(35)*/].as_ref())
+    .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
     .split(f.size());
 
   f.render_stateful_widget(table, chunks[0], &mut table_state);
