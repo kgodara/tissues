@@ -51,6 +51,7 @@ use std::fs::File;
 
 use command::{ Command,
                 get_cmd,
+                exec_add_cmd,
                 exec_open_linear_workflow_state_selection_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
@@ -223,6 +224,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match cmd {
                         Command::Quit => {
                             break;
+                        },
+                        Command::Add => {
+                            exec_add_cmd(&mut app, &tx).await;
                         },
                         Command::OpenLinearWorkflowStateSelection => {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);

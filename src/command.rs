@@ -9,6 +9,8 @@ use crate::util::{ state_list, state_table };
 
 use tokio::sync::mpsc::Sender;
 
+use serde_json::Value;
+
 #[derive(Debug)]
 pub enum Command {
 
@@ -20,6 +22,7 @@ pub enum Command {
 
     // Char Commands
     Quit,
+    Add,
     OpenLinearWorkflowStateSelection,
 
 }
@@ -58,6 +61,9 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
                 "q" => {
                     Some(Command::Quit)
                 },
+                "a" => {
+                    Some(Command::Add)
+                },
                 // Modify Command
                 "m" => {
                     Some(Command::OpenLinearWorkflowStateSelection)
@@ -69,6 +75,34 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
         },
 
         _ => { None }
+    }
+}
+
+pub async fn exec_add_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+
+    info!("Executing 'add' command");
+
+    match app.route {
+        // User is attempting to add a new Custom View to the Dashboard
+        Route::DashboardViewDisplay => {
+            // Verify that an empty slot is selected
+            // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
+            let mut view_is_selected = false;
+            let mut selected_view: Option<Value> = None;
+          
+            if let Some(view_idx) = app.linear_dashboard_view_idx {
+              view_is_selected = true;
+              selected_view = app.linear_dashboard_view_list[view_idx].clone();
+
+                if view_is_selected == true {
+                    // An empty view slot is selected
+                    if let None = selected_view {
+                        app.change_route(Route::CustomViewSelect, &tx).await;
+                    }
+                }
+            }
+        },
+        _ => {}
     }
 }
 
@@ -127,19 +161,28 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
 
                 match &*custom_view_data_lock {
                     Some(view_data) => {
+                        info!("Got Custom View Data");
                         let selected_view = view_data[idx].clone();
 
                         // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
                         // If no empty slots, do nothing
+
+                        info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
+
+                        /*
                         let slot_idx_option = app.linear_dashboard_view_list
                                             .iter()
                                             .position(|x| match x {
                                                 Some(_) => return true,
                                                 None => return false,
                                             });
+                        */
+                        let slot_idx_option = app.linear_dashboard_view_idx;
+                        info!("slot_idx_option: {:?}", slot_idx_option);
                         
                         match slot_idx_option {
                             Some(slot_idx) => {
+                                info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
                                 app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
                             },
                             None => {},
@@ -148,8 +191,8 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
                     None => {}
                 };
                 drop(custom_view_data_lock);
-                // TEMP: Dispatch "load_view_issues" Command
-                // app.dispatch_event("load_view_issues", &tx);
+                // Change Route to Route::DashboardViewDisplay
+                app.change_route( Route::DashboardViewDisplay, &tx).await;
             },
             None => {},
         }
@@ -174,6 +217,12 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
         // Select next Action
         Route::ActionSelect => app.actions.next(),
+
+        // Select next Custom View Slot
+        Route::DashboardViewDisplay => {
+            state_table::next(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+            app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
+        },
 
         // Select next custom view from list of Linear custom views and update 'app.linear__selected_custom_view_idx'
         Route::CustomViewSelect => {
@@ -304,6 +353,11 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
         Route::ActionSelect => app.actions.previous(),
+        // Select previous Custom View Slot
+        Route::DashboardViewDisplay => {
+            state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+            app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
+        },
         Route::CustomViewSelect => {
             let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
             match *handle {
