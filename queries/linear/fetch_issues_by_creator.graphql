@@ -1,0 +1,28 @@
+{   "query": "query fetchIssuesByCreator($userId: String!) {
+        user(id: $userId) {
+            createdIssueCount
+            createdIssues {
+                nodes {
+                    id
+                    createdAt
+                    number
+                    title
+                    description
+                    priority
+                    estimate
+                    state {
+                        id
+                        name
+                        type
+                        description
+                        color
+                    }
+                    assignee {
+                        name
+                    }
+                }
+            }
+        }
+    }",
+    "operationName": "fetchIssuesByCreator"
+}

@@ -149,4 +149,49 @@ async fn get_issues_by_assignee ( assignee_list: Vec<Value>, linear_config: Line
 
 }
 
-async fn get_issues_by_creator ( creator_list:  )
+async fn get_issues_by_creator ( creator_list:  Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
+    info!("get_issues_by_creator received creator: {:?}", creator_list);
+
+    // note the use of `into_iter()` to consume `items`
+    let tasks: Vec<_> = creator_list
+    .into_iter()
+    .map(|mut item| {
+
+        info!("Spawning Get Issue By Creator Task");
+        let temp_config = linear_config.clone();
+        tokio::spawn(async move {
+            match item.as_object() {
+                Some(creator_obj) => {
+                    let creator_issues = LinearClient::get_issues_by_creator( temp_config, creator_obj.clone() ).await;
+                    creator_issues
+                },
+                _ => {
+                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Creator Obj not found") } ) )
+                },
+            }
+        })
+    })
+    .collect();
+
+    // await the tasks for resolve's to complete and give back our items
+    let mut items = vec![];
+    for task in tasks {
+        items.push(task.await.unwrap());
+    }
+    // verify that we've got the results
+    for item in &items {
+        info!("get_issues_by_creator Result: {:?}", item);
+    }
+
+    let issues: Vec<Value> = items
+                    .into_iter()
+                    .filter_map(|e| match e {
+                        Ok(val) => Some(val),
+                        Err(_) => None,
+                    })
+                    .collect();
+    info!("get_issues_by_creator Issues: {:?}", issues);
+
+
+    return Some(issues);
+}
