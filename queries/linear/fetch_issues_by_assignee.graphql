@@ -1,0 +1,27 @@
+{   "query": "query fetchIssuesByAssignee($ref: String!) {
+        user(id: $ref) {
+            assignedIssues {
+                nodes {
+                    id
+                    createdAt
+                    number
+                    title
+                    description
+                    priority
+                    estimate
+                    state {
+                        id
+                        name
+                        type
+                        description
+                        color
+                    }
+                    assignee {
+                        name
+                    }
+                }
+            }
+        }
+    }",
+    "operationName": "fetchIssuesByAssignee"
+}

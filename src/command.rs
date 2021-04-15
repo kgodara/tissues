@@ -184,6 +184,21 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
                             Some(slot_idx) => {
                                 info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
                                 app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
+
+                                // Sort app.linear_dashboard_view_list so that all Some's are first
+                                app.linear_dashboard_view_list = app.linear_dashboard_view_list
+                                                                    .iter()
+                                                                    .filter_map(|e| {
+                                                                        match e {
+                                                                            Some(_) => Some(e.clone()),
+                                                                            None => None,
+                                                                        }
+                                                                    })
+                                                                    .collect();
+                                while app.linear_dashboard_view_list.len() < 6 {
+                                    app.linear_dashboard_view_list.push(None);
+                                }
+
                             },
                             None => {},
                         };

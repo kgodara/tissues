@@ -4,6 +4,7 @@ use crate::linear::LinearConfig;
 use crate::linear::client::LinearClient;
 
 use crate::errors::ConfigError;
+use crate::errors::GraphQLRequestError;
 use super::error::LinearClientError;
 
 use std::sync::{ Arc, Mutex };
@@ -39,9 +40,7 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
 }
 
 // Is it better to fetch all issues by workflow states, then filter by state_list?
-// Or is it preferable to query once for each workflow state present in state_list, then merge?
-// For now, will query for all workflowStates, then filter by state_list,
-// if there is only one workflowState, query workflowState() instead
+// Current approach: query once for each workflow state present in state_list, then merge
 // wofklowStates() -> { nodes [ { issues() } ] }
 async fn get_issues_by_state_filters( state_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
     info!("get_issues_by_state_filters received state_list: {:?}", state_list);
@@ -83,9 +82,71 @@ async fn get_issues_by_state_filters( state_list: Vec<Value>, linear_config: Lin
                     })
                     .collect();
     info!("get_issues_by_workflow_state Issues: {:?}", issues);
-                    
+
 
     return Some(issues);
 }
 
-// async fn  ()
+// Note: Currently will ignore 'No Assignee' filter
+async fn get_issues_by_assignee ( assignee_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
+    info!("get_issues_by_assignee received assignee_list: {:?}", assignee_list);
+
+    // note the use of `into_iter()` to consume `items`
+    let tasks: Vec<_> = assignee_list
+    .into_iter()
+    .map(|mut item| {
+
+        let mut invalid_filter = false;
+
+        // If 'item' does not have a ref, is 'No Assignee' filter, skip
+        if let Value::Null = item["ref"] {
+            invalid_filter = true;
+        }
+
+        info!("Spawning Get Issue By Assignee Task");
+        let temp_config = linear_config.clone();
+        tokio::spawn(async move {
+            if invalid_filter == true {
+                return Err(LinearClientError::InvalidConfig(
+                        ConfigError::InvalidParameter { parameter: String::from("View Assignee filter") }
+                    )
+                );
+            };
+            match item.as_object() {
+                Some(assignee_obj) => {
+                    let assignee_issues = LinearClient::get_issues_by_assignee( temp_config, assignee_obj.clone() ).await;
+                    assignee_issues
+                },
+                _ => {
+                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Assignee Obj not found") } ) )
+                },
+            }
+        })
+    })
+    .collect();
+
+    // await the tasks for resolve's to complete and give back our items
+    let mut items = vec![];
+    for task in tasks {
+        items.push(task.await.unwrap());
+    }
+    // verify that we've got the results
+    for item in &items {
+        info!("get_issues_by_assignee Result: {:?}", item);
+    }
+
+    let issues: Vec<Value> = items
+                    .into_iter()
+                    .filter_map(|e| match e {
+                        Ok(val) => Some(val),
+                        Err(_) => None,
+                    })
+                    .collect();
+    info!("get_issues_by_assignee Issues: {:?}", issues);
+
+
+    return Some(issues);
+
+}
+
+async fn get_issues_by_creator ( creator_list:  )
