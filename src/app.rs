@@ -15,6 +15,8 @@ use std::sync::{Arc, Mutex};
 
 pub enum Route {
     ActionSelect,
+    DashboardViewDisplay,
+    CustomViewSelect,
     TeamSelect,
     LinearInterface,
 }
@@ -36,27 +38,35 @@ pub struct App<'a> {
     // LinearClient
     linear_client: linear::client::LinearClient,
 
+    // Linear Custom View Select
+    pub linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect,
+    // Selected Custom View
+    pub linear_selected_custom_view_idx: Option<usize>,
+    // Linear Custom View Cursor
+    pub linear_custom_view_cursor: Arc<Mutex<GraphQLCursor>>,
+
+    // Linear Dashboard Custom View List Display
+    pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
+    // Linear Dashbaord Custom View List
+    pub linear_dashboard_view_list: Vec<Option<serde_json::Value>>,
+    pub linear_dashboard_view_idx: Option<usize>,
+
     // Linear Team Select State
     pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
-
     // Selected Linear Team
     pub linear_selected_team_idx: Option<usize>,
 
     // Linear Issue Display State
     pub linear_issue_display: components::linear_issue_display::LinearIssueDisplayState,
-
     // Selected Linear Issue
     pub linear_selected_issue_idx: Option<usize>,
-
     // Linear Issue Display Cursor
-    pub linear_issue_cursor: Arc<Mutex<util::GraphQLCursor>>,
+    pub linear_issue_cursor: Arc<Mutex<GraphQLCursor>>,
 
     // Linear Workflow Select State
     pub linear_workflow_select: components::linear_workflow_state_display::LinearWorkflowStateDisplayState,
-
     // Selected Linear Workflow State
     pub linear_selected_workflow_state_idx: Option<usize>,
-
     // Draw Workflow State Selection panel
     pub  linear_draw_workflow_state_select: bool,
 
@@ -75,6 +85,14 @@ impl<'a> Default for App<'a> {
 
             linear_client: linear::client::LinearClient::default(),
 
+            linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect::default(),
+            linear_selected_custom_view_idx: None,
+            linear_custom_view_cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
+
+            dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
+            linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
+            linear_dashboard_view_idx: None,
+
             linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
             // Null
             linear_selected_team_idx: None,
@@ -90,8 +108,8 @@ impl<'a> Default for App<'a> {
             linear_draw_workflow_state_select: false,
 
             actions: util::StatefulList::with_items(vec![
-                "Create Issue",
-                "Test",
+                "Modify Dashboard",
+                "Create New Custom View",
             ]),
         }
     }
@@ -123,6 +141,13 @@ impl<'a> App<'a> {
     pub async fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
         match route {
             Route::ActionSelect => {},
+            Route::DashboardViewDisplay => {},
+            Route::CustomViewSelect => {
+                // TODO: Clear any previous CustomViewSelect related values on self
+
+                self.dispatch_event("load_custom_views", tx);
+
+            },
             Route::TeamSelect => {
 
                 let tx2 = tx.clone();
@@ -158,7 +183,7 @@ impl<'a> App<'a> {
 
                 // self.linear_team_select.load_teams(&mut self.linear_client).await;
             },
-            
+
             Route::LinearInterface => {
 
                 let tx3 = tx.clone();
@@ -244,6 +269,129 @@ impl<'a> App<'a> {
     pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
 
         match event_name {
+
+            "load_custom_views" => {
+                // TODO: Clear any previous CustomViewSelect related values on self
+
+                let tx2 = tx.clone();
+
+                let linear_config = self.linear_client.config.clone();
+
+                let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
+
+                let view_cursor_handle = self.linear_custom_view_cursor.clone();
+
+                let view_cursor_handle = self.linear_custom_view_cursor.lock().unwrap();
+                let view_cursor: GraphQLCursor = view_cursor_handle.clone();
+                drop(view_cursor_handle);
+
+                let view_cursor_handle = self.linear_custom_view_cursor.clone();
+
+
+
+                let t1 = tokio::spawn(async move {
+
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    let cmd = IOEvent::LoadCustomViews { linear_config: linear_config,
+                                                            linear_cursor: view_cursor,
+                                                            resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
+
+                    let res = resp_rx.await.ok();
+
+                    info!("LoadCustomViews IOEvent returned: {:?}", res);
+
+                    let mut view_data_lock = view_data_handle.lock().unwrap();
+                    let mut view_cursor_data_lock = view_cursor_handle.lock().unwrap();
+
+                    let mut current_views = view_data_lock.clone();
+                    let mut merged_views = false;
+
+                    match res {
+                        Some(x) => {
+                            match x {
+                                Some(y) => {
+                                    match y["views"] {
+                                        serde_json::Value::Array(_) => {
+                                            // info!("Updating view_data_lock to: {:?}", y["views"]);
+                                            // *view_data_lock = Some(y["views"].clone());
+
+                                            // Append to existing list of Views
+                                            match current_views {
+                                                Some(mut view_data) => {
+                                                    match view_data {
+                                                        serde_json::Value::Array(ref mut view_vec) => {
+                                                            view_vec.append(
+                                                                &mut y["views"]
+                                                                    .clone()
+                                                                    .as_array_mut()
+                                                                    .get_or_insert(&mut vec![]));
+                                                            *view_data_lock = Some( serde_json::Value::Array(view_vec.clone()) );
+                                                            merged_views = true;
+                                                        },
+                                                        _ => {},
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+
+                                            if merged_views == false {
+                                                *view_data_lock = Some( y["views"].clone());
+                                            }
+                                        },
+                                        _ => {},
+                                    };
+                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
+                                        Some(z) => {
+                                            info!("Updating view_cursor_data_lock to: {:?}", z);
+                                            *view_cursor_data_lock = z;
+                                        },
+                                        None => {},
+                                    }
+                                },
+                                None => {
+
+                                }
+                            };
+                        }
+                        None => {},
+                    }
+
+
+                    info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
+                });
+            },
+            /*
+            "load_view_issues" => {
+                let tx2 = tx.clone();
+
+                let linear_config = self.linear_client.config.clone();
+
+                let dashboard_view_data = self.linear_dashboard_view_list.clone();
+                
+                if dashboard_view_data.len() > 0 {
+
+                    let view = dashboard_view_data[0].clone();
+
+                    let t1 = tokio::spawn(async move {
+
+                        let (resp_tx, resp_rx) = oneshot::channel();
+    
+                        let cmd = IOEvent::LoadViewIssues { linear_config: linear_config,
+                                                                view: view,
+                                                                resp: resp_tx };
+                        tx2.send(cmd).await.unwrap();
+    
+                        let res = resp_rx.await.ok();
+    
+                        info!("LoadViewIssues IOEvent returned: {:?}", res);
+    
+                    });
+                }
+            },
+            */
+
             // Acquire these values to dispatch LoadLinearIssuesPaginate:
             //  linear_config: LinearConfig,
             //  linear_cursor: GraphQLCursor,

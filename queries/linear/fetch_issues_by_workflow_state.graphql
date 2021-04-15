@@ -1,0 +1,21 @@
+{   "query": "query fetchIssuesByWorkflowState($ref: String!) {
+        workflowState(id: $ref) {
+            id
+            name
+            color
+            description
+            issues {
+                nodes {
+                    id
+                    number
+                    title
+                    description
+                    state {
+                        id
+                    }
+                }
+            }
+        }
+    }",
+    "operationName": "fetchIssuesByWorkflowState"
+}

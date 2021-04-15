@@ -9,6 +9,8 @@ use crate::util::{ state_list, state_table };
 
 use tokio::sync::mpsc::Sender;
 
+use serde_json::Value;
+
 #[derive(Debug)]
 pub enum Command {
 
@@ -20,6 +22,7 @@ pub enum Command {
 
     // Char Commands
     Quit,
+    Add,
     OpenLinearWorkflowStateSelection,
 
 }
@@ -58,6 +61,9 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
                 "q" => {
                     Some(Command::Quit)
                 },
+                "a" => {
+                    Some(Command::Add)
+                },
                 // Modify Command
                 "m" => {
                     Some(Command::OpenLinearWorkflowStateSelection)
@@ -69,6 +75,34 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
         },
 
         _ => { None }
+    }
+}
+
+pub async fn exec_add_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+
+    info!("Executing 'add' command");
+
+    match app.route {
+        // User is attempting to add a new Custom View to the Dashboard
+        Route::DashboardViewDisplay => {
+            // Verify that an empty slot is selected
+            // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
+            let mut view_is_selected = false;
+            let mut selected_view: Option<Value> = None;
+          
+            if let Some(view_idx) = app.linear_dashboard_view_idx {
+              view_is_selected = true;
+              selected_view = app.linear_dashboard_view_list[view_idx].clone();
+
+                if view_is_selected == true {
+                    // An empty view slot is selected
+                    if let None = selected_view {
+                        app.change_route(Route::CustomViewSelect, &tx).await;
+                    }
+                }
+            }
+        },
+        _ => {}
     }
 }
 
@@ -112,12 +146,72 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
         Route::ActionSelect => match app.actions.state.selected() {
             Some(i) => {
                 match i {
-                    0 => { app.change_route( Route::TeamSelect, &tx).await }
+                    0 => { app.change_route( Route::DashboardViewDisplay, &tx).await },
+                    1 => { app.change_route( Route::TeamSelect, &tx).await }
                     _ => {}
                 }
             }
             _ => {}
         },
+        // Add Custom View to app.linear_dashboard_view_list if a view is selected
+        Route::CustomViewSelect => match app.linear_selected_custom_view_idx {
+            // Add Custom View to app.linear_dashboard_view_list
+            Some(idx) => {
+                let custom_view_data_lock = app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+                match &*custom_view_data_lock {
+                    Some(view_data) => {
+                        info!("Got Custom View Data");
+                        let selected_view = view_data[idx].clone();
+
+                        // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
+                        // If no empty slots, do nothing
+
+                        info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
+
+                        /*
+                        let slot_idx_option = app.linear_dashboard_view_list
+                                            .iter()
+                                            .position(|x| match x {
+                                                Some(_) => return true,
+                                                None => return false,
+                                            });
+                        */
+                        let slot_idx_option = app.linear_dashboard_view_idx;
+                        info!("slot_idx_option: {:?}", slot_idx_option);
+                        
+                        match slot_idx_option {
+                            Some(slot_idx) => {
+                                info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
+                                app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
+
+                                // Sort app.linear_dashboard_view_list so that all Some's are first
+                                app.linear_dashboard_view_list = app.linear_dashboard_view_list
+                                                                    .iter()
+                                                                    .filter_map(|e| {
+                                                                        match e {
+                                                                            Some(_) => Some(e.clone()),
+                                                                            None => None,
+                                                                        }
+                                                                    })
+                                                                    .collect();
+                                while app.linear_dashboard_view_list.len() < 6 {
+                                    app.linear_dashboard_view_list.push(None);
+                                }
+
+                            },
+                            None => {},
+                        };
+                    },
+                    None => {}
+                };
+                drop(custom_view_data_lock);
+                // Change Route to Route::DashboardViewDisplay
+                app.change_route( Route::DashboardViewDisplay, &tx).await;
+            },
+            None => {},
+        }
+
         // Switch Route as long as a team is selected
         Route::TeamSelect => match app.linear_selected_team_idx {
             Some(_) => { app.change_route(Route::LinearInterface, &tx).await },
@@ -138,6 +232,54 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
         // Select next Action
         Route::ActionSelect => app.actions.next(),
+
+        // Select next Custom View Slot
+        Route::DashboardViewDisplay => {
+            state_table::next(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+            app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
+        },
+
+        // Select next custom view from list of Linear custom views and update 'app.linear__selected_custom_view_idx'
+        Route::CustomViewSelect => {
+            let mut load_paginated = false;
+            {
+                let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
+                match *handle {
+                    Some(ref mut x) => {
+                        match x.as_array() {
+                            Some(y) => {
+                                // Check if at end of linear_custom_view_select.view_table_data
+                                //  If true: Check if app.linear_custom_view_cursor.has_next_page = true
+                                //      If true: dispatch event to load next page of linear issues
+                                //          and merge with current linear_custom_view_select.view_table_data
+
+                                let is_last_element = state_table::is_last_element(& app.linear_custom_view_select.view_table_state, y);
+                                let mut cursor_has_next_page = false;
+                                {
+                                    let view_cursor_data_handle = app.linear_custom_view_cursor.lock().unwrap();
+                                    cursor_has_next_page = view_cursor_data_handle.has_next_page;
+                                }
+
+                                if is_last_element == true && cursor_has_next_page == true {
+                                    load_paginated = true;
+                                }
+                                else {
+                                    state_table::next(&mut app.linear_custom_view_select.view_table_state, y);
+                                    app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
+                                    info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
+                                }
+                            },
+                            None => {},
+                        }
+                    }
+                    _ => {},
+                }
+            }
+
+            if load_paginated == true {
+                app.dispatch_event("load_custom_views", &tx);
+            }
+        },
 
         // Select next team from list of Linear teams and update 'app.linear_selected_team_idx'
         Route::TeamSelect => {
@@ -226,6 +368,27 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
         Route::ActionSelect => app.actions.previous(),
+        // Select previous Custom View Slot
+        Route::DashboardViewDisplay => {
+            state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+            app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
+        },
+        Route::CustomViewSelect => {
+            let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
+            match *handle {
+                Some(ref mut x) => {
+                    match x.as_array() {
+                        Some(y) => {
+                            state_table::previous(&mut app.linear_custom_view_select.view_table_state, y);
+                            app.linear_selected_issue_idx = app.linear_custom_view_select.view_table_state.selected();
+                            info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
+                        },
+                        None => {},
+                    }
+                }
+                _ => {},
+            }
+        }
         Route::TeamSelect => {
             let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
             match handle {

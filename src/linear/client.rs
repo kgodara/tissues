@@ -1,4 +1,12 @@
 use super::config::LinearConfig;
+
+// Custom View Resolver Queries
+use super::query::fetch_custom_views;
+use super::query::fetch_issues_by_workflow_state as exec_fetch_issues_by_workflow_state;
+use super::query::fetch_issues_by_assignee as exec_fetch_issues_by_assignee;
+use super::query::fetch_issues_by_creator as exec_fetch_issues_by_creator;
+
+// Non Custom View Resolver Queries
 use super::query::get_teams as exec_get_teams;
 use super::query::get_issues_by_team as exec_get_issues_by_team;
 use super::query::get_workflow_states_by_team as exec_get_workflow_states_by_team;
@@ -7,6 +15,8 @@ use super::query::update_issue_workflow_state as exec_update_issue_workflow_stat
 use std::result::Result;
 
 use super::error::LinearClientError;
+
+use serde_json::Value;
 use serde_json::json;
 
 use crate::errors::*;
@@ -31,6 +41,24 @@ impl LinearClient {
 
     // type LinearClientResult<T> = Result<T, LinearClientError>;
 
+    pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Result<Value, LinearClientError> {
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = fetch_custom_views(linear_api_key, linear_cursor, linear_config.issue_page_size).await?;
+
+        let ref view_nodes = query_response["data"]["customViews"]["nodes"];
+        let ref cursor_info = query_response["data"]["customViews"]["pageInfo"];
+
+
+        Ok( json!( { "view_nodes": view_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+    }
+
 
     pub async fn get_teams(api_key: Option<String>) -> Result<serde_json::Value, LinearClientError> {
 
@@ -52,6 +80,60 @@ impl LinearClient {
 
         Ok(team_nodes.clone())
     }
+
+    pub async fn get_issues_by_workflow_state( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value> ) -> Result<serde_json::Value, LinearClientError> {
+
+        info!("Calling exec_fetch_issues_by_workflow_state - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = exec_fetch_issues_by_workflow_state(linear_api_key, variables).await?;
+
+        let ref issue_nodes = query_response["data"]["workflowState"]["issues"]["nodes"];
+
+        return Ok(issue_nodes.clone());
+
+    }
+
+    pub async fn get_issues_by_assignee( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value> ) -> Result<serde_json::Value, LinearClientError> {
+        info!("Calling exec_fetch_issues_by_assignee - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = exec_fetch_issues_by_assignee(linear_api_key, variables).await?;
+
+        let ref issue_nodes = query_response["data"]["user"]["assignedIssues"]["nodes"];
+
+        return Ok(issue_nodes.clone());
+    }
+
+    pub async fn get_issues_by_creator( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+        info!("Calling exec_fetch_issues_by_creator - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = exec_fetch_issues_by_creator(linear_api_key, variables).await?;
+
+        let ref issue_nodes = query_response["data"]["user"]["createdIssues"]["nodes"];
+
+        return Ok(issue_nodes.clone());
+    }
+
 
 
     pub async fn get_issues_by_team( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {

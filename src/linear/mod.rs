@@ -3,6 +3,7 @@ pub mod client;
 mod mutation;
 mod config;
 mod error;
+pub mod view_resolver;
 
 mod query;
 /*

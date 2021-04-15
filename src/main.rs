@@ -51,6 +51,7 @@ use std::fs::File;
 
 use command::{ Command,
                 get_cmd,
+                exec_add_cmd,
                 exec_open_linear_workflow_state_selection_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
@@ -101,6 +102,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("Manager received IOEvent::{:?}", cmd);
             match cmd {
+                IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
+                    let option_stateful = components::linear_custom_view_select::LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
+                    info!("LoadCustomViews data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                },
+                IOEvent::LoadViewIssues { linear_config, view, resp } => {
+                    let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
+                    info!("LoadViewIssues data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                },
                 IOEvent::LoadLinearTeams { api_key, resp } => {
                     let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
                     info!("LoadLinearTeams data: {:?}", option_stateful);
@@ -178,7 +191,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         terminal.draw(|mut f| match app.route {
             Route::ActionSelect => {
               ui::draw_action_select(&mut f, &mut app);
-            }
+            },
+            Route::DashboardViewDisplay => {
+                ui::draw_dashboard_view_display(&mut f, &mut app);
+            },
+            Route::CustomViewSelect => {
+                ui::draw_view_select(&mut f, &mut app);
+            },
             Route::TeamSelect => {
               ui::draw_team_select(&mut f, &mut app);
             }
@@ -205,6 +224,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match cmd {
                         Command::Quit => {
                             break;
+                        },
+                        Command::Add => {
+                            exec_add_cmd(&mut app, &tx).await;
                         },
                         Command::OpenLinearWorkflowStateSelection => {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
@@ -233,7 +255,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             Event::Tick => {
                 // info!("tick_idx: {}", tick_idx);
-                info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
+                // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
                 tick_idx += 1;
             },
             _ => {}
