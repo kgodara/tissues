@@ -1,15 +1,5 @@
-use std::fs;
 use std::env;
 
-
-
-/*
-fn get_api_key(filename: &str) -> Result<String, std::io::Error> {
-
-    let contents = fs::read_to_string(filename)?;
-    Ok(contents)
-}
-*/
 
 const DEFAULT_LINEAR_ISSUE_PAGE_SIZE: u32 = 50;
 

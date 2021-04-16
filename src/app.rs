@@ -126,15 +126,17 @@ impl<'a> App<'a> {
 
     pub fn draw_issue_state_select(&self, platform: Platform) -> &bool {
         match platform {
-            Linear => { return &self.linear_draw_workflow_state_select },
-            Github => { return &false },
+            Platform::Linear => { return &self.linear_draw_workflow_state_select },
+            Platform::Github => { return &false },
+            Platform::Na => { return &false }
         }
     }
 
     pub fn set_draw_issue_state_select(&mut self, platform: Platform, v: bool) {
         match platform {
-            Linear => { self.linear_draw_workflow_state_select = v },
-            Github => { },
+            Platform::Linear => { self.linear_draw_workflow_state_select = v },
+            Platform::Github => { },
+            Platform::Na => { },
         };
     }
 
@@ -260,8 +262,6 @@ impl<'a> App<'a> {
                     _ => {return;},
                 }
             },
-
-            _ => {},
         }
         self.route = route;
     }

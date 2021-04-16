@@ -360,7 +360,6 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 }
             }
         }
-        _ => {}
     }
 }
 
@@ -440,7 +439,6 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                 }
             }
         }
-        _ => {}
     }
 
 }

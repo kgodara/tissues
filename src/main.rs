@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#[allow(unused_imports)]
 
 use std::io;
 use std::fs;
@@ -204,9 +205,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Route::LinearInterface => {
                 ui::draw_issue_display(&mut f, &mut app);
             }
-            _ => {
-              panic!()
-            }
         })?;
         let event_next = events.next()?;
 
@@ -258,7 +256,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
                 tick_idx += 1;
             },
-            _ => {}
         };
     }
 
