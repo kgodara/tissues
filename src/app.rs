@@ -161,69 +161,7 @@ impl<'a> App<'a> {
             // and set app.linear_dashboard_view_panel_list
             // Load all Dashboard Views
             Route::ActionSelect => {
-
                 self.dispatch_event("load_dashboard_views", &tx);
-                // Reset app.linear_dashboard_view_panel_list
-                /*
-                let view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
-                view_panel_list_handle.clear();
-
-
-                for filter in self.linear_dashboard_view_list.iter() {
-                    match filter {
-                        // Create DashboardViewPanels for each filter
-                        Some(filter) => {
-                            view_panel_list_handle.push(
-                                components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone())
-                            );
-                        },
-                        None => {},
-                    }
-                }
-                info!("change_route ActionSelect new self.linear_dashboard_view_panel_list: {:?}", view_panel_list_handle);
-                // Load all DashboardViewPanels
-
-                // note the use of `into_iter()` to consume `items`
-                let tasks: Vec<_> = view_panel_list_handle
-                .into_iter()
-                .map(|item| {
-                    // item is: 
-                    /*
-                    pub struct DashboardViewPanel {
-                        pub filter: Value,
-                        pub issue_table_data: Arc<Mutex<Option<Value>>>,
-                    }
-                    */
-                    info!("Spawning Get View Panel Issues Task");
-                    let tx2 = tx.clone();
-                    let temp_config = self.linear_client.config.clone();
-                    //let view_panel_handle: Arc<_> = item.issue_table_data.clone();
-                    let item_filter = item.filter.clone();
-
-                    tokio::spawn(async move {
-                        let (resp_tx, resp_rx) = oneshot::channel();
-
-                        let cmd = IOEvent::LoadViewIssues { linear_config: temp_config, view: item_filter,  resp: resp_tx };
-                        tx2.send(cmd).await.unwrap();
-    
-                        let res = resp_rx.await.ok();
-    
-                        info!("LoadViewIssues IOEvent returned: {:?}", res);
-                    })
-                })
-                .collect();
-
-                // await the tasks for resolve's to complete and give back our items
-                let mut items = vec![];
-                for task in tasks {
-                    items.push(task.await.unwrap());
-                }
-                // verify that we've got the results
-                for item in &items {
-                    info!("get_issues_by_workflow_state Result: {:?}", item);
-                }
-                */
-
             },
 
             Route::DashboardViewDisplay => {},
