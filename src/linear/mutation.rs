@@ -1,5 +1,4 @@
 use crate::errors::{
-    GraphQLError,
     GraphQLRequestError
 };
 use crate::graphql::parse_graphql_from_file;

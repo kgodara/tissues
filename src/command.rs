@@ -97,7 +97,7 @@ pub async fn exec_add_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
                 if view_is_selected == true {
                     // An empty view slot is selected
                     if let None = selected_view {
-                        app.change_route(Route::CustomViewSelect, &tx).await;
+                        app.change_route(Route::CustomViewSelect, &tx);
                     }
                 }
             }
@@ -120,11 +120,16 @@ pub fn exec_open_linear_workflow_state_selection_cmd(app: &mut App, tx: &Sender<
     }
 }
 
-pub fn exec_move_back_cmd(app: &mut App) {
+pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
 
         // Unselect from List of Actions
         Route::ActionSelect => app.actions.unselect(),
+
+        // Change Route to ActionSelect
+        Route::DashboardViewDisplay => {
+            app.change_route(Route::ActionSelect, &tx);
+        }
 
         // Unselect from Selection of Teams
         Route::TeamSelect => {
@@ -137,7 +142,6 @@ pub fn exec_move_back_cmd(app: &mut App) {
         }
 
         _ => {}
-
     }
 }
 
@@ -146,8 +150,8 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
         Route::ActionSelect => match app.actions.state.selected() {
             Some(i) => {
                 match i {
-                    0 => { app.change_route( Route::DashboardViewDisplay, &tx).await },
-                    1 => { app.change_route( Route::TeamSelect, &tx).await }
+                    0 => { app.change_route( Route::DashboardViewDisplay, &tx) },
+                    1 => { app.change_route( Route::TeamSelect, &tx) }
                     _ => {}
                 }
             }
@@ -207,14 +211,14 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
                 };
                 drop(custom_view_data_lock);
                 // Change Route to Route::DashboardViewDisplay
-                app.change_route( Route::DashboardViewDisplay, &tx).await;
+                app.change_route( Route::DashboardViewDisplay, &tx);
             },
             None => {},
         }
 
         // Switch Route as long as a team is selected
         Route::TeamSelect => match app.linear_selected_team_idx {
-            Some(_) => { app.change_route(Route::LinearInterface, &tx).await },
+            Some(_) => { app.change_route(Route::LinearInterface, &tx) },
             None => {},
         },
         // Dispatch Update Issue Workflow State command if User selects a workflow state for a given Issue
@@ -360,7 +364,6 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 }
             }
         }
-        _ => {}
     }
 }
 
@@ -440,7 +443,6 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                 }
             }
         }
-        _ => {}
     }
 
 }
