@@ -81,12 +81,14 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
         let mut resolver_issue_values: Vec<Vec<Value>> = filter_component_results
                                     .into_iter()
                                     .filter_map(|e| {
+                                        // e: Option<Vec<Value>>
                                         match e {
                                             Some(_) => e,
                                             None => None,
                                         }
                                     })
                                     .collect();
+        debug!("resolver_issue_values: {:?}", resolver_issue_values);
     
         for (idx, value_list) in resolver_issue_values.iter().enumerate() {
 
@@ -95,17 +97,21 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
 
             if idx == 0 {
                 let mut current_issue_id: String;
-                for issue_obj in resolver_issue_values[idx].iter() {
-                    let mut already_in_set = false;
+                for issue_obj in value_list.iter() {
+                    let mut not_already_in_set = false;
 
                     match issue_obj["id"].as_str() {
                         Some(id) => {
-                            already_in_set = issue_id_set.insert(String::from(id));
+                            debug!("Inserting Issue id ${:?} into issue_id_set", id);
+                            not_already_in_set = issue_id_set.insert(String::from(id));
                         },
-                        None => {continue;},
+                        None => {
+                            debug!("Skipping, no 'id' found - issue_obj: {:?}", issue_obj);
+                            continue;
+                        },
                     }
                     // Issue id not already in issue_id_set, add issue to final issue list
-                    if already_in_set == false {
+                    if not_already_in_set == true {
                         final_issue_list.push(issue_obj.clone());
                     }
                 }
@@ -162,6 +168,8 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
                                                     .collect();
 
             }
+            debug!("Iter {:?}, issue_id_set: {:?}", idx, issue_id_set);
+            debug!("Iter {:?}, final_issue_list: {:?}", idx, final_issue_list);
         }
 
         info!("get_issues_from_view returning final_issue_list: {:?}", final_issue_list);
@@ -204,10 +212,12 @@ async fn get_issues_by_state( state_list: Vec<Value>, linear_config: LinearConfi
     for task in tasks {
         items.push(task.await.unwrap());
     }
+    /*
     // verify that we've got the results
     for item in &items {
         info!("get_issues_by_workflow_state Result: {:?}", item);
     }
+    */
 
     let issues: Vec<Value> = items
                     .into_iter()
@@ -215,8 +225,13 @@ async fn get_issues_by_state( state_list: Vec<Value>, linear_config: LinearConfi
                         Ok(val) => Some(val),
                         Err(_) => None,
                     })
+                    .map(|e| match e {
+                        Value::Array(x) => {x},
+                        _ => {vec![]}
+                    })
+                    .flatten()
                     .collect();
-    info!("get_issues_by_workflow_state Issues: {:?}", issues);
+    debug!("get_issues_by_workflow_state Issues: {:?}", issues);
 
 
     return Some(issues);
@@ -265,10 +280,12 @@ async fn get_issues_by_assignee ( assignee_list: Vec<Value>, linear_config: Line
     for task in tasks {
         items.push(task.await.unwrap());
     }
+    /*
     // verify that we've got the results
     for item in &items {
         info!("get_issues_by_assignee Result: {:?}", item);
     }
+    */
 
     let issues: Vec<Value> = items
                     .into_iter()
@@ -276,8 +293,13 @@ async fn get_issues_by_assignee ( assignee_list: Vec<Value>, linear_config: Line
                         Ok(val) => Some(val),
                         Err(_) => None,
                     })
+                    .map(|e| match e {
+                        Value::Array(x) => {x},
+                        _ => {vec![]}
+                    })
+                    .flatten()
                     .collect();
-    info!("get_issues_by_assignee Issues: {:?}", issues);
+    debug!("get_issues_by_assignee Issues: {:?}", issues);
 
 
     return Some(issues);
@@ -313,10 +335,12 @@ async fn get_issues_by_creator ( creator_list:  Vec<Value>, linear_config: Linea
     for task in tasks {
         items.push(task.await.unwrap());
     }
+    /*
     // verify that we've got the results
     for item in &items {
         info!("get_issues_by_creator Result: {:?}", item);
     }
+    */
 
     let issues: Vec<Value> = items
                     .into_iter()
@@ -324,8 +348,13 @@ async fn get_issues_by_creator ( creator_list:  Vec<Value>, linear_config: Linea
                         Ok(val) => Some(val),
                         Err(_) => None,
                     })
+                    .map(|e| match e {
+                        Value::Array(x) => {x},
+                        _ => {vec![]}
+                    })
+                    .flatten()
                     .collect();
-    info!("get_issues_by_creator Issues: {:?}", issues);
+    debug!("get_issues_by_creator Issues: {:?}", issues);
 
 
     return Some(issues);

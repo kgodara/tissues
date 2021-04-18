@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    WriteLogger::init(LevelFilter::Info, Config::default(), File::create("rust_cli.log").unwrap()).unwrap();
+    WriteLogger::init(LevelFilter::Debug, Config::default(), File::create("rust_cli.log").unwrap()).unwrap();
 
     // Create a new channel with a capacity of at most 8.
     let (tx, mut rx) = mpsc::channel(8);
@@ -230,7 +230,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
                         },
                         Command::MoveBack => {
-                            exec_move_back_cmd(&mut app);
+                            exec_move_back_cmd(&mut app, &tx);
                         },
                         Command::Confirm => {
                             exec_confirm_cmd(&mut app, &tx).await;

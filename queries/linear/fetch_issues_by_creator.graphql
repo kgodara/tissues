@@ -1,5 +1,5 @@
-{   "query": "query fetchIssuesByCreator($userId: String!) {
-        user(id: $userId) {
+{   "query": "query fetchIssuesByCreator($ref: String!) {
+        user(id: $ref) {
             createdIssueCount
             createdIssues {
                 nodes {
