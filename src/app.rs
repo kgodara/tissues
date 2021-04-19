@@ -70,7 +70,7 @@ pub struct App<'a> {
     pub linear_selected_team_idx: Option<usize>,
 
     // Linear Issue Display State
-    pub linear_issue_display: components::linear_issue_display::LinearIssueDisplayState,
+    pub linear_issue_display: components::linear_issue_display::LinearIssueDisplay,
     // Selected Linear Issue
     pub linear_selected_issue_idx: Option<usize>,
     // Linear Issue Display Cursor
@@ -111,7 +111,7 @@ impl<'a> Default for App<'a> {
             // Null
             linear_selected_team_idx: None,
  
-            linear_issue_display: components::linear_issue_display::LinearIssueDisplayState::default(),
+            linear_issue_display: components::linear_issue_display::LinearIssueDisplay::default(),
             linear_selected_issue_idx: None,
             linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
 
@@ -167,6 +167,9 @@ impl<'a> App<'a> {
             Route::DashboardViewDisplay => {},
             Route::CustomViewSelect => {
                 // TODO: Clear any previous CustomViewSelect related values on self
+                self.linear_custom_view_select = components::linear_custom_view_select::LinearCustomViewSelect::default();
+                self.linear_selected_custom_view_idx = None;
+                self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
 
                 self.dispatch_event("load_custom_views", tx);
 
@@ -463,7 +466,15 @@ impl<'a> App<'a> {
                             let res = resp_rx.await.ok();
         
                             info!("LoadViewIssues IOEvent returned: {:?}", res);
-                            // res
+
+                            let mut view_panel_data_lock = item.table_data.lock().unwrap();
+
+                            if let Some(x) = res {
+                                if let Some(y) = x {
+                                    *view_panel_data_lock = Some(Value::Array(y));
+                                }
+                            }
+                            info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })
                     })
                     .collect();
