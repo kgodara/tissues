@@ -4,6 +4,7 @@ use super::config::LinearConfig;
 use super::query::fetch_custom_views;
 use super::query::fetch_issues_by_workflow_state as exec_fetch_issues_by_workflow_state;
 use super::query::fetch_issues_by_assignee as exec_fetch_issues_by_assignee;
+use super::query::fetch_issues_by_label as exec_fetch_issues_by_label;
 use super::query::fetch_issues_by_creator as exec_fetch_issues_by_creator;
 
 // Non Custom View Resolver Queries
@@ -115,6 +116,23 @@ impl LinearClient {
         let ref issue_nodes = query_response["data"]["user"]["assignedIssues"]["nodes"];
 
         return Ok(issue_nodes.clone());
+    }
+
+    pub async fn get_issues_by_label( linear_config: LinearConfig, variables: serde_json::Map<String, Value> ) -> Result<Value, LinearClientError> {
+        info!("Calling exec_fetch_issues_by_label - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = exec_fetch_issues_by_label(linear_api_key, variables).await?;
+
+        let ref issue_nodes = query_response["data"]["issueLabel"]["issues"]["nodes"];
+
+        return Ok(issue_nodes.clone()); 
     }
 
     pub async fn get_issues_by_creator( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {

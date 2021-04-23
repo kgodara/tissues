@@ -1,0 +1,27 @@
+{   "query": "query fetchIssuesByLabel($ref: String!) {
+        issueLabel(id: $ref) {
+            issues {
+                nodes {
+                    id
+                    createdAt
+                    number
+                    title
+                    description
+                    priority
+                    estimate
+                    state {
+                        id
+                        name
+                        type
+                        description
+                        color
+                    }
+                    assignee {
+                        name
+                    }
+                }
+            }
+        }
+    }",
+    "operationName": "fetchIssuesByLabel"
+}
