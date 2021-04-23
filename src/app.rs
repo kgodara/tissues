@@ -70,7 +70,7 @@ pub struct App<'a> {
     pub linear_selected_team_idx: Option<usize>,
 
     // Linear Issue Display State
-    pub linear_issue_display: components::linear_issue_display::LinearIssueDisplayState,
+    pub linear_issue_display: components::linear_issue_display::LinearIssueDisplay,
     // Selected Linear Issue
     pub linear_selected_issue_idx: Option<usize>,
     // Linear Issue Display Cursor
@@ -111,7 +111,7 @@ impl<'a> Default for App<'a> {
             // Null
             linear_selected_team_idx: None,
  
-            linear_issue_display: components::linear_issue_display::LinearIssueDisplayState::default(),
+            linear_issue_display: components::linear_issue_display::LinearIssueDisplay::default(),
             linear_selected_issue_idx: None,
             linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
 
@@ -161,74 +161,15 @@ impl<'a> App<'a> {
             // and set app.linear_dashboard_view_panel_list
             // Load all Dashboard Views
             Route::ActionSelect => {
-
                 self.dispatch_event("load_dashboard_views", &tx);
-                // Reset app.linear_dashboard_view_panel_list
-                /*
-                let view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
-                view_panel_list_handle.clear();
-
-
-                for filter in self.linear_dashboard_view_list.iter() {
-                    match filter {
-                        // Create DashboardViewPanels for each filter
-                        Some(filter) => {
-                            view_panel_list_handle.push(
-                                components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone())
-                            );
-                        },
-                        None => {},
-                    }
-                }
-                info!("change_route ActionSelect new self.linear_dashboard_view_panel_list: {:?}", view_panel_list_handle);
-                // Load all DashboardViewPanels
-
-                // note the use of `into_iter()` to consume `items`
-                let tasks: Vec<_> = view_panel_list_handle
-                .into_iter()
-                .map(|item| {
-                    // item is: 
-                    /*
-                    pub struct DashboardViewPanel {
-                        pub filter: Value,
-                        pub issue_table_data: Arc<Mutex<Option<Value>>>,
-                    }
-                    */
-                    info!("Spawning Get View Panel Issues Task");
-                    let tx2 = tx.clone();
-                    let temp_config = self.linear_client.config.clone();
-                    //let view_panel_handle: Arc<_> = item.issue_table_data.clone();
-                    let item_filter = item.filter.clone();
-
-                    tokio::spawn(async move {
-                        let (resp_tx, resp_rx) = oneshot::channel();
-
-                        let cmd = IOEvent::LoadViewIssues { linear_config: temp_config, view: item_filter,  resp: resp_tx };
-                        tx2.send(cmd).await.unwrap();
-    
-                        let res = resp_rx.await.ok();
-    
-                        info!("LoadViewIssues IOEvent returned: {:?}", res);
-                    })
-                })
-                .collect();
-
-                // await the tasks for resolve's to complete and give back our items
-                let mut items = vec![];
-                for task in tasks {
-                    items.push(task.await.unwrap());
-                }
-                // verify that we've got the results
-                for item in &items {
-                    info!("get_issues_by_workflow_state Result: {:?}", item);
-                }
-                */
-
             },
 
             Route::DashboardViewDisplay => {},
             Route::CustomViewSelect => {
                 // TODO: Clear any previous CustomViewSelect related values on self
+                self.linear_custom_view_select = components::linear_custom_view_select::LinearCustomViewSelect::default();
+                self.linear_selected_custom_view_idx = None;
+                self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
 
                 self.dispatch_event("load_custom_views", tx);
 
@@ -525,7 +466,15 @@ impl<'a> App<'a> {
                             let res = resp_rx.await.ok();
         
                             info!("LoadViewIssues IOEvent returned: {:?}", res);
-                            // res
+
+                            let mut view_panel_data_lock = item.table_data.lock().unwrap();
+
+                            if let Some(x) = res {
+                                if let Some(y) = x {
+                                    *view_panel_data_lock = Some(Value::Array(y));
+                                }
+                            }
+                            info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })
                     })
                     .collect();

@@ -23,6 +23,8 @@ pub enum Command {
     // Char Commands
     Quit,
     Add,
+    Replace,
+    Delete,
     OpenLinearWorkflowStateSelection,
 
 }
@@ -63,6 +65,12 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
                 },
                 "a" => {
                     Some(Command::Add)
+                },
+                "r" => {
+                    Some(Command::Replace)
+                },
+                "d" => {
+                    Some(Command::Delete)
                 },
                 // Modify Command
                 "m" => {
@@ -105,6 +113,72 @@ pub async fn exec_add_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
         _ => {}
     }
 }
+
+pub async fn exec_replace_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+    info!("Executing 'replace' command");
+
+    match app.route {
+        // User is attempting to replace a Custom View with a new Custom View on the Dashboard
+        Route::DashboardViewDisplay => {
+            // Verify that a populated slot is selected
+            // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
+            let mut view_is_selected = false;
+            let mut selected_view: Option<Value> = None;
+            if let Some(view_idx) = app.linear_dashboard_view_idx {
+              view_is_selected = true;
+              selected_view = app.linear_dashboard_view_list[view_idx].clone();
+
+                if view_is_selected == true {
+                    // A populated view slot is selected
+                    if let Some(_) = selected_view {
+                        app.change_route(Route::CustomViewSelect, &tx);
+                    }
+                }
+            }
+        },
+        _ => {}
+    }
+}
+
+pub async fn exec_delete_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+    info!("Executing 'delete' command");
+    match app.route {
+        // User is attempting to remove a Custom View on the Dashboard
+        Route::DashboardViewDisplay => {
+            // Verify that a populated slot is selected
+            // if so, set it to None
+            let mut view_is_selected = false;
+            let mut selected_view: Option<Value> = None;
+            if let Some(view_idx) = app.linear_dashboard_view_idx {
+              view_is_selected = true;
+              selected_view = app.linear_dashboard_view_list[view_idx].clone();
+
+                if view_is_selected == true {
+                    // A populated view slot is selected
+                    if let Some(_) = selected_view {
+                        app.linear_dashboard_view_list[view_idx] = None;
+
+                        // Sort app.linear_dashboard_view_list so that all Some's are first
+                        app.linear_dashboard_view_list = app.linear_dashboard_view_list
+                        .iter()
+                        .filter_map(|e| {
+                            match e {
+                                Some(_) => Some(e.clone()),
+                                None => None,
+                            }
+                        })
+                        .collect();
+                        while app.linear_dashboard_view_list.len() < 6 {
+                            app.linear_dashboard_view_list.push(None);
+                        }
+                    }
+                }
+            }
+        },
+        _ => {}
+    }
+}
+
 
 pub fn exec_open_linear_workflow_state_selection_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {

@@ -12,13 +12,18 @@ use crate::util;
 
 use app::App as App;
 
-use crate::components::dashboard_view_display;
+use crate::components::dashboard_view_display::DashboardViewDisplay;
+use crate::components::dashboard_view_panel::DashboardViewPanel;
+
 use crate::components::linear_custom_view_select::LinearCustomViewSelect;
 use crate::components::linear_team_select::LinearTeamSelectState;
-use crate::components::linear_issue_display::LinearIssueDisplayState;
+use crate::components::linear_issue_display::LinearIssueDisplay;
 use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
 
 use crate::util::colors;
+use crate::util::ui;
+
+use crate::util::ui::{ TableStyle, style_color_from_hex_str };
 
 
 use tui::{
@@ -42,13 +47,13 @@ pub const SMALL_TERMINAL_HEIGHT: u16 = 45;
 
 
 
-pub fn draw_action_select<B>(f: &mut Frame<B>, app: &mut App)
+pub fn draw_action_select<B>(f: &mut Frame<B>, app: & mut App)
 where
   B: Backend,
 {
   let chunks = Layout::default()
     .direction(Direction::Vertical)
-    .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
+    .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
     .split(f.size());
 
     let items: Vec<ListItem> = app
@@ -71,7 +76,7 @@ where
 
       // Create a List from all list items and highlight the currently selected one
       let items = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("List"))
+        .block(Block::default().borders(Borders::ALL).title("Action Select"))
         .highlight_style(
             Style::default()
                 .bg(Color::LightGreen)
@@ -79,8 +84,28 @@ where
         )
         .highlight_symbol(">> ");
 
+      let view_panel_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+
+      let num_views = view_panel_handle.len();
+
+      for (i, e) in view_panel_handle.iter().enumerate() {
+        let view_data_handle = e.issue_table_data.lock().unwrap();
+        let view_table_result = DashboardViewPanel::render(&view_data_handle, &e.filter, i as u16);
+        if let Ok(view_table) = view_table_result {
+          match num_views {
+            0 => {},
+            1 => { f.render_widget(view_table, ui::single_view_layout(i, chunks[0])); },
+            2 => { f.render_widget(view_table, ui::double_view_layout(i, chunks[0])); },
+            3 => { f.render_widget(view_table, ui::three_view_layout(i, chunks[0])); }
+            4 => { f.render_widget(view_table, ui::four_view_layout(i, chunks[0])); },
+            5 => { f.render_widget(view_table, ui::five_view_layout(i, chunks[0])) },
+            _ => { f.render_widget(view_table, ui::six_view_layout(i, chunks[0]))},
+          }
+        }
+      }
+
       // We can now render the item list
-      f.render_stateful_widget(items, chunks[0], &mut app.actions.state);
+      f.render_stateful_widget(items, chunks[1], &mut app.actions.state);
 }
 
 pub fn draw_dashboard_view_display<B>(f: &mut Frame<B>, app: &mut App)
@@ -88,10 +113,10 @@ where
   B: Backend,
 {
 
-  let DASHBOARD_VIEW_CMD_LIST: Vec<&str> = vec![ "Add View", "Replace View", "Remove View" ];
+  let DASHBOARD_VIEW_CMD_LIST: Vec<&str> = vec![ "'a': Add View", "'r': Replace View", "'d': Remove View" ];
 
   let table;
-  let table_result = dashboard_view_display::DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list);
+  let table_result = DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list);
 
   match table_result {
     Ok(x) => { table = x },
@@ -145,16 +170,15 @@ where
         let lines = vec![Spans::from(Span::styled(
           *e,
           match *e {
-
-            "Add View" => { if add_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::ADD_VIEW_CMD_ACTIVE) }
+            "'a': Add View" => { if add_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::ADD_VIEW_CMD_ACTIVE) }
                             else { Style::default().add_modifier(Modifier::DIM).fg(colors::ADD_VIEW_CMD_INACTIVE) } 
                           },
 
-            "Replace View" => { if replace_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REPLACE_VIEW_CMD_ACTIVE) }
+            "'r': Replace View" => { if replace_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REPLACE_VIEW_CMD_ACTIVE) }
                                 else { Style::default().add_modifier(Modifier::DIM).fg(colors::REPLACE_VIEW_CMD_INACTIVE) } 
                               },
 
-            "Remove View" => { if remove_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REMOVE_VIEW_CMD_ACTIVE) }
+            "'d': Remove View" => { if remove_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REMOVE_VIEW_CMD_ACTIVE) }
                               else { Style::default().add_modifier(Modifier::DIM).fg(colors::REMOVE_VIEW_CMD_INACTIVE) } 
                             },
             _ => {Style::default().add_modifier(Modifier::ITALIC)}
@@ -253,7 +277,11 @@ where
   let issue_data_handle = app.linear_issue_display.issue_table_data.lock().unwrap();
 
   let table;
-  let table_result = LinearIssueDisplayState::get_rendered_issue_data(&issue_data_handle);
+
+  let table_style = TableStyle { title_style: None, row_bottom_margin: Some(0), view_idx: None };
+
+
+  let table_result = LinearIssueDisplay::get_rendered_issue_data(&issue_data_handle, table_style);
 
   match table_result {
     Ok(x) => { table = x },

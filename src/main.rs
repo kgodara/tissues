@@ -53,6 +53,8 @@ use std::fs::File;
 use command::{ Command,
                 get_cmd,
                 exec_add_cmd,
+                exec_replace_cmd,
+                exec_delete_cmd,
                 exec_open_linear_workflow_state_selection_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
@@ -125,13 +127,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 IOEvent::LoadLinearIssues { linear_config, selected_team, resp } => {
                     // client.set(&key, val).await;
-                    let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues(linear_config, &selected_team).await;
+                    let option_stateful = components::linear_issue_display::LinearIssueDisplay::load_issues(linear_config, &selected_team).await;
                     info!("LoadLinearIssuesByTeam data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
                 IOEvent::LoadLinearIssuesPaginate { linear_config, linear_cursor, selected_team, resp } => {
-                    let option_stateful = components::linear_issue_display::LinearIssueDisplayState::load_issues_paginate(linear_config, Some(linear_cursor), &selected_team).await;
+                    let option_stateful = components::linear_issue_display::LinearIssueDisplay::load_issues_paginate(linear_config, Some(linear_cursor), &selected_team).await;
                     info!("LoadLinearIssuesPaginate data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
@@ -225,6 +227,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         Command::Add => {
                             exec_add_cmd(&mut app, &tx).await;
+                        },
+                        Command::Replace => {
+                            exec_replace_cmd(&mut app, &tx).await;
+                        },
+                        Command::Delete => {
+                            exec_delete_cmd(&mut app, &tx).await;
                         },
                         Command::OpenLinearWorkflowStateSelection => {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);

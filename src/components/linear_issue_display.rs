@@ -1,12 +1,14 @@
 use tui::{
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
     Terminal,
 };
 
 use std::sync::{Arc, Mutex};
 use serde_json::json;
+use serde_json::Value;
 
 // use colorsys::Color as CTColor;
 
@@ -14,14 +16,14 @@ use crate::util::GraphQLCursor;
 use crate::linear::client::LinearClient;
 use crate::linear::LinearConfig;
 
-use crate::util::ui::style_color_from_hex_str;
+use crate::util::ui::{ TableStyle, style_color_from_hex_str };
 
-pub struct LinearIssueDisplayState {
+pub struct LinearIssueDisplay {
     pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
     pub issue_table_state: TableState,
 }
 
-impl LinearIssueDisplayState {
+impl LinearIssueDisplay {
 
     pub async fn load_issues(linear_config: LinearConfig, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
@@ -51,7 +53,7 @@ impl LinearIssueDisplayState {
 
             match issues {
                 serde_json::Value::Array(_) => {
-                    info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
+                    info!("Populating LinearIssueDisplay::issue_table_data with: {:?}", issues);
 
                     // return Some(issues);
                     return Some(json!( { "issues": issues, "cursor_info": cursor_info } ));
@@ -89,7 +91,7 @@ impl LinearIssueDisplayState {
 
             match issues {
                 serde_json::Value::Array(_) => {
-                    info!("Populating LinearIssueDisplayState::issue_table_data with: {:?}", issues);
+                    info!("Populating LinearIssueDisplay::issue_table_data with: {:?}", issues);
 
                     // return Some(issues);
                     return Some(json!( { "issues": issues, "cursor_info": cursor_info } ));
@@ -104,9 +106,14 @@ impl LinearIssueDisplayState {
 
 
 
-    pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
+    pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>, table_style: TableStyle) -> Result<Table, &'static str> {
 
         let table_items;
+
+        let bottom_margin = match table_style.row_bottom_margin {
+            Some(margin) => margin,
+            None => { 0 }
+        };
 
         match table_data {
             Some(x) => table_items = x,
@@ -188,13 +195,40 @@ impl LinearIssueDisplayState {
 
             cells.insert(2, generate_state_cell());
 
-            Row::new(cells).height(height as u16).bottom_margin(1)
+            Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });
+
+
+        let table_block = Block::default().
+                                    borders(Borders::ALL)
+                                    .title( match table_style.title_style {
+                                        Some(title_style) => {
+                
+                                            Spans::from(vec![Span::styled(match table_style.view_idx {
+                                                                            Some(idx) => vec!["#", idx.to_string().as_str(), " - "].concat(),
+                                                                            None => {String::default()}
+                                                                            },
+                                                                            Style::default()
+                                                                ),
+                                                                Span::styled(String::from(*title_style.0
+                                                                        .as_str()
+                                                                        .get_or_insert("Table")
+                                                                    ),
+                                                                    Style::default()
+                                                                        .add_modifier(Modifier::BOLD)
+                                                                        .fg(*style_color_from_hex_str(&title_style.1)
+                                                                                .get_or_insert(Color::White)
+                                                                        )
+                                                                    )
+                                                            ])
+                                        },
+                                        None => { Spans::from(Span::styled("Table", Style::default())) }
+                                    });
 
 
         let t = Table::new(rows)
             .header(header)
-            .block(Block::default().borders(Borders::ALL).title("Table"))
+            .block(table_block)
             .highlight_style(selected_style)
             .highlight_symbol(">> ")
             .widths(&[
@@ -215,10 +249,10 @@ impl LinearIssueDisplayState {
 
 }
 
-impl Default for LinearIssueDisplayState {
+impl Default for LinearIssueDisplay {
 
-    fn default() -> LinearIssueDisplayState {
-        LinearIssueDisplayState {
+    fn default() -> LinearIssueDisplay {
+        LinearIssueDisplay {
             issue_table_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
             issue_table_state: TableState::default(),
         }

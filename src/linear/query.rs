@@ -23,6 +23,7 @@ const LINEAR_FETCH_CUSTOM_VIEWS_PATH: &str = "queries/linear/fetch_custom_views.
 
 const LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH: &str = "queries/linear/fetch_issues_by_workflow_state.graphql";
 const LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH: &str = "queries/linear/fetch_issues_by_assignee.graphql";
+const LINEAR_FETCH_ISSUES_BY_LABEL_PATH: &str = "queries/linear/fetch_issues_by_label.graphql";
 const LINEAR_FETCH_ISSUES_BY_CREATOR_PATH: &str = "queries/linear/fetch_issues_by_creator.graphql";
 
 
@@ -129,6 +130,27 @@ pub async fn fetch_issues_by_assignee(api_key: &str, variables: serde_json::Map<
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH)?;
+
+    query["variables"] = serde_json::Value::Object(variables);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+}
+
+pub async fn fetch_issues_by_label(api_key: &str, variables: serde_json::Map<String, Value>) -> Result<Value, GraphQLRequestError> {
+    let mut query;
+
+    query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_LABEL_PATH)?;
 
     query["variables"] = serde_json::Value::Object(variables);
 
