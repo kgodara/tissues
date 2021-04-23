@@ -54,7 +54,7 @@ pub struct ViewLoader {
 
 pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 
-    let mut load_strat: ViewLoadStrategy;
+    let load_strat: ViewLoadStrategy;
 
     let mut direct_filter_list: Vec<Filter> = Vec::new();
     let mut direct_filter_queryable_list: Option<Vec<Filter>> = None;
@@ -181,6 +181,24 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         cursor: None,
     }
 }
+
+pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: LinearConfig ) -> Option<Vec<Value>> {
+
+    info!("View Resolver received view_obj: {:?}", view_obj);
+
+    let filters = view_obj["filters"].clone();
+
+    let view_loader = create_loader_from_view(&filters);
+
+    info!("ViewLoader: {:?}", view_loader);
+
+
+
+    Some(Vec::new())
+
+}
+
+
 
 
 // Accepts a custom view object: &Value
@@ -364,6 +382,7 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
 
     return None;
 }
+
 
 // Is it better to fetch all issues by workflow states, then filter by state_list?
 // Current approach: query once for each workflow state present in state_list, then merge

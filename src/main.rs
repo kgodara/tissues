@@ -112,7 +112,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = resp.send(option_stateful);
                 },
                 IOEvent::LoadViewIssues { linear_config, view, resp } => {
-                    let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
+                    // let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
+                    let option_stateful =  linear::view_resolver::optimized_view_issue_fetch(&view, linear_config).await;
                     info!("LoadViewIssues data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
