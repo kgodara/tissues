@@ -20,7 +20,7 @@ pub enum IOEvent {
     LoadViewIssues {
         linear_config: LinearConfig,
         view: Value,
-        resp: Responder<Vec<Value>>,
+        resp: oneshot::Sender<Vec<Value>>,
     },
     LoadLinearTeams {
         api_key: Option<String>,

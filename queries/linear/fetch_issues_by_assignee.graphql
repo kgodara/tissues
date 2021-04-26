@@ -1,6 +1,6 @@
-{   "query": "query fetchIssuesByAssignee($ref: String!) {
+{   "query": "query fetchIssuesByAssignee($firstNum: Int, $afterCursor: String, $ref: String!) {
         user(id: $ref) {
-            assignedIssues {
+            assignedIssues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     createdAt
@@ -16,9 +16,23 @@
                         description
                         color
                     }
-                    assignee {
-                        name
+                    creator {
+                        id
                     }
+                    assignee {
+                        id
+                    }
+                    labels {
+                        nodes {
+                            id
+                        }
+                    }
+                }
+                pageInfo {
+                    hasPreviousPage
+                    hasNextPage
+                    startCursor
+                    endCursor
                 }
             }
         }

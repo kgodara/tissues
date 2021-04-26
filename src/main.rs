@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 #[allow(unused_imports)]
 
+#[macro_use]
+extern crate lazy_static;
+
+
 use std::io;
 use std::fs;
 
@@ -113,10 +117,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 IOEvent::LoadViewIssues { linear_config, view, resp } => {
                     // let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
-                    let option_stateful =  linear::view_resolver::optimized_view_issue_fetch(&view, linear_config).await;
-                    info!("LoadViewIssues data: {:?}", option_stateful);
+                    let issue_list = linear::view_resolver::optimized_view_issue_fetch(&view, linear_config).await;
+                    info!("LoadViewIssues data: {:?}", issue_list);
 
-                    let _ = resp.send(option_stateful);
+                    let _ = resp.send(issue_list);
                 },
                 IOEvent::LoadLinearTeams { api_key, resp } => {
                     let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;

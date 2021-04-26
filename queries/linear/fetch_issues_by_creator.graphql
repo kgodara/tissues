@@ -1,7 +1,7 @@
-{   "query": "query fetchIssuesByCreator($ref: String!) {
+{   "query": "query fetchIssuesByCreator($firstNum: Int, $afterCursor: String, $ref: String!) {
         user(id: $ref) {
             createdIssueCount
-            createdIssues {
+            createdIssues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     createdAt
@@ -17,9 +17,23 @@
                         description
                         color
                     }
-                    assignee {
-                        name
+                    creator {
+                        id
                     }
+                    assignee {
+                        id
+                    }
+                    labels {
+                        nodes {
+                            id
+                        }
+                    }
+                }
+                pageInfo {
+                    hasPreviousPage
+                    hasNextPage
+                    startCursor
+                    endCursor
                 }
             }
         }

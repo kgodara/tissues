@@ -17,12 +17,14 @@ use std::result::Result;
 
 use super::error::LinearClientError;
 
-use serde_json::Value;
+use serde_json::{ Value, Map};
 use serde_json::json;
 
 use crate::errors::*;
 
 use crate::util::GraphQLCursor;
+
+type ClientResult = Result<Value, LinearClientError>;
 
 pub struct LinearClient {
     pub config: LinearConfig,
@@ -42,7 +44,7 @@ impl LinearClient {
 
     // type LinearClientResult<T> = Result<T, LinearClientError>;
 
-    pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Result<Value, LinearClientError> {
+    pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
 
         let linear_api_key;
         match &linear_config.api_key {
@@ -61,7 +63,7 @@ impl LinearClient {
     }
 
 
-    pub async fn get_teams(api_key: Option<String>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_teams(api_key: Option<String>) -> ClientResult {
 
         let linear_api_key;
 
@@ -82,7 +84,8 @@ impl LinearClient {
         Ok(team_nodes.clone())
     }
 
-    pub async fn get_issues_by_workflow_state( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value> ) -> Result<serde_json::Value, LinearClientError> {
+    // View Resolver Query Section Start -------
+    pub async fn get_issues_by_workflow_state( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
 
         info!("Calling exec_fetch_issues_by_workflow_state - variables: {:?}", variables);
 
@@ -93,15 +96,26 @@ impl LinearClient {
         };
 
 
-        let query_response = exec_fetch_issues_by_workflow_state(linear_api_key, variables).await?;
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+
+
+        let query_response = exec_fetch_issues_by_workflow_state(linear_api_key, linear_cursor, variables, page_size).await?;
 
         let ref issue_nodes = query_response["data"]["workflowState"]["issues"]["nodes"];
+        let ref cursor_info = query_response["data"]["workflowState"]["issues"]["pageInfo"];
 
-        return Ok(issue_nodes.clone());
 
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
     }
 
-    pub async fn get_issues_by_assignee( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value> ) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_issues_by_assignee( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
         info!("Calling exec_fetch_issues_by_assignee - variables: {:?}", variables);
 
         let linear_api_key;
@@ -111,14 +125,27 @@ impl LinearClient {
         };
 
 
-        let query_response = exec_fetch_issues_by_assignee(linear_api_key, variables).await?;
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+
+
+        let query_response = exec_fetch_issues_by_assignee(linear_api_key, linear_cursor, variables, page_size).await?;
 
         let ref issue_nodes = query_response["data"]["user"]["assignedIssues"]["nodes"];
+        let ref cursor_info = query_response["data"]["user"]["assignedIssues"]["pageInfo"];
 
-        return Ok(issue_nodes.clone());
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+
     }
 
-    pub async fn get_issues_by_label( linear_config: LinearConfig, variables: serde_json::Map<String, Value> ) -> Result<Value, LinearClientError> {
+    pub async fn get_issues_by_label( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
         info!("Calling exec_fetch_issues_by_label - variables: {:?}", variables);
 
         let linear_api_key;
@@ -128,14 +155,26 @@ impl LinearClient {
         };
 
 
-        let query_response = exec_fetch_issues_by_label(linear_api_key, variables).await?;
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+
+
+        let query_response = exec_fetch_issues_by_label(linear_api_key, linear_cursor, variables, page_size).await?;
 
         let ref issue_nodes = query_response["data"]["issueLabel"]["issues"]["nodes"];
+        let ref cursor_info = query_response["data"]["issueLabel"]["issues"]["pageInfo"];
 
-        return Ok(issue_nodes.clone()); 
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
     }
 
-    pub async fn get_issues_by_creator( linear_config: LinearConfig, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_issues_by_creator( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool) -> ClientResult {
         info!("Calling exec_fetch_issues_by_creator - variables: {:?}", variables);
 
         let linear_api_key;
@@ -144,17 +183,28 @@ impl LinearClient {
             None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
         };
 
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
 
-        let query_response = exec_fetch_issues_by_creator(linear_api_key, variables).await?;
+
+        let query_response = exec_fetch_issues_by_creator(linear_api_key, linear_cursor, variables, page_size).await?;
 
         let ref issue_nodes = query_response["data"]["user"]["createdIssues"]["nodes"];
+        let ref cursor_info = query_response["data"]["user"]["createdIssues"]["pageInfo"];
 
-        return Ok(issue_nodes.clone());
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
     }
+    // View Resolver Query Section End -------
 
 
 
-    pub async fn get_issues_by_team( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_issues_by_team( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
 
         info!("Calling exec_get_issues_by_team - variables: {:?}", variables);
 
@@ -175,7 +225,7 @@ impl LinearClient {
         // Ok(issue_nodes.clone())
     }
 
-    pub async fn get_workflow_states_by_team(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn get_workflow_states_by_team(api_key: Option<String>, variables: Map<String, Value>) -> ClientResult {
 
         let linear_api_key;
 
@@ -201,7 +251,7 @@ impl LinearClient {
 
     }
     // Note: This operation does not return a different response even if trying to set the Issue's workflow state to its current workflow state
-    pub async fn update_issue_workflow_state(api_key: Option<String>, variables: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, LinearClientError> {
+    pub async fn update_issue_workflow_state(api_key: Option<String>, variables: Map<String, Value>) -> ClientResult {
 
         info!("Calling update_issue_workflow_state - variables: {:?}", variables);
 

@@ -464,15 +464,13 @@ impl<'a> App<'a> {
                             item.tx.send(cmd).await.unwrap();
         
                             let res = resp_rx.await.ok();
-        
+
                             info!("LoadViewIssues IOEvent returned: {:?}", res);
 
                             let mut view_panel_data_lock = item.table_data.lock().unwrap();
 
                             if let Some(x) = res {
-                                if let Some(y) = x {
-                                    *view_panel_data_lock = Some(Value::Array(y));
-                                }
+                                *view_panel_data_lock = Some(Value::Array(x));
                             }
                             info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })

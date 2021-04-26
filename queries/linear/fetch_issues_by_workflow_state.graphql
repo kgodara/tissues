@@ -1,18 +1,42 @@
-{   "query": "query fetchIssuesByWorkflowState($ref: String!) {
+{   "query": "query fetchIssuesByWorkflowState($firstNum: Int, $afterCursor: String, $ref: String!) {
         workflowState(id: $ref) {
             id
             name
             color
             description
-            issues {
+            issues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
+                    createdAt
                     number
                     title
                     description
+                    priority
+                    estimate
                     state {
                         id
+                        name
+                        type
+                        description
+                        color
                     }
+                    creator {
+                        id
+                    }
+                    assignee {
+                        id
+                    }
+                    labels {
+                        nodes {
+                            id
+                        }
+                    }
+                }
+                pageInfo {
+                    hasPreviousPage
+                    hasNextPage
+                    startCursor
+                    endCursor
                 }
             }
         }

@@ -1,15 +1,20 @@
 
-use serde_json::Value;
+
 use crate::linear::LinearConfig;
 use crate::linear::client::LinearClient;
 
-use crate::errors::ConfigError;
-use crate::errors::GraphQLRequestError;
+use crate::app::Platform;
+
 use super::error::LinearClientError;
 
 use std::sync::{ Arc, Mutex };
 
 use std::collections::HashSet;
+
+use std::collections::HashMap;
+
+
+use serde_json::{ Value, Map };
 
 use crate::util::GraphQLCursor;
 
@@ -19,7 +24,7 @@ pub enum ViewLoadStrategy {
     GenericIssuePaginate,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum FilterType {
     SelectedState,
     SelectedCreator,
@@ -28,7 +33,6 @@ pub enum FilterType {
 
     NoLabel,
     NoAssignee,
-
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -44,20 +48,40 @@ pub struct ViewLoader {
     pub direct_filters: Vec<Filter>,
 
 
-    pub direct_filter_queryable: Option<Vec<Filter>>,
+    pub direct_filter_queryable: Vec<Filter>,
     pub direct_filter_query_idx: Option<usize>,
 
     pub indirect_filters: Vec<Filter>,
 
-    pub cursor: Option<GraphQLCursor>,
+    pub cursor: GraphQLCursor,
 }
 
+// This maps which FilterTypes can be ignored given a certain FilterType is the primary direct FilterType
+lazy_static! {
+    static ref IGNORABLE_FILTER_MAP: HashMap<FilterType, Vec<FilterType>> = {
+        let mut m: HashMap<FilterType, Vec<FilterType>> = HashMap::new();
+        m.insert(FilterType::SelectedState, vec![ FilterType::SelectedState ]);
+        m.insert(FilterType::SelectedCreator, vec![ FilterType::SelectedCreator ]);
+        
+        m.insert(FilterType::SelectedAssignee, vec![ FilterType::SelectedAssignee, FilterType::NoAssignee ]);
+        m.insert(FilterType::NoAssignee, vec![ FilterType::SelectedAssignee, FilterType::NoAssignee ]);
+
+        m.insert(FilterType::SelectedLabel, vec![ FilterType::SelectedLabel, FilterType::NoLabel ]);
+        m.insert(FilterType::NoLabel, vec![ FilterType::SelectedLabel, FilterType::NoLabel ]);
+
+        m
+    };
+}
+
+
+
+// Returns a ViewLoader created from a Linear Custom View "filters" JSON object
 pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 
     let load_strat: ViewLoadStrategy;
 
     let mut direct_filter_list: Vec<Filter> = Vec::new();
-    let mut direct_filter_queryable_list: Option<Vec<Filter>> = None;
+    let mut direct_filter_queryable_list: Vec<Filter> = Vec::new();
     let mut direct_filter_list_idx: Option<usize> = None;
 
     let mut indirect_filter_list: Vec<Filter> = Vec::new();
@@ -152,7 +176,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     //        direct_filter_list[x].filter_type == direct_filter_list[0].filter_type
     if load_strat == ViewLoadStrategy::DirectQueryPaginate {
         direct_filter_list_idx = Some(0);
-        direct_filter_queryable_list = Some(direct_filter_list
+        direct_filter_queryable_list = direct_filter_list
                                         .clone()
                                         .into_iter()
                                         .filter_map(|e| {
@@ -163,8 +187,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
                                                 None
                                             }
                                         })
-                                        .collect()
-                                    );
+                                        .collect();
     }
 
     ViewLoader {
@@ -178,29 +201,347 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     
         indirect_filters: indirect_filter_list,
     
-        cursor: None,
+        cursor: GraphQLCursor::default(),
     }
 }
 
-pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: LinearConfig ) -> Option<Vec<Value>> {
+// Take a list of Issues and filter by all filters present in a given ViewLoader
+// returns Vec of Issues matching direct_filters and indirect_filters in ViewLoader
+// 'ignorable_filters' are filters which are joined to the current query results with an INTERSECT and not a UNION,
+// and thus can be ignored
+pub fn filter_map_issues_by_loader( issues: Vec<Value>, ignorable_filters: Vec<FilterType>, view_loader: &ViewLoader ) -> Vec<Value> {
+
+    info!("filter_map_issues_by_loader - ignorable_filters: {:?}", ignorable_filters);
+
+    issues
+        .into_iter()
+        .filter_map(|e| {
+
+            let mut issue_is_valid = true;
+
+            // Apply all Filters in view_loader.direct_filters
+            for filter in view_loader.direct_filters.iter() {
+
+                let mut skip_current_filter = false;
+
+                // Determine whether FilterType can be ignored
+                for ignorable_filter_type in ignorable_filters.iter() {
+                    if filter.filter_type == *ignorable_filter_type {
+                        skip_current_filter = true;
+                    }
+                }
+
+                if skip_current_filter == true {
+                    continue;
+                }
+
+                // ref id of Filter to compare against
+                let cmp_ref_id = Value::String(filter.ref_id
+                                    .clone()
+                                    .get_or_insert(String::default())
+                                    .to_string());
+                
+                debug!("cmp_ref_id: {:?}", cmp_ref_id);
+
+                // Determine whether issue satisfies current Filter
+                match &filter.filter_type {
+                    FilterType::SelectedState => {
+                        // ["state"]["id"]
+
+                        if e["state"]["id"] != cmp_ref_id {
+                            debug!("Removing Issue for not matching SelectedState Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+                    FilterType::SelectedCreator => {
+                        // Note: ["creator"] can be null
+                        // ["creator"]["id"]
+                        if e["creator"]["id"] != cmp_ref_id {
+                            debug!("Removing Issue for not matching SelectedCreator Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+                    FilterType::SelectedAssignee => {
+                        // Note: ["assignee"] can be null
+                        // ["assignee"]["id"]
+                        if e["assignee"]["id"] != cmp_ref_id {
+                            debug!("Removing Issue for not matching SelectedAssignee Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+                    // If label id not found in ["labels"]["node"], set issue_is_valid to false
+                    FilterType::SelectedLabel => {
+                        // Not nullable
+                        // ["labels"]["node"]["id", "id", "id"]
+                        if let Value::Array(ref label_list) = e["labels"]["nodes"] {
+                            if label_list.iter().any(|label_id| *label_id == cmp_ref_id) == false {
+                                debug!("Removing Issue for not matching SelectedLabel Filter");
+                                issue_is_valid = false;
+                            }
+                        }
+                        else {
+                            debug!("Removing Issue for not finding a label list for SelectedLabel Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+                
+                    FilterType::NoLabel => {
+                        // Not nullable
+                        // ["labels"]["node"] -- Verify is empty (length == 0)
+                        if let Value::Array(ref label_list) = e["labels"]["nodes"] {
+                            if label_list.len() != 0 {
+                                debug!("Removing Issue for not matching NoLabel Filter");
+                                issue_is_valid = false;
+                            }
+                        }
+                        else {
+                            debug!("Removing Issue for not finding a label list for NoLabel Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+                    FilterType::NoAssignee => {
+                        // ["assignee"]: null
+                        if Value::Null != e["assignee"] {
+                            debug!("Removing Issue for not matching NoAssignee Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+                }
+
+                // If Issue doesn't satisfy return None
+                if issue_is_valid == false {
+                    debug!("returning None");
+                    return None;
+                }
+            }
+
+            // TODO:
+            // Apply all Filters in view_loader.indirect_filters
+            // Determine whether FilterType
+
+            if issue_is_valid == true {
+                debug!("returning Some(e)");
+                Some(e)
+            }
+            else {
+                None
+            }
+        })
+        .collect()
+
+}
+
+pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: LinearConfig ) -> Vec<Value> {
 
     info!("View Resolver received view_obj: {:?}", view_obj);
 
     let filters = view_obj["filters"].clone();
 
-    let view_loader = create_loader_from_view(&filters);
+    let mut view_loader = create_loader_from_view(&filters);
 
-    info!("ViewLoader: {:?}", view_loader);
+    debug!("ViewLoader: {:?}", view_loader);
+
+    let mut found_issue_list: Vec<Value> = Vec::new();
+
+    let mut query_list_idx: usize;
+
+    // Currently only supporting DirectQueryPaginate strategies
+    if view_loader.load_strategy != ViewLoadStrategy::DirectQueryPaginate {
+        return found_issue_list;
+    }
+
+    if let Some(x) = view_loader.direct_filter_query_idx {
+        query_list_idx = x;
+    }
+    else {
+        return found_issue_list;
+    }
+
+    debug!("Direct Filter List: {:?}", view_loader.direct_filter_queryable);
+
+    let mut loop_num = 0;
+
+    // Continue querying until full page of issues loaded or no more issues to scan
+    loop {
+
+        // If cursor.platform == Platform::Linear && cursor.hasNextpage == false
+        //     If (query_list_idx+1) < view_loader.direct_filter_queryable.len():
+        //         increment query_list_idx (update view_loader.direct_filter_query_idx as well)
+        //         set view_loader.cursor = GraphQLCursor::default()
+        //     else:
+        //        
+
+        // If current Direct Query is exhausted
+        if view_loader.cursor.platform == Platform::Linear && view_loader.cursor.has_next_page == false {
+            // If more Direct Queries remaining, increment index and reset cursor
+            if (query_list_idx+1) < view_loader.direct_filter_queryable.len() {
+
+                debug!("Current Direct Query exhausted, shifting to next Direct Query");
+
+                query_list_idx += 1;
+                view_loader.direct_filter_query_idx = Some(query_list_idx.clone());
+                view_loader.cursor = GraphQLCursor::default();
+            }
+            // No more Direct Queries remaining, return found_issues_list
+            else {
+                debug!("No more Direct Queries remaining, returning found_issues_list");
+                return found_issue_list;
+            }
+        }
+
+        let current_direct_filter: &Filter = &view_loader.direct_filter_queryable[query_list_idx];
+
+        debug!("Current Direct Filter : {:?}", current_direct_filter);
+
+        let query_result: Result<Value, LinearClientError>;
+
+        // Fetch Issues from the current Direct Filter using the current cursor
+        match &current_direct_filter.filter_type {
+            FilterType::SelectedState => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_workflow_state(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("SelectedState Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("SelectedState Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            },
+            FilterType::SelectedCreator => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_creator(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            },
+            FilterType::SelectedAssignee => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_assignee(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            },
+            FilterType::SelectedLabel => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_label(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            },
+
+            _ => {
+                error!("Invalid Label found in view_loader.direct_filter_queryable");
+                panic!("Invalid Label found in view_loader.direct_filter_queryable");
+            }
+        }
+
+
+        if let Ok(response) = query_result {
+
+            debug!("Current Direct Filter Query Response: {:?}", response);
+
+            // Filter returned Issues by all other loader filters
+            // and add remainder to final_issue_list
+
+            let mut issues_to_filter: Vec<Value>;
+            
+            match response["issue_nodes"].as_array() {
+                Some(issue_data) => {
+                    issues_to_filter = issue_data.clone();
+                },
+                None => {
+                    error!("'issue_nodes' invalid format: {:?}", response["issue_nodes"]);
+                    panic!("'issue_nodes' invalid format");
+                }
+            }
+
+            debug!("issues_to_filter.len(): {:?}", issues_to_filter.len());
+
+            // Remove any Issues from issues_to_filter that are already in found_issue_list
+            issues_to_filter = issues_to_filter
+                                    .into_iter()
+                                    .filter_map(|e| {
+                                        if found_issue_list.len() < 1 {
+                                            return Some(e);
+                                        }
+                                        match found_issue_list.iter().any(|x| {x["id"] == e["id"]}) {
+                                            true => { None },
+                                            false => { Some(e) }
+                                        }
+                                    })
+                                    .collect();
 
 
 
-    Some(Vec::new())
+            // Filter queried Issues by 
+            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(issues_to_filter,
+                                        IGNORABLE_FILTER_MAP[&current_direct_filter.filter_type].clone(),
+                                        &view_loader
+                                        );
+            
+            debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
+
+            
+            if filtered_issue_list.len() > 0 {
+                found_issue_list.append(&mut filtered_issue_list);
+            }
+
+            
+            // Update GraphQLCursor
+            match GraphQLCursor::linear_cursor_from_page_info(response["cursor_info"].clone()) {
+                Some(new_cursor) => {
+                    view_loader.cursor = new_cursor;
+                },
+                None => {
+                    error!("GraphQLCursor could not be created from response['cursor_info']: {:?}", response["cursor_info"]);
+                    panic!("GraphQLCursor could not be created from response['cursor_info']: {:?}", response["cursor_info"]);
+                },
+            }
+
+        }
+        else {
+            error!("View_Resolver Query Failed: {:?}", query_result);
+            panic!("View_Resolver Query Failed: {:?}", query_result);
+        }
+
+        if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
+             return found_issue_list;
+        }
+
+        info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);
+        loop_num += 1;
+    }
+
+
+
+    found_issue_list
 
 }
 
 
 
-
+/*
 // Accepts a custom view object: &Value
 // TODO: Certain filter resolvers may have to paginate in order to create accurate view and filter lists
 pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig ) -> Option<Vec<Value>> {
@@ -624,3 +965,5 @@ async fn get_issues_by_creator ( creator_list:  Vec<Value>, linear_config: Linea
 
     return Some(issues);
 }
+
+*/
