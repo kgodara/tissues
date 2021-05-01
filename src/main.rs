@@ -59,6 +59,7 @@ use command::{ Command,
                 exec_add_cmd,
                 exec_replace_cmd,
                 exec_delete_cmd,
+                exec_select_view_panel_cmd,
                 exec_open_linear_workflow_state_selection_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
@@ -239,6 +240,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::Delete => {
                             exec_delete_cmd(&mut app, &tx).await;
                         },
+                        Command::SelectViewPanel(idx) => {
+                            // linear_dashboard_view_panel_selected
+                            exec_select_view_panel_cmd(&mut app, idx, &tx).await;
+                        }
                         Command::OpenLinearWorkflowStateSelection => {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
                         },

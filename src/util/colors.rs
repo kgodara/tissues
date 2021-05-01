@@ -2,6 +2,11 @@ use tui::{
     style::{Color},
 };
 
+pub const SELECTED_COMPONENT_BORDER: Color = Color::Yellow;
+
+
+// Command Bar Colors
+
 // Green
 pub const ADD_VIEW_CMD_ACTIVE: Color = Color::Rgb( 52u8, 227u8, 28u8 );
 pub const ADD_VIEW_CMD_INACTIVE: Color = Color::Rgb( 39u8, 170u8, 21u8 );

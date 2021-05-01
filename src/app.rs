@@ -16,6 +16,10 @@ use crate::linear::LinearConfig;
 
 use serde_json::Value;
 
+use tui::{
+    widgets::{ TableState },
+};
+
 pub struct ViewLoadBundle {
     pub linear_config: LinearConfig,
     pub item_filter: Value,
@@ -61,8 +65,14 @@ pub struct App<'a> {
     // Linear Dashbaord Custom View List
     pub linear_dashboard_view_list: Vec<Option<serde_json::Value>>,
     pub linear_dashboard_view_idx: Option<usize>,
+
+    // Linear Dashboard View Panel Display
+    
     // Linear Dashboard 'DashboardViewPanel' components
     pub linear_dashboard_view_panel_list: Arc<Mutex<Vec<components::dashboard_view_panel::DashboardViewPanel>>>,
+    pub linear_dashboard_view_panel_selected: Option<usize>,
+    pub view_panel_issue_selected: Option<TableState>,
+
 
     // Linear Team Select State
     pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
@@ -105,7 +115,10 @@ impl<'a> Default for App<'a> {
             dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
             linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
             linear_dashboard_view_idx: None,
+
             linear_dashboard_view_panel_list: Arc::new(Mutex::new(Vec::new())),
+            linear_dashboard_view_panel_selected: None,
+            view_panel_issue_selected: None,
 
             linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
             // Null

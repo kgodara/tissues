@@ -11,6 +11,10 @@ use tokio::sync::mpsc::Sender;
 
 use serde_json::Value;
 
+use tui::{
+    widgets::{ TableState },
+};
+
 #[derive(Debug)]
 pub enum Command {
 
@@ -25,6 +29,9 @@ pub enum Command {
     Add,
     Replace,
     Delete,
+    SelectViewPanel(usize),
+
+
     OpenLinearWorkflowStateSelection,
 
 }
@@ -63,19 +70,43 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
                 "q" => {
                     Some(Command::Quit)
                 },
+                // Add Command
                 "a" => {
                     Some(Command::Add)
                 },
+                // Replace Command
                 "r" => {
                     Some(Command::Replace)
                 },
+                // Delete Command
                 "d" => {
                     Some(Command::Delete)
                 },
                 // Modify Command
                 "m" => {
                     Some(Command::OpenLinearWorkflowStateSelection)
-                }
+                },
+
+                // View Panel Selection Shortcuts
+                "1" => {
+                    Some(Command::SelectViewPanel(1))
+                },
+                "2" => {
+                    Some(Command::SelectViewPanel(2))
+                },
+                "3" => {
+                    Some(Command::SelectViewPanel(3))
+                },
+                "4" => {
+                    Some(Command::SelectViewPanel(4))
+                },
+                "5" => {
+                    Some(Command::SelectViewPanel(5))
+                },
+                "6" => {
+                    Some(Command::SelectViewPanel(6))
+                },
+
                 _ => {
                     None
                 }
@@ -175,6 +206,38 @@ pub async fn exec_delete_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
                 }
             }
         },
+        _ => {}
+    }
+}
+
+pub async fn exec_select_view_panel_cmd<'a>(app: &mut App<'a>, view_panel_idx: usize, tx: &Sender<IOEvent>) {
+    match app.route {
+        // User is attempting to select a View Panel
+        Route::ActionSelect => {
+            // Verify that view_panel_idx is within bounds of app.linear_dashboard_view_panel_list.len()
+            let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+            if view_panel_idx <= view_panel_list_handle.len() {
+
+                // if so, update app.linear_dashboard_view_panel_selected to Some(view_panel_idx)
+                app.linear_dashboard_view_panel_selected = Some(view_panel_idx);
+
+                // If the DashboardViewPanel.issue_table_data is Some(Value::Array)
+                // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some(
+                let view_panel_handle = view_panel_list_handle[view_panel_idx-1].issue_table_data.lock().unwrap();
+
+                if let Some(issue_data) = &*view_panel_handle {
+                    if let Value::Array(issue_vec) = issue_data {
+                        if issue_vec.len() > 0 {
+                            let mut table_state = TableState::default();
+                            state_table::next(&mut table_state, &issue_vec);
+
+                            app.view_panel_issue_selected = Some( table_state );
+                        }
+                    }
+                }
+            }
+        },
+
         _ => {}
     }
 }

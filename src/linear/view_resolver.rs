@@ -38,7 +38,7 @@ pub enum FilterType {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Filter {
     pub filter_type: FilterType,
-    pub ref_id: Option<String>,    
+    pub ref_id: Option<String>,
 }
 
 #[derive(Debug)]

@@ -198,9 +198,24 @@ impl LinearIssueDisplay {
             Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });
 
+        // Determine if this table is selected and should be highlighted by
+        // Comparing (table_style.view_idx-1) == (table_style.selected_view_idx)
+        let highlight_table = match table_style.view_idx {
+            Some(view_idx) => {
+                if let Some(selected_view_idx) = table_style.selected_view_idx {
+                    debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
+                    if view_idx == selected_view_idx { true }
+                    else { false }
+                }
+                else { false }
+            },
+            None => {false}
+        };
 
-        let table_block = Block::default().
-                                    borders(Borders::ALL)
+
+        let table_block = Block::default()
+                                    .borders(Borders::ALL)
+                                    .border_style(Style::default().fg(if highlight_table == true { Color::Yellow } else { Color::White }))
                                     .title( match table_style.title_style {
                                         Some(title_style) => {
                 

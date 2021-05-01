@@ -90,7 +90,13 @@ where
 
       for (i, e) in view_panel_handle.iter().enumerate() {
         let view_data_handle = e.issue_table_data.lock().unwrap();
-        let view_table_result = DashboardViewPanel::render(&view_data_handle, &e.filter, i as u16);
+        let selected_view_idx = if let Some(selected_idx) = app.linear_dashboard_view_panel_selected { Some(selected_idx as u16)}
+                                  else {None};
+        let view_table_result = DashboardViewPanel::render(&view_data_handle,
+                                                            &e.filter,
+                                                            i as u16,
+                                                            &selected_view_idx
+                                                          );
         if let Ok(view_table) = view_table_result {
           match num_views {
             0 => {},
@@ -278,7 +284,7 @@ where
 
   let table;
 
-  let table_style = TableStyle { title_style: None, row_bottom_margin: Some(0), view_idx: None };
+  let table_style = TableStyle { title_style: None, row_bottom_margin: Some(0), view_idx: None, selected_view_idx: None };
 
 
   let table_result = LinearIssueDisplay::get_rendered_issue_data(&issue_data_handle, table_style);
