@@ -137,7 +137,7 @@ impl<'a> Default for App<'a> {
             actions: util::StatefulList::with_items(vec![
                 "Modify Dashboard",
                 "Create New Custom View",
-            ]),
+            ]).selected(),
         }
     }
 }

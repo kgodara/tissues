@@ -222,7 +222,7 @@ pub async fn exec_select_view_panel_cmd<'a>(app: &mut App<'a>, view_panel_idx: u
                 app.linear_dashboard_view_panel_selected = Some(view_panel_idx);
 
                 // If the DashboardViewPanel.issue_table_data is Some(Value::Array)
-                // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some(
+                // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some( table_state )
                 let view_panel_handle = view_panel_list_handle[view_panel_idx-1].issue_table_data.lock().unwrap();
 
                 if let Some(issue_data) = &*view_panel_handle {
@@ -235,6 +235,9 @@ pub async fn exec_select_view_panel_cmd<'a>(app: &mut App<'a>, view_panel_idx: u
                         }
                     }
                 }
+
+                // Unselect from app.actions
+                app.actions.unselect();
             }
         },
 
@@ -261,7 +264,15 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
 
         // Unselect from List of Actions
-        Route::ActionSelect => app.actions.unselect(),
+        Route::ActionSelect => {
+            // If a View Panel is selected, unselect it, reset app.linear_selected_issue_idx to None and
+            // select app.actions()
+            if let Some(_) = app.linear_dashboard_view_panel_selected {
+                app.linear_dashboard_view_panel_selected = None;
+                app.linear_selected_issue_idx = None;
+                app.actions.next();
+            }
+        },
 
         // Change Route to ActionSelect
         Route::DashboardViewDisplay => {
@@ -372,7 +383,24 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
 pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
         // Select next Action
-        Route::ActionSelect => app.actions.next(),
+        Route::ActionSelect => {
+            // If a ViewPanel is selected, scroll down on the View Panel
+            if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
+                if let Some(table_state) = &app.view_panel_issue_selected {
+                    let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+                    let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+                    if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
+                        if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
+                            app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_vec));
+                        }
+                    }
+                }
+            }
+            // No View Panel selected, scroll on actions
+            else {
+                app.actions.next();
+            }
+        },
 
         // Select next Custom View Slot
         Route::DashboardViewDisplay => {
@@ -507,7 +535,24 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
-        Route::ActionSelect => app.actions.previous(),
+        Route::ActionSelect => {
+            // If a ViewPanel is selected, scroll down on the View Panel
+            if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
+                if let Some(table_state) = &app.view_panel_issue_selected {
+                    let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+                    let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+                    if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
+                        if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
+                            app.view_panel_issue_selected = Some(state_table::with_previous(table_state, &view_panel_issue_vec));
+                        }
+                    }
+                }
+            }
+            // No View Panel selected, scroll on actions
+            else {
+                app.actions.next();
+            }
+        },
         // Select previous Custom View Slot
         Route::DashboardViewDisplay => {
             state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);

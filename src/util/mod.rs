@@ -35,6 +35,11 @@ impl<T> StatefulList<T> {
         }
     }
 
+    pub fn selected(mut self) -> StatefulList<T> {
+        self.next();
+        self
+    }
+
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {

@@ -31,7 +31,7 @@ use tui::{
   layout::{Alignment, Constraint, Direction, Layout, Rect},
   style::{Color, Modifier, Style},
   text::{Span, Spans, Text},
-  widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
+  widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, TableState, Wrap},
   Frame,
 };
 
@@ -97,15 +97,32 @@ where
                                                             i as u16,
                                                             &selected_view_idx
                                                           );
+        
+        // Determine if this view panel is currently selected
+        let mut is_selected = false;
+        if let Some(selected_view_panel_idx) = app.linear_dashboard_view_panel_selected {
+          if selected_view_panel_idx == (i+1) {
+            is_selected = true;
+          }
+        }
+
+        // Determine the correct TableState, depending on if this view is selected or not
+        let table_state_option = if is_selected == true { app.view_panel_issue_selected.clone() } else { None };
+
+        let mut table_state = match table_state_option {
+          Some(table_state_val) => { table_state_val },
+          None => { TableState::default() }
+        };
+
         if let Ok(view_table) = view_table_result {
           match num_views {
             0 => {},
-            1 => { f.render_widget(view_table, ui::single_view_layout(i, chunks[0])); },
-            2 => { f.render_widget(view_table, ui::double_view_layout(i, chunks[0])); },
-            3 => { f.render_widget(view_table, ui::three_view_layout(i, chunks[0])); }
-            4 => { f.render_widget(view_table, ui::four_view_layout(i, chunks[0])); },
-            5 => { f.render_widget(view_table, ui::five_view_layout(i, chunks[0])) },
-            _ => { f.render_widget(view_table, ui::six_view_layout(i, chunks[0]))},
+            1 => { f.render_stateful_widget(view_table, ui::single_view_layout(i, chunks[0]), &mut table_state); },
+            2 => { f.render_stateful_widget(view_table, ui::double_view_layout(i, chunks[0]), &mut table_state); },
+            3 => { f.render_stateful_widget(view_table, ui::three_view_layout(i, chunks[0]), &mut table_state); }
+            4 => { f.render_stateful_widget(view_table, ui::four_view_layout(i, chunks[0]), &mut table_state); },
+            5 => { f.render_stateful_widget(view_table, ui::five_view_layout(i, chunks[0]), &mut table_state) },
+            _ => { f.render_stateful_widget(view_table, ui::six_view_layout(i, chunks[0]), &mut table_state)},
           }
         }
       }
