@@ -18,7 +18,7 @@ use serde_json::{ Value, Map };
 
 use crate::util::GraphQLCursor;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ViewLoadStrategy {
     DirectQueryPaginate,
     GenericIssuePaginate,
@@ -41,7 +41,7 @@ pub struct Filter {
     pub ref_id: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ViewLoader {
     pub load_strategy: ViewLoadStrategy,
     
@@ -54,6 +54,8 @@ pub struct ViewLoader {
     pub indirect_filters: Vec<Filter>,
 
     pub cursor: GraphQLCursor,
+
+    pub exhausted: bool,
 }
 
 // This maps which FilterTypes can be ignored given a certain FilterType is the primary direct FilterType
@@ -200,6 +202,8 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         direct_filter_query_idx: direct_filter_list_idx,
     
         indirect_filters: indirect_filter_list,
+
+        exhausted: false,
     
         cursor: GraphQLCursor::default(),
     }
@@ -331,13 +335,13 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>, ignorable_filters: Vec<F
 
 }
 
-pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: LinearConfig ) -> Vec<Value> {
+pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: Option<ViewLoader>, linear_config: LinearConfig ) -> ( Vec<Value>, ViewLoader ) {
 
     info!("View Resolver received view_obj: {:?}", view_obj);
 
     let filters = view_obj["filters"].clone();
 
-    let mut view_loader = create_loader_from_view(&filters);
+    let mut view_loader =  if let Some(loader) = view_loader_option { loader } else { create_loader_from_view(&filters) };
 
     debug!("ViewLoader: {:?}", view_loader);
 
@@ -347,19 +351,21 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: Linea
 
     // Currently only supporting DirectQueryPaginate strategies
     if view_loader.load_strategy != ViewLoadStrategy::DirectQueryPaginate {
-        return found_issue_list;
+        return ( found_issue_list, view_loader);
     }
 
+    // Assign to query_list_idx if view_loader has a direct_filter_query_idx
+    // if not, then this is not a DirectQueryPaginate strategy, return
     if let Some(x) = view_loader.direct_filter_query_idx {
         query_list_idx = x;
     }
     else {
-        return found_issue_list;
+        return ( found_issue_list, view_loader );
     }
 
     debug!("Direct Filter List: {:?}", view_loader.direct_filter_queryable);
 
-    let mut loop_num = 0;
+    let mut loop_num: u16 = 0;
 
     // Continue querying until full page of issues loaded or no more issues to scan
     loop {
@@ -384,8 +390,9 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: Linea
             }
             // No more Direct Queries remaining, return found_issues_list
             else {
+                view_loader.exhausted = true; 
                 debug!("No more Direct Queries remaining, returning found_issues_list");
-                return found_issue_list;
+                return ( found_issue_list, view_loader);
             }
         }
 
@@ -526,16 +533,12 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, linear_config: Linea
         }
 
         if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
-             return found_issue_list;
+             return ( found_issue_list, view_loader);
         }
 
         info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);
         loop_num += 1;
     }
-
-
-
-    found_issue_list
 
 }
 

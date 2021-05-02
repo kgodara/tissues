@@ -384,14 +384,38 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
         // Select next Action
         Route::ActionSelect => {
+            let mut load_paginated = false;
             // If a ViewPanel is selected, scroll down on the View Panel
             if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
                 if let Some(table_state) = &app.view_panel_issue_selected {
                     let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+
                     let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+                    let view_panel_loader_handle = view_panel_list_handle[view_panel_selected_idx-1].view_loader.lock().unwrap();
                     if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
                         if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
-                            app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_vec));
+
+                            // Check if at end of app.view_panel_issue_selected
+                            //  If true: Check if app.view_panel_list_handle[view_panel_selected_idx-1].view_loader.exhausted == false
+                            //      If true: dispatch event to load next page view panel
+                            //          and merge with current app.view_panel_list_handle[view_panel_selected_idx-1].issue_table_data
+
+                            let is_last_element = state_table::is_last_element(table_state, view_panel_issue_vec);
+                            let loader_is_exhausted = if let Some(loader_val) = &*view_panel_loader_handle {
+                                    loader_val.exhausted
+                                }
+                                else {
+                                    false
+                                };
+
+                            if is_last_element == true && loader_is_exhausted == false {
+                                app.view_panel_to_paginate = view_panel_selected_idx-1;
+                                load_paginated = true;
+                            }
+                            else {
+                                app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_vec));
+                            }
+
                         }
                     }
                 }
@@ -399,6 +423,10 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             // No View Panel selected, scroll on actions
             else {
                 app.actions.next();
+            }
+
+            if load_paginated == true {
+                app.dispatch_event("paginate_dashboard_view", &tx);
             }
         },
 
@@ -626,5 +654,4 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             }
         }
     }
-
 }

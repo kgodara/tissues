@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use super::linear_issue_display::LinearIssueDisplay;
 use crate::util::ui::{ TableStyle };
+use crate::linear::view_resolver::ViewLoader;
 
 use tui::{
     widgets::{ Table, TableState},
@@ -13,6 +14,7 @@ use tui::{
 pub struct DashboardViewPanel {
     pub filter: Value,
     pub issue_table_data: Arc<Mutex<Option<Value>>>,
+    pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
 }
 
 impl DashboardViewPanel {
@@ -20,6 +22,7 @@ impl DashboardViewPanel {
         DashboardViewPanel {
             filter: f,
             issue_table_data: Arc::new(Mutex::new(None)),
+            view_loader: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -46,6 +49,7 @@ impl Default for DashboardViewPanel {
         DashboardViewPanel {
             filter: Value::Null,
             issue_table_data: Arc::new(Mutex::new(None)),
+            view_loader: Arc::new(Mutex::new(None)),
         }
     }
 }
