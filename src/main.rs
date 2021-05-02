@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 #[allow(unused_imports)]
 
+#[macro_use]
+extern crate lazy_static;
+
+
 use std::io;
 use std::fs;
 
@@ -55,6 +59,7 @@ use command::{ Command,
                 exec_add_cmd,
                 exec_replace_cmd,
                 exec_delete_cmd,
+                exec_select_view_panel_cmd,
                 exec_open_linear_workflow_state_selection_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
@@ -111,11 +116,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(option_stateful);
                 },
-                IOEvent::LoadViewIssues { linear_config, view, resp } => {
-                    let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
-                    info!("LoadViewIssues data: {:?}", option_stateful);
+                IOEvent::LoadViewIssues { linear_config, view, view_loader, resp } => {
+                    // let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
+                    let issue_list = linear::view_resolver::optimized_view_issue_fetch(&view, view_loader, linear_config).await;
+                    info!("LoadViewIssues data: {:?}", issue_list);
 
-                    let _ = resp.send(option_stateful);
+                    let _ = resp.send(issue_list);
                 },
                 IOEvent::LoadLinearTeams { api_key, resp } => {
                     let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
@@ -234,6 +240,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::Delete => {
                             exec_delete_cmd(&mut app, &tx).await;
                         },
+                        Command::SelectViewPanel(idx) => {
+                            // linear_dashboard_view_panel_selected
+                            exec_select_view_panel_cmd(&mut app, idx, &tx).await;
+                        }
                         Command::OpenLinearWorkflowStateSelection => {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
                         },

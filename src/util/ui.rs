@@ -11,6 +11,7 @@ pub struct TableStyle {
     // ( name: Value::String, color_hex_str: Value::String || Value::Null )
     pub title_style: Option<(Value, Value)>,
     pub view_idx: Option<u16>,
+    pub selected_view_idx: Option<u16>,
     pub row_bottom_margin: Option<u16>,
 }
 

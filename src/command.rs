@@ -11,6 +11,10 @@ use tokio::sync::mpsc::Sender;
 
 use serde_json::Value;
 
+use tui::{
+    widgets::{ TableState },
+};
+
 #[derive(Debug)]
 pub enum Command {
 
@@ -25,6 +29,9 @@ pub enum Command {
     Add,
     Replace,
     Delete,
+    SelectViewPanel(usize),
+
+
     OpenLinearWorkflowStateSelection,
 
 }
@@ -63,19 +70,43 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
                 "q" => {
                     Some(Command::Quit)
                 },
+                // Add Command
                 "a" => {
                     Some(Command::Add)
                 },
+                // Replace Command
                 "r" => {
                     Some(Command::Replace)
                 },
+                // Delete Command
                 "d" => {
                     Some(Command::Delete)
                 },
                 // Modify Command
                 "m" => {
                     Some(Command::OpenLinearWorkflowStateSelection)
-                }
+                },
+
+                // View Panel Selection Shortcuts
+                "1" => {
+                    Some(Command::SelectViewPanel(1))
+                },
+                "2" => {
+                    Some(Command::SelectViewPanel(2))
+                },
+                "3" => {
+                    Some(Command::SelectViewPanel(3))
+                },
+                "4" => {
+                    Some(Command::SelectViewPanel(4))
+                },
+                "5" => {
+                    Some(Command::SelectViewPanel(5))
+                },
+                "6" => {
+                    Some(Command::SelectViewPanel(6))
+                },
+
                 _ => {
                     None
                 }
@@ -179,6 +210,41 @@ pub async fn exec_delete_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
     }
 }
 
+pub async fn exec_select_view_panel_cmd<'a>(app: &mut App<'a>, view_panel_idx: usize, tx: &Sender<IOEvent>) {
+    match app.route {
+        // User is attempting to select a View Panel
+        Route::ActionSelect => {
+            // Verify that view_panel_idx is within bounds of app.linear_dashboard_view_panel_list.len()
+            let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+            if view_panel_idx <= view_panel_list_handle.len() {
+
+                // if so, update app.linear_dashboard_view_panel_selected to Some(view_panel_idx)
+                app.linear_dashboard_view_panel_selected = Some(view_panel_idx);
+
+                // If the DashboardViewPanel.issue_table_data is Some(Value::Array)
+                // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some( table_state )
+                let view_panel_handle = view_panel_list_handle[view_panel_idx-1].issue_table_data.lock().unwrap();
+
+                if let Some(issue_data) = &*view_panel_handle {
+                    if let Value::Array(issue_vec) = issue_data {
+                        if issue_vec.len() > 0 {
+                            let mut table_state = TableState::default();
+                            state_table::next(&mut table_state, &issue_vec);
+
+                            app.view_panel_issue_selected = Some( table_state );
+                        }
+                    }
+                }
+
+                // Unselect from app.actions
+                app.actions.unselect();
+            }
+        },
+
+        _ => {}
+    }
+}
+
 
 pub fn exec_open_linear_workflow_state_selection_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
@@ -198,7 +264,15 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
 
         // Unselect from List of Actions
-        Route::ActionSelect => app.actions.unselect(),
+        Route::ActionSelect => {
+            // If a View Panel is selected, unselect it, reset app.linear_selected_issue_idx to None and
+            // select app.actions()
+            if let Some(_) = app.linear_dashboard_view_panel_selected {
+                app.linear_dashboard_view_panel_selected = None;
+                app.linear_selected_issue_idx = None;
+                app.actions.next();
+            }
+        },
 
         // Change Route to ActionSelect
         Route::DashboardViewDisplay => {
@@ -309,7 +383,52 @@ pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
 pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
         // Select next Action
-        Route::ActionSelect => app.actions.next(),
+        Route::ActionSelect => {
+            let mut load_paginated = false;
+            // If a ViewPanel is selected, scroll down on the View Panel
+            if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
+                if let Some(table_state) = &app.view_panel_issue_selected {
+                    let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+
+                    let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+                    let view_panel_loader_handle = view_panel_list_handle[view_panel_selected_idx-1].view_loader.lock().unwrap();
+                    if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
+                        if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
+
+                            // Check if at end of app.view_panel_issue_selected
+                            //  If true: Check if app.view_panel_list_handle[view_panel_selected_idx-1].view_loader.exhausted == false
+                            //      If true: dispatch event to load next page view panel
+                            //          and merge with current app.view_panel_list_handle[view_panel_selected_idx-1].issue_table_data
+
+                            let is_last_element = state_table::is_last_element(table_state, view_panel_issue_vec);
+                            let loader_is_exhausted = if let Some(loader_val) = &*view_panel_loader_handle {
+                                    loader_val.exhausted
+                                }
+                                else {
+                                    false
+                                };
+
+                            if is_last_element == true && loader_is_exhausted == false {
+                                app.view_panel_to_paginate = view_panel_selected_idx-1;
+                                load_paginated = true;
+                            }
+                            else {
+                                app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_vec));
+                            }
+
+                        }
+                    }
+                }
+            }
+            // No View Panel selected, scroll on actions
+            else {
+                app.actions.next();
+            }
+
+            if load_paginated == true {
+                app.dispatch_event("paginate_dashboard_view", &tx);
+            }
+        },
 
         // Select next Custom View Slot
         Route::DashboardViewDisplay => {
@@ -444,7 +563,24 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
-        Route::ActionSelect => app.actions.previous(),
+        Route::ActionSelect => {
+            // If a ViewPanel is selected, scroll down on the View Panel
+            if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
+                if let Some(table_state) = &app.view_panel_issue_selected {
+                    let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+                    let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+                    if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
+                        if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
+                            app.view_panel_issue_selected = Some(state_table::with_previous(table_state, &view_panel_issue_vec));
+                        }
+                    }
+                }
+            }
+            // No View Panel selected, scroll on actions
+            else {
+                app.actions.next();
+            }
+        },
         // Select previous Custom View Slot
         Route::DashboardViewDisplay => {
             state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
@@ -518,5 +654,4 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             }
         }
     }
-
 }

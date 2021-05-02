@@ -943,6 +943,7 @@ dependencies = [
  "clap",
  "colorsys",
  "dotenv",
+ "lazy_static",
  "log",
  "reqwest",
  "serde_json",

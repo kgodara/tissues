@@ -8,7 +8,9 @@ use crate::errors::{
 };
 
 use serde_json::{
-    Value
+    Value,
+    Map,
+    Number
 };
 
 use serde_json::json;
@@ -32,7 +34,9 @@ const LINEAR_FETCH_ISSUES_BY_TEAM_PATH: &str = "queries/linear/fetch_issues_by_t
 const LINEAR_GET_WORKFLOW_STATES_BY_TEAM: &str = "queries/linear/get_workflow_states_by_team.graphql";
 const LINEAR_UPDATE_ISSUE_WORKFLOW_STATE: &str = "queries/linear/update_issue_workflow_state.graphql";
 
-pub async fn get_viewer(api_key: &str) -> Result<Value, GraphQLRequestError> {
+type QueryResult = Result<Value, GraphQLRequestError>;
+
+pub async fn get_viewer(api_key: &str) -> QueryResult {
 
 
     let query;
@@ -64,13 +68,13 @@ pub async fn get_viewer(api_key: &str) -> Result<Value, GraphQLRequestError> {
 
 }
 
-pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> Result<Value, GraphQLRequestError> {
+pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
     let mut query;
     query = parse_graphql_from_file(&LINEAR_FETCH_CUSTOM_VIEWS_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(serde_json::Map::default());
+    query["variables"] = Value::Object(Map::default());
     // query["variables"] = json!({});
-    query["variables"]["firstNum"] = serde_json::Value::Number(serde_json::Number::from(issue_page_size));
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
 
     match issue_cursor {
         Some(cursor_data) => {
@@ -78,8 +82,8 @@ pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCurso
             if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
                 return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
             }
-            if cursor_data.has_next_page == true {
-                query["variables"]["afterCursor"] = serde_json::Value::String(cursor_data.end_cursor);
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
             }
         },
         None => {}
@@ -105,12 +109,32 @@ pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCurso
 
 // Custom View Resolver Queries
 
-pub async fn fetch_issues_by_workflow_state(api_key: &str, variables: serde_json::Map<String, Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn fetch_issues_by_workflow_state(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    // query["variables"] = Value::Object(variables);
+
+
+    query["variables"] = Value::Object(variables);
+    // query["variables"] = json!({});
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+    match issue_cursor {
+        Some(cursor_data) => {
+            // If Cursor is for a different platform, and is not a new cursor
+            if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
+                return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            }
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
+            }
+        },
+        None => {}
+    };
+
+    info!("fetch_issues_by_workflow_state variables: {:?}", query["variables"]);
 
     let client = reqwest::Client::new();
 
@@ -126,12 +150,27 @@ pub async fn fetch_issues_by_workflow_state(api_key: &str, variables: serde_json
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_assignee(api_key: &str, variables: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn fetch_issues_by_assignee(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    query["variables"] = Value::Object(variables);
+    // query["variables"] = json!({});
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+    match issue_cursor {
+        Some(cursor_data) => {
+            // If Cursor is for a different platform, and is not a new cursor
+            if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
+                return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            }
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
+            }
+        },
+        None => {}
+    };
 
     let client = reqwest::Client::new();
 
@@ -147,12 +186,27 @@ pub async fn fetch_issues_by_assignee(api_key: &str, variables: serde_json::Map<
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_label(api_key: &str, variables: serde_json::Map<String, Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn fetch_issues_by_label(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_LABEL_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    query["variables"] = Value::Object(variables);
+    // query["variables"] = json!({});
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+    match issue_cursor {
+        Some(cursor_data) => {
+            // If Cursor is for a different platform, and is not a new cursor
+            if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
+                return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            }
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
+            }
+        },
+        None => {}
+    };
 
     let client = reqwest::Client::new();
 
@@ -168,12 +222,27 @@ pub async fn fetch_issues_by_label(api_key: &str, variables: serde_json::Map<Str
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_creator(api_key: &str, variables: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn fetch_issues_by_creator(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_CREATOR_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    query["variables"] = Value::Object(variables);
+    // query["variables"] = json!({});
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+    match issue_cursor {
+        Some(cursor_data) => {
+            // If Cursor is for a different platform, and is not a new cursor
+            if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
+                return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            }
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
+            }
+        },
+        None => {}
+    };
 
     let client = reqwest::Client::new();
 
@@ -190,7 +259,7 @@ pub async fn fetch_issues_by_creator(api_key: &str, variables: serde_json::Map<S
 }
 
 
-pub async fn get_teams(api_key: &str) -> Result<Value, GraphQLRequestError> {
+pub async fn get_teams(api_key: &str) -> QueryResult {
 
 
     let query;
@@ -224,12 +293,12 @@ pub async fn get_teams(api_key: &str) -> Result<Value, GraphQLRequestError> {
 
 
 // Non Custom View Resolver Queries
-pub async fn get_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32, team: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn get_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32, team: Map<String, Value>) -> QueryResult {
     let mut query;
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_TEAM_PATH)?;
 
-    query["variables"] = serde_json::Value::Object(team);
-    query["variables"]["firstNum"] = serde_json::Value::Number(serde_json::Number::from(issue_page_size));
+    query["variables"] = Value::Object(team);
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
 
     match issue_cursor {
         Some(cursor_data) => {
@@ -237,7 +306,7 @@ pub async fn get_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCurso
                 return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
             }
             if cursor_data.has_next_page == true {
-                query["variables"]["afterCursor"] = serde_json::Value::String(cursor_data.end_cursor);
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
             }
         },
         None => {}
@@ -245,13 +314,6 @@ pub async fn get_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCurso
 
     info!("get_issues_by_team variables: {:?}", query["variables"]);
 
-    /*
-    let resp: serde_json::Value = ureq::post("https://api.linear.app/graphql")
-                                        .set("Content-Type", "application/json")
-                                        .set("Authorization", api_key)
-                                        .send_json(query)?
-                                        .into_json()?;
-    */
 
 
     let client = reqwest::Client::new();
@@ -270,7 +332,7 @@ pub async fn get_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCurso
 }
 
 
-pub async fn get_workflow_states_by_team(api_key: &str, variables: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn get_workflow_states_by_team(api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query;
 
@@ -292,7 +354,7 @@ pub async fn get_workflow_states_by_team(api_key: &str, variables: serde_json::M
     Ok(resp)
 }
 
-pub async fn update_issue_workflow_state(api_key: &str, variables: serde_json::Map<String, serde_json::Value>) -> Result<Value, GraphQLRequestError> {
+pub async fn update_issue_workflow_state(api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query;
     query = parse_graphql_from_file(&LINEAR_UPDATE_ISSUE_WORKFLOW_STATE)?;

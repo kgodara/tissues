@@ -6,7 +6,10 @@ use serde_json::Value;
 
 
 use crate::linear::LinearConfig as LinearConfig;
+use crate::linear::view_resolver::ViewLoader;
+
 use crate::util::GraphQLCursor as GraphQLCursor;
+
 
 use std::sync::{ Arc, Mutex };
 
@@ -20,7 +23,8 @@ pub enum IOEvent {
     LoadViewIssues {
         linear_config: LinearConfig,
         view: Value,
-        resp: Responder<Vec<Value>>,
+        view_loader: Option<ViewLoader>,
+        resp: oneshot::Sender<(Vec<Value>, ViewLoader)>,
     },
     LoadLinearTeams {
         api_key: Option<String>,

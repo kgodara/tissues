@@ -13,13 +13,19 @@ use tokio::sync::oneshot;
 use std::sync::{Arc, Mutex};
 
 use crate::linear::LinearConfig;
+use crate::linear::view_resolver::ViewLoader;
 
 use serde_json::Value;
+
+use tui::{
+    widgets::{ TableState },
+};
 
 pub struct ViewLoadBundle {
     pub linear_config: LinearConfig,
     pub item_filter: Value,
     pub table_data: Arc<Mutex<Option<Value>>>,
+    pub loader: Arc<Mutex<Option<ViewLoader>>>,
     pub tx: tokio::sync::mpsc::Sender<IOEvent>,
 }
 
@@ -61,8 +67,15 @@ pub struct App<'a> {
     // Linear Dashbaord Custom View List
     pub linear_dashboard_view_list: Vec<Option<serde_json::Value>>,
     pub linear_dashboard_view_idx: Option<usize>,
+
+    // Linear Dashboard View Panel Display
+    
     // Linear Dashboard 'DashboardViewPanel' components
     pub linear_dashboard_view_panel_list: Arc<Mutex<Vec<components::dashboard_view_panel::DashboardViewPanel>>>,
+    pub linear_dashboard_view_panel_selected: Option<usize>,
+    pub view_panel_issue_selected: Option<TableState>,
+    pub view_panel_to_paginate: usize,
+
 
     // Linear Team Select State
     pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
@@ -105,7 +118,11 @@ impl<'a> Default for App<'a> {
             dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
             linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
             linear_dashboard_view_idx: None,
+
             linear_dashboard_view_panel_list: Arc::new(Mutex::new(Vec::new())),
+            linear_dashboard_view_panel_selected: None,
+            view_panel_issue_selected: None,
+            view_panel_to_paginate: 0,
 
             linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
             // Null
@@ -124,7 +141,7 @@ impl<'a> Default for App<'a> {
             actions: util::StatefulList::with_items(vec![
                 "Modify Dashboard",
                 "Create New Custom View",
-            ]),
+            ]).selected(),
         }
     }
 }
@@ -416,6 +433,7 @@ impl<'a> App<'a> {
                                                                         ViewLoadBundle { linear_config: self.linear_client.config.clone(), 
                                                                                          item_filter: e.filter,
                                                                                          table_data: e.issue_table_data.clone(),
+                                                                                         loader: e.view_loader.clone(),
                                                                                          tx: tx.clone(),
                                                                                         }
                                                                     })
@@ -457,22 +475,31 @@ impl<'a> App<'a> {
                         // let view_panel_handle: Arc<_> = item.issue_table_data.clone();
                         // let item_filter = item.filter.clone();
 
+                        let loader_handle = item.loader.lock().unwrap();
+                        let loader = loader_handle.clone();
+                        drop(loader_handle);
+
                         tokio::spawn(async move {
                             let (resp_tx, resp_rx) = oneshot::channel();
 
-                            let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(), view: item.item_filter.clone(),  resp: resp_tx };
+
+                            let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(),
+                                                                view: item.item_filter.clone(), 
+                                                                view_loader: loader,
+                                                                resp: resp_tx };
+                            
                             item.tx.send(cmd).await.unwrap();
         
                             let res = resp_rx.await.ok();
-        
+
                             info!("LoadViewIssues IOEvent returned: {:?}", res);
 
                             let mut view_panel_data_lock = item.table_data.lock().unwrap();
+                            let mut loader_handle = item.loader.lock().unwrap();
 
                             if let Some(x) = res {
-                                if let Some(y) = x {
-                                    *view_panel_data_lock = Some(Value::Array(y));
-                                }
+                                *view_panel_data_lock = Some(Value::Array(x.0));
+                                *loader_handle = Some(x.1);
                             }
                             info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })
@@ -491,6 +518,72 @@ impl<'a> App<'a> {
                 });
 
             },
+            "paginate_dashboard_view" => {
+
+                let tx2 = tx.clone();
+
+                let mut view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
+
+                let config = self.linear_client.config.clone();
+
+                let view_panel_view_obj = view_panel_list_handle[self.view_panel_to_paginate].filter.clone();
+
+                let loader_lock = view_panel_list_handle[self.view_panel_to_paginate].view_loader.lock().unwrap();
+                let loader = loader_lock.clone();
+
+                let view_panel_issue_handle = view_panel_list_handle[self.view_panel_to_paginate].issue_table_data.clone();
+                let loader_handle = view_panel_list_handle[self.view_panel_to_paginate].view_loader.clone();
+
+
+                drop(loader_lock);
+                drop(view_panel_list_handle);
+
+
+                let t1 = tokio::spawn(async move {
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    
+                    let cmd = IOEvent::LoadViewIssues { linear_config: config,
+                                                        view: view_panel_view_obj, 
+                                                        view_loader: loader,
+                                                        resp: resp_tx };
+                    
+                    tx2.send(cmd).await.unwrap();
+
+                    let res = resp_rx.await.ok();
+
+                    info!("LoadViewIssues IOEvent returned: {:?}", res);
+                    
+                    let mut view_panel_data_lock = view_panel_issue_handle.lock().unwrap();
+                    let mut loader = loader_handle.lock().unwrap();
+
+                    let current_view_issues = view_panel_data_lock.clone();
+
+                    if let Some(mut x) = res {
+
+
+                        match current_view_issues {
+                            Some(mut issue_data) => {
+                                match issue_data {
+                                    serde_json::Value::Array(ref mut issue_vec) => {
+                                        issue_vec.append(&mut x.0);
+                                        *view_panel_data_lock = Some( Value::Array(issue_vec.clone()) );
+                                        *loader = Some(x.1);
+                                    },
+                                    _ => {},
+                                }
+                            },
+                            _ => {}
+                        }
+
+
+
+
+                        // *view_panel_data_lock = Some(Value::Array(x.0));
+                    }
+                    info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
+                });
+            }
 
             // Acquire these values to dispatch LoadLinearIssuesPaginate:
             //  linear_config: LinearConfig,

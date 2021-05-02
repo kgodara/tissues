@@ -1,25 +1,39 @@
-{   "query": "query fetchIssuesByLabel($ref: String!) {
+{   "query": "query fetchIssuesByLabel($firstNum: Int, $afterCursor: String, $ref: String!) {
         issueLabel(id: $ref) {
-            issues {
-                nodes {
-                    id
-                    createdAt
-                    number
-                    title
-                    description
-                    priority
-                    estimate
-                    state {
-                        id
-                        name
-                        type
-                        description
-                        color
-                    }
-                    assignee {
-                        name
-                    }
+            issues(first: $firstNum, after: $afterCursor) {
+              nodes {
+                id
+                createdAt
+                number
+                title
+                description
+                priority
+                estimate
+                state {
+                  id
+                  name
+                  type
+                  description
+                  color
                 }
+                creator {
+                  id
+                }
+                assignee {
+                  id
+                }
+                labels {
+                  nodes {
+                    id
+                  }
+                }
+              }
+              pageInfo {
+                  hasPreviousPage
+                  hasNextPage
+                  startCursor
+                  endCursor
+              }
             }
         }
     }",
