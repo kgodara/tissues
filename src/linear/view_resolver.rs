@@ -335,7 +335,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>, ignorable_filters: Vec<F
 
 }
 
-pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: Option<ViewLoader>, linear_config: LinearConfig ) -> ( Vec<Value>, ViewLoader ) {
+pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: Option<ViewLoader>, linear_config: LinearConfig ) -> ( Vec<Value>, ViewLoader, u32 ) {
 
     info!("View Resolver received view_obj: {:?}", view_obj);
 
@@ -349,9 +349,11 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
 
     let mut query_list_idx: usize;
 
+    let mut request_num: u32 = 0;
+
     // Currently only supporting DirectQueryPaginate strategies
     if view_loader.load_strategy != ViewLoadStrategy::DirectQueryPaginate {
-        return ( found_issue_list, view_loader);
+        return ( found_issue_list, view_loader, request_num);
     }
 
     // Assign to query_list_idx if view_loader has a direct_filter_query_idx
@@ -360,7 +362,7 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
         query_list_idx = x;
     }
     else {
-        return ( found_issue_list, view_loader );
+        return ( found_issue_list, view_loader, request_num );
     }
 
     debug!("Direct Filter List: {:?}", view_loader.direct_filter_queryable);
@@ -392,7 +394,7 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
             else {
                 view_loader.exhausted = true; 
                 debug!("No more Direct Queries remaining, returning found_issues_list");
-                return ( found_issue_list, view_loader);
+                return ( found_issue_list, view_loader, request_num);
             }
         }
 
@@ -466,6 +468,9 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
 
         if let Ok(response) = query_result {
 
+            // Increment request_num here
+            request_num += 1;
+
             debug!("Current Direct Filter Query Response: {:?}", response);
 
             // Filter returned Issues by all other loader filters
@@ -533,7 +538,7 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
         }
 
         if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
-             return ( found_issue_list, view_loader);
+             return ( found_issue_list, view_loader, request_num);
         }
 
         info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);

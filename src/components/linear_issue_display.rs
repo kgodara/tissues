@@ -108,7 +108,7 @@ impl LinearIssueDisplay {
 
     pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>, table_style: TableStyle) -> Result<Table, &'static str> {
 
-        let table_items;
+        let mut table_items: &Value = &Value::Array(Vec::new());
 
         let bottom_margin = match table_style.row_bottom_margin {
             Some(margin) => margin,
@@ -117,13 +117,17 @@ impl LinearIssueDisplay {
 
         match table_data {
             Some(x) => table_items = x,
-            None => { return Err("Table Items is None"); }
+            None => { 
+                error!("Table Items is None"); 
+            }
         }
 
-        let table_array;
+        let mut table_array: &Vec<Value> = &Vec::new();
         match table_items.as_array() {
             Some(x) => table_array = x,
-            None => { return Err("table_data is not an Array") }
+            None => { 
+                error!("table_data is not an Array"); 
+            }
         }
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);

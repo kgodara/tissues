@@ -65,7 +65,7 @@ use command::{ Command,
                 exec_confirm_cmd,
                 exec_scroll_down_cmd,
                 exec_scroll_up_cmd,
-            };
+};
 use network::IOEvent;
 
 

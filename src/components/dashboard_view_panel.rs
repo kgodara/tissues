@@ -15,6 +15,8 @@ pub struct DashboardViewPanel {
     pub filter: Value,
     pub issue_table_data: Arc<Mutex<Option<Value>>>,
     pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
+    pub request_num: Arc<Mutex<u32>>,
+    pub is_loading: Arc<Mutex<bool>>,
 }
 
 impl DashboardViewPanel {
@@ -23,6 +25,8 @@ impl DashboardViewPanel {
             filter: f,
             issue_table_data: Arc::new(Mutex::new(None)),
             view_loader: Arc::new(Mutex::new(None)),
+            request_num: Arc::new(Mutex::new(0)),
+            is_loading: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -33,7 +37,6 @@ impl DashboardViewPanel {
                                         view_idx: Some(view_idx+1),
                                         selected_view_idx: selected_view_idx.clone(),
                                     };
-        debug!("table_style: {:?}", table_style);
 
         LinearIssueDisplay::get_rendered_issue_data(&data, table_style)
     }
@@ -50,6 +53,8 @@ impl Default for DashboardViewPanel {
             filter: Value::Null,
             issue_table_data: Arc::new(Mutex::new(None)),
             view_loader: Arc::new(Mutex::new(None)),
+            request_num: Arc::new(Mutex::new(0)),
+            is_loading: Arc::new(Mutex::new(false)),
         }
     }
 }

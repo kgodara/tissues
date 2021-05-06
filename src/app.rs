@@ -17,6 +17,8 @@ use crate::linear::view_resolver::ViewLoader;
 
 use serde_json::Value;
 
+use std::collections::HashSet;
+
 use tui::{
     widgets::{ TableState },
 };
@@ -26,6 +28,7 @@ pub struct ViewLoadBundle {
     pub item_filter: Value,
     pub table_data: Arc<Mutex<Option<Value>>>,
     pub loader: Arc<Mutex<Option<ViewLoader>>>,
+    pub request_num: Arc<Mutex<u32>>,
     pub tx: tokio::sync::mpsc::Sender<IOEvent>,
 }
 
@@ -119,7 +122,7 @@ impl<'a> Default for App<'a> {
             linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
             linear_dashboard_view_idx: None,
 
-            linear_dashboard_view_panel_list: Arc::new(Mutex::new(Vec::new())),
+            linear_dashboard_view_panel_list: Arc::new(Mutex::new(Vec::with_capacity(6))),
             linear_dashboard_view_panel_selected: None,
             view_panel_issue_selected: None,
             view_panel_to_paginate: 0,
@@ -409,33 +412,100 @@ impl<'a> App<'a> {
                 let view_panel_list_ref = self.linear_dashboard_view_panel_list.clone();
                 let mut view_panel_list_handle = view_panel_list_ref.lock().unwrap();
 
-                view_panel_list_handle.clear();
+                // view_panel_list_handle.clear();
+
+                let mut new_panel_set = HashSet::new();
+
+                info!("Attempting to load Dashboard Views");
 
 
-                for filter in self.linear_dashboard_view_list.iter() {
-                    match filter {
+                for (i, filter_opt) in self.linear_dashboard_view_list.iter().enumerate() {
+                    //  If a View Panel for the filter is present within self.linear_dashboard_view_panel_list
+                    //  and self.linear_dashboard_view_panel_list[x].is_loading == false,
+                    //  then if the index doesn't match:
+                    //  clone the view panel and insert into the correct index within self.linear_dashboard_view_panel_list
+                    //  else: do not insert a new view panel
+                    let mut used_cached_panel = false;
+                    match filter_opt {
                         // Create DashboardViewPanels for each filter
+
                         Some(filter) => {
-                            view_panel_list_handle.push(
-                                components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone())
-                            );
+
+                            let filter_id = filter["id"].clone();
+                            let filter_view_panel_exists = view_panel_list_handle
+                                                            .iter()
+                                                            .position(|e| { 
+                                                                debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
+                                                                e.filter["id"] == filter_id
+                                                            });
+                            debug!("i: {:?}, filter_view_panel_exists: {:?}", i, filter_view_panel_exists);
+
+
+                            match filter_view_panel_exists {
+                                Some(filter_view_panel_idx) => {
+
+                                    //  if the index doesn't match:
+                                    //      clone the view panel and replace into the correct index
+                                    //      within self.linear_dashboard_view_panel_list
+
+                                    if i != filter_view_panel_idx {
+                                        let dup_view_panel = view_panel_list_handle[filter_view_panel_idx].clone();
+                                        // view_panel_list_handle.insert(i, dup_view_panel);
+                                        if i < view_panel_list_handle.len() {
+                                            let got = std::mem::replace(&mut view_panel_list_handle[i], dup_view_panel);
+                                        }
+                                        else {
+                                            view_panel_list_handle.insert(i, dup_view_panel);
+                                        }
+                                    }
+
+                                    //  else: do not insert a new view panel
+
+                                    used_cached_panel = true;
+                                    new_panel_set.insert(i);
+
+                                },
+                                None => {}
+                            };
+
+                            if used_cached_panel == false {
+                                debug!("Attempting to use insert for i: {:?}", i);
+                                // view_panel_list_handle.insert(i, components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                // let got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+
+                                if i < view_panel_list_handle.len() {
+                                    let got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                }
+                                else {
+                                    view_panel_list_handle.insert(i, components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                }
+                            }
                         },
                         None => {},
                     }
                 }
+
                 info!("change_route ActionSelect new self.linear_dashboard_view_panel_list: {:?}", view_panel_list_handle);
 
                 // Create 'view_load_bundles': Vec<ViewLoadBundle> from view_panel_list_handle
+                // Filter to only create ViewLoadBundles for ViewPanels where 
                 let view_load_bundles: Vec<ViewLoadBundle> = view_panel_list_handle
                                                                     .iter()
                                                                     .cloned()
-                                                                    .map(|e| {
-                                                                        ViewLoadBundle { linear_config: self.linear_client.config.clone(), 
-                                                                                         item_filter: e.filter,
-                                                                                         table_data: e.issue_table_data.clone(),
-                                                                                         loader: e.view_loader.clone(),
-                                                                                         tx: tx.clone(),
-                                                                                        }
+                                                                    .enumerate()
+                                                                    .filter_map(|(i, e)| {
+                                                                        if new_panel_set.contains(&i) {
+                                                                            None
+                                                                        }
+                                                                        else {
+                                                                            Some(ViewLoadBundle { linear_config: self.linear_client.config.clone(), 
+                                                                                            item_filter: e.filter,
+                                                                                            table_data: e.issue_table_data.clone(),
+                                                                                            loader: e.view_loader.clone(),
+                                                                                            request_num: e.request_num.clone(),
+                                                                                            tx: tx.clone(),
+                                                                                            })
+                                                                        }
                                                                     })
                                                                     .collect();
 
@@ -496,10 +566,12 @@ impl<'a> App<'a> {
 
                             let mut view_panel_data_lock = item.table_data.lock().unwrap();
                             let mut loader_handle = item.loader.lock().unwrap();
+                            let mut request_num_lock = item.request_num.lock().unwrap();
 
                             if let Some(x) = res {
                                 *view_panel_data_lock = Some(Value::Array(x.0));
                                 *loader_handle = Some(x.1);
+                                *request_num_lock += x.2;
                             }
                             info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })
@@ -533,6 +605,7 @@ impl<'a> App<'a> {
 
                 let view_panel_issue_handle = view_panel_list_handle[self.view_panel_to_paginate].issue_table_data.clone();
                 let loader_handle = view_panel_list_handle[self.view_panel_to_paginate].view_loader.clone();
+                let request_num_handle = view_panel_list_handle[self.view_panel_to_paginate].request_num.clone();
 
 
                 drop(loader_lock);
@@ -556,6 +629,7 @@ impl<'a> App<'a> {
                     
                     let mut view_panel_data_lock = view_panel_issue_handle.lock().unwrap();
                     let mut loader = loader_handle.lock().unwrap();
+                    let mut request_num_lock = request_num_handle.lock().unwrap();
 
                     let current_view_issues = view_panel_data_lock.clone();
 
@@ -569,6 +643,7 @@ impl<'a> App<'a> {
                                         issue_vec.append(&mut x.0);
                                         *view_panel_data_lock = Some( Value::Array(issue_vec.clone()) );
                                         *loader = Some(x.1);
+                                        *request_num_lock += x.2;
                                     },
                                     _ => {},
                                 }

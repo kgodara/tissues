@@ -24,7 +24,7 @@ pub enum IOEvent {
         linear_config: LinearConfig,
         view: Value,
         view_loader: Option<ViewLoader>,
-        resp: oneshot::Sender<(Vec<Value>, ViewLoader)>,
+        resp: oneshot::Sender<(Vec<Value>, ViewLoader, u32)>,
     },
     LoadLinearTeams {
         api_key: Option<String>,
