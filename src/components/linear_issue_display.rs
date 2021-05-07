@@ -118,7 +118,7 @@ impl LinearIssueDisplay {
         match table_data {
             Some(x) => table_items = x,
             None => { 
-                error!("Table Items is None"); 
+                // error!("Table Items is None"); 
             }
         }
 
@@ -207,7 +207,7 @@ impl LinearIssueDisplay {
         let highlight_table = match table_style.view_idx {
             Some(view_idx) => {
                 if let Some(selected_view_idx) = table_style.selected_view_idx {
-                    debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
+                    // debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
                     if view_idx == selected_view_idx { true }
                     else { false }
                 }

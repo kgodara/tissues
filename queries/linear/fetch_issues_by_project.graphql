@@ -1,5 +1,5 @@
-{   "query": "query fetchIssuesByLabel($firstNum: Int, $afterCursor: String, $ref: String!) {
-        issueLabel(id: $ref) {
+{   "query": "query fetchIssuesByProject($firstNum: Int, $afterCursor: String, $ref: String!) {
+        project(id: $ref) {
             issues(first: $firstNum, after: $afterCursor) {
               nodes {
                 id
@@ -40,5 +40,5 @@
             }
         }
     }",
-    "operationName": "fetchIssuesByLabel"
+    "operationName": "fetchIssuesByProject"
 }

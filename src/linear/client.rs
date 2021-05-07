@@ -6,6 +6,7 @@ use super::query::fetch_issues_by_workflow_state as exec_fetch_issues_by_workflo
 use super::query::fetch_issues_by_assignee as exec_fetch_issues_by_assignee;
 use super::query::fetch_issues_by_label as exec_fetch_issues_by_label;
 use super::query::fetch_issues_by_creator as exec_fetch_issues_by_creator;
+use super::query::fetch_issues_by_project as exec_fetch_issues_by_project;
 
 // Non Custom View Resolver Queries
 use super::query::get_teams as exec_get_teams;
@@ -53,7 +54,7 @@ impl LinearClient {
         };
 
 
-        let query_response = fetch_custom_views(linear_api_key, linear_cursor, linear_config.issue_page_size).await?;
+        let query_response = fetch_custom_views(linear_api_key, linear_cursor, linear_config.custom_view_page_size).await?;
 
         let ref view_nodes = query_response["data"]["customViews"]["nodes"];
         let ref cursor_info = query_response["data"]["customViews"]["pageInfo"];
@@ -200,6 +201,38 @@ impl LinearClient {
 
         Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
     }
+
+    pub async fn get_issues_by_project( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool) -> ClientResult {
+        info!("Calling exec_fetch_issues_by_assignee - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+
+
+        let query_response = exec_fetch_issues_by_project(linear_api_key, linear_cursor, variables, page_size).await?;
+
+        let ref issue_nodes = query_response["data"]["project"]["issues"]["nodes"];
+        let ref cursor_info = query_response["data"]["project"]["issues"]["pageInfo"];
+
+        // debug!("get_issues_by_project issue_nodes: {:?}", issue_nodes);
+
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+    }
+
     // View Resolver Query Section End -------
 
 

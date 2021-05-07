@@ -28,11 +28,13 @@ pub enum ViewLoadStrategy {
 pub enum FilterType {
     SelectedState,
     SelectedCreator,
-    SelectedAssignee,
     SelectedLabel,
+    SelectedAssignee,
+    SelectedProject,
 
     NoLabel,
     NoAssignee,
+    NoProject,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -70,6 +72,9 @@ lazy_static! {
 
         m.insert(FilterType::SelectedLabel, vec![ FilterType::SelectedLabel, FilterType::NoLabel ]);
         m.insert(FilterType::NoLabel, vec![ FilterType::SelectedLabel, FilterType::NoLabel ]);
+
+        m.insert(FilterType::SelectedProject, vec![ FilterType::SelectedProject, FilterType::NoProject ]);
+        m.insert(FilterType::NoProject, vec![ FilterType::SelectedProject, FilterType::NoProject ]);
 
         m
     };
@@ -156,6 +161,27 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
                         // 'No Label' filter
                         Value::Null => {
                             indirect_filter_list.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
+                        },
+                        _ => {},
+                    }
+                }
+            },
+            _ => {},
+        };
+    }
+
+    // Add 'project' filters, including 'No Project'
+    if let Value::Object(_) = filters {
+        match filters["project"].as_array() {
+            Some(project_list) => {
+                for project_obj in project_list.iter() {
+                    match &project_obj["ref"] {
+                        Value::String(project_ref) => {
+                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) });
+                        },
+                        // 'No Project' filter
+                        Value::Null => {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
                         },
                         _ => {},
                     }
@@ -288,7 +314,25 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>, ignorable_filters: Vec<F
                             issue_is_valid = false;
                         }
                     },
+
+                    // If project == Value:Null OR project id not found in ["project"]["id"]
+                    FilterType::SelectedProject => {
+                        // Note: ["project"] can be null
+                        // ["project"]["id"]
+                        if e["project"]["id"] != cmp_ref_id {
+                            debug!("Removing Issue for not matching SelectedProject Filter");
+                            issue_is_valid = false;
+                        }
+                    }
                 
+                    FilterType::NoAssignee => {
+                        // ["assignee"]: null
+                        if Value::Null != e["assignee"] {
+                            debug!("Removing Issue for not matching NoAssignee Filter");
+                            issue_is_valid = false;
+                        }
+                    },
+
                     FilterType::NoLabel => {
                         // Not nullable
                         // ["labels"]["node"] -- Verify is empty (length == 0)
@@ -303,13 +347,15 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>, ignorable_filters: Vec<F
                             issue_is_valid = false;
                         }
                     },
-                    FilterType::NoAssignee => {
-                        // ["assignee"]: null
-                        if Value::Null != e["assignee"] {
-                            debug!("Removing Issue for not matching NoAssignee Filter");
+
+                    FilterType::NoProject => {
+                        // ["project"]: null
+                        if Value::Null != e["project"] {
+                            debug!("Removing Issue for not matching NoProject Filter");
                             issue_is_valid = false;
                         }
                     },
+
                 }
 
                 // If Issue doesn't satisfy return None
@@ -458,6 +504,19 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
                     panic!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
                 }
             },
+            FilterType::SelectedProject => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_project(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("SelectedProject Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("SelectedProject Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            }
 
             _ => {
                 error!("Invalid Label found in view_loader.direct_filter_queryable");

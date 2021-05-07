@@ -28,6 +28,9 @@
                             id
                         }
                     }
+                    project {
+                        id
+                    }
                 }
                 pageInfo {
                     hasPreviousPage

@@ -27,6 +27,7 @@ const LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH: &str = "queries/linear/fetch_i
 const LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH: &str = "queries/linear/fetch_issues_by_assignee.graphql";
 const LINEAR_FETCH_ISSUES_BY_LABEL_PATH: &str = "queries/linear/fetch_issues_by_label.graphql";
 const LINEAR_FETCH_ISSUES_BY_CREATOR_PATH: &str = "queries/linear/fetch_issues_by_creator.graphql";
+const LINEAR_FETCH_ISSUES_BY_PROJECT: &str = "queries/linear/fetch_issues_by_project.graphql";
 
 
 const LINEAR_GET_TEAMS_PATH: &str = "queries/linear/get_teams.graphql";
@@ -226,6 +227,42 @@ pub async fn fetch_issues_by_creator(api_key: &str, issue_cursor: Option<GraphQL
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_CREATOR_PATH)?;
+
+    query["variables"] = Value::Object(variables);
+    // query["variables"] = json!({});
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+    match issue_cursor {
+        Some(cursor_data) => {
+            // If Cursor is for a different platform, and is not a new cursor
+            if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
+                return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            }
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
+            }
+        },
+        None => {}
+    };
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+}
+
+pub async fn fetch_issues_by_project(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+    let mut query;
+
+    query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_PROJECT)?;
 
     query["variables"] = Value::Object(variables);
     // query["variables"] = json!({});
