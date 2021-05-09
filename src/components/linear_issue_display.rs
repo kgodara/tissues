@@ -17,6 +17,7 @@ use crate::linear::client::LinearClient;
 use crate::linear::LinearConfig;
 
 use crate::util::ui::{ TableStyle, style_color_from_hex_str };
+use crate::util::colors::{ API_REQ_NUM };
 
 pub struct LinearIssueDisplay {
     pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
@@ -223,9 +224,11 @@ impl LinearIssueDisplay {
                                     .title( match table_style.title_style {
                                         Some(title_style) => {
                 
-                                            Spans::from(vec![Span::styled(match table_style.view_idx {
-                                                                            Some(idx) => vec!["#", idx.to_string().as_str(), " - "].concat(),
-                                                                            None => {String::default()}
+                                            Spans::from(vec![   Span::styled(match table_style.view_idx {
+                                                                                Some(idx) => {
+                                                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
+                                                                                },
+                                                                                None => {String::default()}
                                                                             },
                                                                             Style::default()
                                                                 ),
@@ -238,7 +241,15 @@ impl LinearIssueDisplay {
                                                                         .fg(*style_color_from_hex_str(&title_style.1)
                                                                                 .get_or_insert(Color::White)
                                                                         )
-                                                                    )
+                                                                ),
+                                                                Span::styled(match table_style.req_num {
+                                                                        Some(req_u16) => { vec![" - Req #: ", req_u16.to_string().as_str()].concat() },
+                                                                        None => { String::default() }
+                                                                    },
+                                                                    Style::default()
+                                                                        .add_modifier(Modifier::ITALIC)
+                                                                        .fg(API_REQ_NUM)
+                                                                )
                                                             ])
                                         },
                                         None => { Spans::from(Span::styled("Table", Style::default())) }

@@ -6,6 +6,8 @@ mod error;
 pub mod view_resolver;
 
 mod query;
+
+mod timezone_manager;
 /*
 pub use query::{
     get_viewer,
@@ -15,3 +17,4 @@ pub use query::{
 */
 // pub use mutation::create_linear_issue;
 pub use config::LinearConfig;
+pub use timezone_manager::TimeZoneManager;

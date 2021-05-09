@@ -13,6 +13,7 @@ pub struct TableStyle {
     pub view_idx: Option<u16>,
     pub selected_view_idx: Option<u16>,
     pub row_bottom_margin: Option<u16>,
+    pub req_num: Option<u16>,
 }
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

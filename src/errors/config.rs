@@ -12,6 +12,15 @@ pub enum GraphQLParseError {
 }
 
 #[derive(Error, Debug)]
+pub enum TimeZoneParseError {
+    #[error("Failed to read timezones JSON file")]
+    FileReadFailure(#[from] io::Error),
+    #[error("Failed to parse timezone into JSON")]
+    JSONParseFailure(#[from] serde_json::Error),
+}
+
+
+#[derive(Error, Debug)]
 pub enum GraphQLRequestError {
     #[error("GraphQL operation parse failed")]
     GraphQLParseFailure(#[from] GraphQLParseError),

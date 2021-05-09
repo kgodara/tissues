@@ -15,6 +15,8 @@ use std::sync::{Arc, Mutex};
 use crate::linear::LinearConfig;
 use crate::linear::view_resolver::ViewLoader;
 
+use crate::linear::TimeZoneManager;
+
 use serde_json::Value;
 
 use std::collections::HashSet;
@@ -58,6 +60,9 @@ pub struct App<'a> {
     // LinearClient
     linear_client: linear::client::LinearClient,
 
+    //TimeZone Manager
+    pub time_zone_mgr: Arc<Mutex<TimeZoneManager>>,
+
     // Linear Custom View Select
     pub linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect,
     // Selected Custom View
@@ -72,7 +77,7 @@ pub struct App<'a> {
     pub linear_dashboard_view_idx: Option<usize>,
 
     // Linear Dashboard View Panel Display
-    
+
     // Linear Dashboard 'DashboardViewPanel' components
     pub linear_dashboard_view_panel_list: Arc<Mutex<Vec<components::dashboard_view_panel::DashboardViewPanel>>>,
     pub linear_dashboard_view_panel_selected: Option<usize>,
@@ -113,6 +118,8 @@ impl<'a> Default for App<'a> {
             cmd_str: String::new(),
 
             linear_client: linear::client::LinearClient::default(),
+
+            time_zone_mgr: Arc::new(Mutex::new(TimeZoneManager::default())),
 
             linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect::default(),
             linear_selected_custom_view_idx: None,

@@ -30,12 +30,13 @@ impl DashboardViewPanel {
         }
     }
 
-    pub fn render<'a>(data: &'a Option<Value>, filter: &Value, view_idx: u16, selected_view_idx: &Option<u16>) -> Result<Table<'a>, &'static str> {
+    pub fn render<'a>(data: &'a Option<Value>, filter: &Value, req_num: u32, view_idx: u16, selected_view_idx: &Option<u16>) -> Result<Table<'a>, &'static str> {
         // Create TableStyle from filter
         let table_style = TableStyle { title_style: Some(( filter["name"].clone(), filter["color"].clone() )),
                                         row_bottom_margin: Some(0),
                                         view_idx: Some(view_idx+1),
                                         selected_view_idx: selected_view_idx.clone(),
+                                        req_num: Some(req_num as u16)
                                     };
 
         LinearIssueDisplay::get_rendered_issue_data(&data, table_style)
