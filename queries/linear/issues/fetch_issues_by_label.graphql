@@ -5,10 +5,14 @@
                 id
                 createdAt
                 number
+                dueDate
                 title
                 description
                 priority
                 estimate
+                team {
+                  id
+                }
                 state {
                   id
                   name

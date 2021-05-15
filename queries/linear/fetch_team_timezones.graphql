@@ -1,0 +1,16 @@
+{   "query": "query fetchTeamTimeZones($firstNum: Int, $afterCursor: String) {
+        teams(first: $firstNum, after: $afterCursor) {
+            nodes {
+                id
+                timezone
+            }
+            pageInfo {
+                hasPreviousPage
+                hasNextPage
+                startCursor
+                endCursor
+            }
+        }
+    }",
+    "operationName": "fetchTeamTimeZones"
+}

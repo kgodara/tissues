@@ -15,11 +15,10 @@ use std::sync::{Arc, Mutex};
 use crate::linear::LinearConfig;
 use crate::linear::view_resolver::ViewLoader;
 
-use crate::linear::TimeZoneManager;
-
 use serde_json::Value;
 
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 use tui::{
     widgets::{ TableState },
@@ -27,6 +26,10 @@ use tui::{
 
 pub struct ViewLoadBundle {
     pub linear_config: LinearConfig,
+
+    pub tz_id_name_lookup: HashMap<String, String>,
+    pub tz_name_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
+
     pub item_filter: Value,
     pub table_data: Arc<Mutex<Option<Value>>>,
     pub loader: Arc<Mutex<Option<ViewLoader>>>,
@@ -58,10 +61,13 @@ pub struct App<'a> {
     /// Current value of the Command string
     pub cmd_str: String,
     // LinearClient
-    linear_client: linear::client::LinearClient,
+    pub linear_client: linear::client::LinearClient,
 
-    //TimeZone Manager
-    pub time_zone_mgr: Arc<Mutex<TimeZoneManager>>,
+    // TimeZone Manager
+    pub tz_name_offset_map: Arc<Mutex<HashMap<String, f64>>>,
+
+    pub team_tz_map: Arc<Mutex<HashMap<String, String>>>,
+    pub team_tz_load_done: Arc<Mutex<bool>>,
 
     // Linear Custom View Select
     pub linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect,
@@ -85,6 +91,8 @@ pub struct App<'a> {
     pub view_panel_to_paginate: usize,
 
 
+
+    // DEPRECATED FIELDS (may be re-used)
     // Linear Team Select State
     pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
     // Selected Linear Team
@@ -119,7 +127,10 @@ impl<'a> Default for App<'a> {
 
             linear_client: linear::client::LinearClient::default(),
 
-            time_zone_mgr: Arc::new(Mutex::new(TimeZoneManager::default())),
+            tz_name_offset_map: Arc::new(Mutex::new(linear::parse_timezones_from_file())),
+
+            team_tz_map: Arc::new(Mutex::new(HashMap::new())),
+            team_tz_load_done: Arc::new(Mutex::new(false)),
 
             linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect::default(),
             linear_selected_custom_view_idx: None,
@@ -505,13 +516,20 @@ impl<'a> App<'a> {
                                                                             None
                                                                         }
                                                                         else {
-                                                                            Some(ViewLoadBundle { linear_config: self.linear_client.config.clone(), 
+                                                                            Some(ViewLoadBundle {
+                                                                                            linear_config: self.linear_client.config.clone(),
+
+                                                                                            tz_id_name_lookup: self.team_tz_map.lock()
+                                                                                                                                .unwrap()
+                                                                                                                                .clone(),
+                                                                                            tz_name_offset_lookup: self.tz_name_offset_map.clone(),
+                                                                                            
                                                                                             item_filter: e.filter,
                                                                                             table_data: e.issue_table_data.clone(),
                                                                                             loader: e.view_loader.clone(),
                                                                                             request_num: e.request_num.clone(),
                                                                                             tx: tx.clone(),
-                                                                                            })
+                                                                                        })
                                                                         }
                                                                     })
                                                                     .collect();
@@ -561,6 +579,9 @@ impl<'a> App<'a> {
 
 
                             let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(),
+                                                                team_tz_lookup: item.tz_id_name_lookup,
+                                                                tz_offset_lookup: item.tz_name_offset_lookup,
+                                                                issue_data: Arc::new(Mutex::new(None)),
                                                                 view: item.item_filter.clone(), 
                                                                 view_loader: loader,
                                                                 resp: resp_tx };
@@ -614,6 +635,11 @@ impl<'a> App<'a> {
                 let loader_handle = view_panel_list_handle[self.view_panel_to_paginate].view_loader.clone();
                 let request_num_handle = view_panel_list_handle[self.view_panel_to_paginate].request_num.clone();
 
+                let tz_id_name_lookup_dup = self.team_tz_map.lock()
+                                                            .unwrap()
+                                                            .clone();
+                let tz_name_offset_lookup_dup = self.tz_name_offset_map.clone();
+
 
                 drop(loader_lock);
                 drop(view_panel_list_handle);
@@ -624,6 +650,9 @@ impl<'a> App<'a> {
 
                     
                     let cmd = IOEvent::LoadViewIssues { linear_config: config,
+                                                        team_tz_lookup: tz_id_name_lookup_dup,
+                                                        tz_offset_lookup: tz_name_offset_lookup_dup,
+                                                        issue_data: view_panel_issue_handle.clone(),
                                                         view: view_panel_view_obj, 
                                                         view_loader: loader,
                                                         resp: resp_tx };

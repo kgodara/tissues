@@ -1,7 +1,12 @@
 use super::config::LinearConfig;
 
+//Timezone query
+
+
 // Custom View Resolver Queries
 use super::query::fetch_custom_views;
+use super::query::fetch_team_timezones as exec_fetch_team_timezones;
+
 use super::query::fetch_issues_by_workflow_state as exec_fetch_issues_by_workflow_state;
 use super::query::fetch_issues_by_assignee as exec_fetch_issues_by_assignee;
 use super::query::fetch_issues_by_label as exec_fetch_issues_by_label;
@@ -83,6 +88,23 @@ impl LinearClient {
         let ref team_nodes = query_response["data"]["teams"]["nodes"];
 
         Ok(team_nodes.clone())
+    }
+
+    pub async fn fetch_team_timezones(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let query_response = exec_fetch_team_timezones(linear_api_key, linear_cursor, linear_config.team_timezone_page_size).await?;
+
+        let ref team_nodes = query_response["data"]["teams"]["nodes"];
+        let ref cursor_info = query_response["data"]["teams"]["pageInfo"];
+
+
+        Ok( json!( { "team_nodes": team_nodes.clone(), "cursor_info": cursor_info.clone() } ))
     }
 
     // View Resolver Query Section Start -------

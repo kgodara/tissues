@@ -22,12 +22,13 @@ use crate::app::Platform;
 
 const LINEAR_GET_VIEWER_PATH: &str = "queries/linear/get_viewer.graphql";
 const LINEAR_FETCH_CUSTOM_VIEWS_PATH: &str = "queries/linear/fetch_custom_views.graphql";
+const LINEAR_FETCH_TEAM_TIME_ZONES_PATH: &str = "queries/linear/fetch_team_timezones.graphql";
 
-const LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH: &str = "queries/linear/fetch_issues_by_workflow_state.graphql";
-const LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH: &str = "queries/linear/fetch_issues_by_assignee.graphql";
-const LINEAR_FETCH_ISSUES_BY_LABEL_PATH: &str = "queries/linear/fetch_issues_by_label.graphql";
-const LINEAR_FETCH_ISSUES_BY_CREATOR_PATH: &str = "queries/linear/fetch_issues_by_creator.graphql";
-const LINEAR_FETCH_ISSUES_BY_PROJECT: &str = "queries/linear/fetch_issues_by_project.graphql";
+const LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH: &str = "queries/linear/issues/fetch_issues_by_workflow_state.graphql";
+const LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH: &str = "queries/linear/issues/fetch_issues_by_assignee.graphql";
+const LINEAR_FETCH_ISSUES_BY_LABEL_PATH: &str = "queries/linear/issues/fetch_issues_by_label.graphql";
+const LINEAR_FETCH_ISSUES_BY_CREATOR_PATH: &str = "queries/linear/issues/fetch_issues_by_creator.graphql";
+const LINEAR_FETCH_ISSUES_BY_PROJECT: &str = "queries/linear/issues/fetch_issues_by_project.graphql";
 
 
 const LINEAR_GET_TEAMS_PATH: &str = "queries/linear/get_teams.graphql";
@@ -105,6 +106,43 @@ pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCurso
 
     Ok(resp)
 
+}
+
+pub async fn fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCursor>, team_tz_page_size: u32) -> QueryResult {
+    let mut query;
+    query = parse_graphql_from_file(&LINEAR_FETCH_TEAM_TIME_ZONES_PATH)?;
+
+    query["variables"] = Value::Object(Map::default());
+    // query["variables"] = json!({});
+    query["variables"]["firstNum"] = Value::Number(Number::from(team_tz_page_size));
+
+    match team_cursor {
+        Some(cursor_data) => {
+            // If Cursor is for a different platform, and is not a new cursor
+            if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
+                return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            }
+            if cursor_data.has_next_page == true && cursor_data.platform == Platform::Linear {
+                query["variables"]["afterCursor"] = Value::String(cursor_data.end_cursor);
+            }
+        },
+        None => {}
+    };
+
+    info!("fetch_team_timezones variables: {:?}", query["variables"]);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
 }
 
 

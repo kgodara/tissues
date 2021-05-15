@@ -1,15 +1,18 @@
-{   "query": "query fetchIssuesByCreator($firstNum: Int, $afterCursor: String, $ref: String!) {
+{   "query": "query fetchIssuesByAssignee($firstNum: Int, $afterCursor: String, $ref: String!) {
         user(id: $ref) {
-            createdIssueCount
-            createdIssues(first: $firstNum, after: $afterCursor) {
+            assignedIssues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     createdAt
                     number
+                    dueDate
                     title
                     description
                     priority
                     estimate
+                    team {
+                        id
+                    }
                     state {
                         id
                         name
@@ -41,5 +44,5 @@
             }
         }
     }",
-    "operationName": "fetchIssuesByCreator"
+    "operationName": "fetchIssuesByAssignee"
 }
