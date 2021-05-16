@@ -92,12 +92,19 @@ where
         let view_data_handle = e.issue_table_data.lock().unwrap();
         let selected_view_idx = if let Some(selected_idx) = app.linear_dashboard_view_panel_selected { Some(selected_idx as u16)}
                                   else {None};
+        
+        // Clone request_num to a u32
+        let req_num_handle = e.request_num.lock().unwrap();
+        let req_num = req_num_handle.clone();
+        drop(req_num_handle);
+        
         let view_table_result = DashboardViewPanel::render(&view_data_handle,
                                                             &e.filter,
+                                                            req_num,
                                                             i as u16,
                                                             &selected_view_idx
                                                           );
-        
+
         // Determine if this view panel is currently selected
         let mut is_selected = false;
         if let Some(selected_view_panel_idx) = app.linear_dashboard_view_panel_selected {
@@ -301,7 +308,7 @@ where
 
   let table;
 
-  let table_style = TableStyle { title_style: None, row_bottom_margin: Some(0), view_idx: None, selected_view_idx: None };
+  let table_style = TableStyle { title_style: None, row_bottom_margin: Some(0), view_idx: None, selected_view_idx: None, req_num: None };
 
 
   let table_result = LinearIssueDisplay::get_rendered_issue_data(&issue_data_handle, table_style);

@@ -436,7 +436,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
         },
 
-        // Select next custom view from list of Linear custom views and update 'app.linear__selected_custom_view_idx'
+        // Select next custom view from list of Linear custom views and update 'app.linear_selected_custom_view_idx'
         Route::CustomViewSelect => {
             let mut load_paginated = false;
             {
@@ -593,7 +593,7 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                     match x.as_array() {
                         Some(y) => {
                             state_table::previous(&mut app.linear_custom_view_select.view_table_state, y);
-                            app.linear_selected_issue_idx = app.linear_custom_view_select.view_table_state.selected();
+                            app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
                             info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
                         },
                         None => {},

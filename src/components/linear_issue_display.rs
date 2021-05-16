@@ -17,6 +17,7 @@ use crate::linear::client::LinearClient;
 use crate::linear::LinearConfig;
 
 use crate::util::ui::{ TableStyle, style_color_from_hex_str };
+use crate::util::colors::{ API_REQ_NUM };
 
 pub struct LinearIssueDisplay {
     pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
@@ -28,7 +29,7 @@ impl LinearIssueDisplay {
     pub async fn load_issues(linear_config: LinearConfig, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, 
+            let issue_fetch_result = LinearClient::get_issues_by_team_old(linear_config, 
                                                                         None,
                                                                         selected_team.as_object()
                                                                         .cloned()
@@ -68,7 +69,7 @@ impl LinearIssueDisplay {
 
     pub async fn load_issues_paginate(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, linear_cursor, selected_team.as_object()
+            let issue_fetch_result = LinearClient::get_issues_by_team_old(linear_config, linear_cursor, selected_team.as_object()
                                                                                     .cloned()
                                                                                     .unwrap_or(serde_json::Map::default())
                                                                     ).await;
@@ -108,7 +109,7 @@ impl LinearIssueDisplay {
 
     pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>, table_style: TableStyle) -> Result<Table, &'static str> {
 
-        let table_items;
+        let mut table_items: &Value = &Value::Array(Vec::new());
 
         let bottom_margin = match table_style.row_bottom_margin {
             Some(margin) => margin,
@@ -117,13 +118,17 @@ impl LinearIssueDisplay {
 
         match table_data {
             Some(x) => table_items = x,
-            None => { return Err("Table Items is None"); }
+            None => { 
+                // error!("Table Items is None"); 
+            }
         }
 
-        let table_array;
+        let mut table_array: &Vec<Value> = &Vec::new();
         match table_items.as_array() {
             Some(x) => table_array = x,
-            None => { return Err("table_data is not an Array") }
+            None => { 
+                error!("table_data is not an Array"); 
+            }
         }
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
@@ -203,7 +208,7 @@ impl LinearIssueDisplay {
         let highlight_table = match table_style.view_idx {
             Some(view_idx) => {
                 if let Some(selected_view_idx) = table_style.selected_view_idx {
-                    debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
+                    // debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
                     if view_idx == selected_view_idx { true }
                     else { false }
                 }
@@ -219,9 +224,11 @@ impl LinearIssueDisplay {
                                     .title( match table_style.title_style {
                                         Some(title_style) => {
                 
-                                            Spans::from(vec![Span::styled(match table_style.view_idx {
-                                                                            Some(idx) => vec!["#", idx.to_string().as_str(), " - "].concat(),
-                                                                            None => {String::default()}
+                                            Spans::from(vec![   Span::styled(match table_style.view_idx {
+                                                                                Some(idx) => {
+                                                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
+                                                                                },
+                                                                                None => {String::default()}
                                                                             },
                                                                             Style::default()
                                                                 ),
@@ -234,7 +241,15 @@ impl LinearIssueDisplay {
                                                                         .fg(*style_color_from_hex_str(&title_style.1)
                                                                                 .get_or_insert(Color::White)
                                                                         )
-                                                                    )
+                                                                ),
+                                                                Span::styled(match table_style.req_num {
+                                                                        Some(req_u16) => { vec![" - Req #: ", req_u16.to_string().as_str()].concat() },
+                                                                        None => { String::default() }
+                                                                    },
+                                                                    Style::default()
+                                                                        .add_modifier(Modifier::ITALIC)
+                                                                        .fg(API_REQ_NUM)
+                                                                )
                                                             ])
                                         },
                                         None => { Spans::from(Span::styled("Table", Style::default())) }

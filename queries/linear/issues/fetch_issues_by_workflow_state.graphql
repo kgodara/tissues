@@ -1,22 +1,39 @@
-{   "query": "query fetchIssuesByTeam($id: String!, $firstNum: Int, $afterCursor: String) {
-        team(id: $id) {
+{   "query": "query fetchIssuesByWorkflowState($firstNum: Int, $afterCursor: String, $ref: String!) {
+        workflowState(id: $ref) {
+            id
+            name
+            color
+            description
             issues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     createdAt
                     number
+                    dueDate
                     title
                     description
                     priority
                     estimate
+                    team {
+                        id
+                    }
                     state {
+                        id
                         name
                         type
                         description
                         color
                     }
+                    creator {
+                        id
+                    }
                     assignee {
-                        name
+                        id
+                    }
+                    labels {
+                        nodes {
+                            id
+                        }
                     }
                 }
                 pageInfo {
@@ -28,5 +45,5 @@
             }
         }
     }",
-    "operationName": "fetchIssuesByTeam"
+    "operationName": "fetchIssuesByWorkflowState"
 }

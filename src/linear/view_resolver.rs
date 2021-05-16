@@ -2,6 +2,7 @@
 
 use crate::linear::LinearConfig;
 use crate::linear::client::LinearClient;
+use crate::linear::get_issue_due_date_category;
 
 use crate::app::Platform;
 
@@ -26,13 +27,25 @@ pub enum ViewLoadStrategy {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum FilterType {
+
+    SelectedTeam,
+    AllTeams,
+
     SelectedState,
     SelectedCreator,
-    SelectedAssignee,
     SelectedLabel,
+    SelectedAssignee,
+    SelectedProject,
+
+    DueToday,
+    Overdue,
+    HasDueDate,
+    DueSoon,
+    NoDueDate,
 
     NoLabel,
     NoAssignee,
+    NoProject,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -46,6 +59,8 @@ pub struct ViewLoader {
     pub load_strategy: ViewLoadStrategy,
     
     pub direct_filters: Vec<Filter>,
+
+    pub filter_ignorable_groups: HashMap<String, Vec<Filter>>,
 
 
     pub direct_filter_queryable: Vec<Filter>,
@@ -71,6 +86,16 @@ lazy_static! {
         m.insert(FilterType::SelectedLabel, vec![ FilterType::SelectedLabel, FilterType::NoLabel ]);
         m.insert(FilterType::NoLabel, vec![ FilterType::SelectedLabel, FilterType::NoLabel ]);
 
+        m.insert(FilterType::SelectedProject, vec![ FilterType::SelectedProject, FilterType::NoProject ]);
+        m.insert(FilterType::NoProject, vec![ FilterType::SelectedProject, FilterType::NoProject ]);
+
+        // DueDate Filters
+        m.insert(FilterType::HasDueDate, vec![FilterType::DueSoon, FilterType::DueToday, FilterType::Overdue, FilterType::NoDueDate]);
+        m.insert(FilterType::DueSoon, vec![FilterType::HasDueDate, FilterType::DueToday, FilterType::Overdue, FilterType::NoDueDate]);
+        m.insert(FilterType::DueToday, vec![FilterType::HasDueDate, FilterType::DueSoon, FilterType::Overdue, FilterType::NoDueDate]);
+        m.insert(FilterType::Overdue, vec![FilterType::HasDueDate, FilterType::DueSoon, FilterType::DueToday, FilterType::NoDueDate]);
+        m.insert(FilterType::NoDueDate, vec![FilterType::HasDueDate, FilterType::DueSoon, FilterType::DueToday, FilterType::Overdue]);
+
         m
     };
 }
@@ -88,15 +113,76 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 
     let mut indirect_filter_list: Vec<Filter> = Vec::new();
 
+    // This will represent the grouped filters by FilterType,
+    // key observation is that within the same vec, only one FilterType needs to match any given issue
+    let mut filter_type_groups: HashMap<String, Vec<Filter>> = HashMap::new();
 
-    // Add 'state' filters
+    // init filter groups
+
+    /*
+        SelectedState,
+        SelectedCreator,
+        SelectedLabel,
+        SelectedAssignee,
+        SelectedProject,
+
+        DueToday,
+        Overdue,
+        HasDueDate,
+        DueSoon,
+        NoDueDate,
+
+        NoLabel,
+        NoAssignee,
+        NoProject,
+    */
+
+    filter_type_groups.insert(String::from("team"), Vec::new());
+    filter_type_groups.insert(String::from("state"), Vec::new());
+    filter_type_groups.insert(String::from("creator"), Vec::new());
+    filter_type_groups.insert(String::from("label"), Vec::new());
+    filter_type_groups.insert(String::from("assignee"), Vec::new());
+    filter_type_groups.insert(String::from("project"), Vec::new());
+    filter_type_groups.insert(String::from("dueDate"), Vec::new());
+
+
     if let Value::Object(_) = filters {
+
+        // Add 'team' filters to 'indirect_filter_list' &
+        // 'filter_type_groups.get("team")'
+        match &filters["team"]["id"] {
+            Value::String(team_id) => { 
+                indirect_filter_list.push( Filter { filter_type: FilterType::SelectedTeam, ref_id: Some(team_id.to_string()) } );
+
+                if let Some(x) = filter_type_groups.get_mut("team") {
+                    x.push( Filter { filter_type: FilterType::SelectedTeam, ref_id: Some(team_id.to_string()) } );
+                }
+            },
+            Value::Null => {
+                indirect_filter_list.push( Filter { filter_type: FilterType::AllTeams, ref_id: None } );
+
+                if let Some(x) = filter_type_groups.get_mut("team") {
+                    x.push( Filter { filter_type: FilterType::AllTeams, ref_id: None } );
+                }
+            },
+            _ => {
+                error!("Custom View team id should be Value::String or Value::Null");
+                panic!("Custom View team id should be Value::String or Value::Null");
+            }
+        }
+
+        // Add 'state' filters to 'direct_filter_list' &
+        // 'filter_type_groups.get("state")'
         match filters["state"].as_array() {
             Some(state_list) => {
                 for state_obj in state_list.iter() {
                     match &state_obj["ref"] {
                         Value::String(state_ref) => {
                             direct_filter_list.push( Filter { filter_type: FilterType::SelectedState, ref_id: Some(state_ref.to_string()) });
+
+                            if let Some(x) = filter_type_groups.get_mut("state") {
+                                x.push( Filter { filter_type: FilterType::SelectedState, ref_id: Some(state_ref.to_string()) } );
+                            }
                         },
                         _ => {},
                     }
@@ -104,16 +190,19 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
             },
             _ => {},
         };
-    }
 
-    // Add 'creator' filters
-    if let Value::Object(_) = filters {
+        // Add 'creator' filters to 'direct_filter_list' &
+        // 'filter_type_groups.get("creator")'
         match filters["creator"].as_array() {
             Some(creator_list) => {
                 for creator_obj in creator_list.iter() {
                     match &creator_obj["ref"] {
                         Value::String(creator_ref) => {
                             direct_filter_list.push( Filter { filter_type: FilterType::SelectedCreator, ref_id: Some(creator_ref.to_string()) });
+
+                            if let Some(x) = filter_type_groups.get_mut("creator") {
+                                x.push( Filter { filter_type: FilterType::SelectedCreator, ref_id: Some(creator_ref.to_string()) } );
+                            }
                         },
                         _ => {},
                     }
@@ -121,20 +210,138 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
             },
             _ => {},
         };
-    }
 
-    // Add 'assignee' filters, including 'No Assignee'
-    if let Value::Object(_) = filters {
+        // Add 'assignee' filters:
+        // SelectedAssignee to 'direct_filter_list' & NoAssignee to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("assignee")'
         match filters["assignee"].as_array() {
             Some(assignee_list) => {
                 for assignee_obj in assignee_list.iter() {
                     match &assignee_obj["ref"] {
                         Value::String(assignee_ref) => {
                             direct_filter_list.push( Filter { filter_type: FilterType::SelectedAssignee, ref_id: Some(assignee_ref.to_string()) });
+
+                            if let Some(x) = filter_type_groups.get_mut("assignee") {
+                                x.push( Filter { filter_type: FilterType::SelectedAssignee, ref_id: Some(assignee_ref.to_string()) } );
+                            }
+
                         },
                         // 'No Assignee' filter
                         Value::Null => {
                             indirect_filter_list.push( Filter { filter_type: FilterType::NoAssignee, ref_id: None } );
+
+                            if let Some(x) = filter_type_groups.get_mut("assignee") {
+                                x.push( Filter { filter_type: FilterType::NoAssignee, ref_id: None } );
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            },
+            _ => {},
+        };
+
+        // Add 'label' filters:
+        // SelectedLabel to 'direct_filter_list' & NoLabel to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("label")'
+        match filters["labels"].as_array() {
+            Some(label_list) => {
+                for label_obj in label_list.iter() {
+                    match &label_obj["ref"] {
+                        Value::String(label_ref) => {
+                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) });
+
+                            if let Some(x) = filter_type_groups.get_mut("label") {
+                                x.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) } );
+                            }
+                        },
+                        // 'No Label' filter
+                        Value::Null => {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
+
+                            if let Some(x) = filter_type_groups.get_mut("label") {
+                                x.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            },
+            _ => {},
+        };
+
+        // Add 'project' filters:
+        // SelectedProject to 'direct_filter_list' & NoProject to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("project")'
+        match filters["project"].as_array() {
+            Some(project_list) => {
+                for project_obj in project_list.iter() {
+                    match &project_obj["ref"] {
+                        Value::String(project_ref) => {
+                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) });
+
+                            if let Some(x) = filter_type_groups.get_mut("project") {
+                                x.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) } );
+                            }
+
+                        },
+                        // 'No Project' filter
+                        Value::Null => {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
+
+                            if let Some(x) = filter_type_groups.get_mut("project") {
+                                x.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            },
+            _ => {},
+        };
+
+        // Add 'dueDateQualifier' filters to 'indirect_filter_list' &
+        // 'filter_type_groups.get("dueDate")'
+        match filters["dueDateQualifier"].as_array() {
+            Some(due_date_filter_list) => {
+                for due_date_filter in due_date_filter_list.iter() {
+                    match &due_date_filter["ref"] {
+                        Value::String(due_date_ref) => {
+                            if due_date_ref == "none" {
+                                indirect_filter_list.push( Filter { filter_type: FilterType::NoDueDate, ref_id: None });
+
+                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                    x.push( Filter { filter_type: FilterType::NoDueDate, ref_id: None } );
+                                }
+                            }
+                            else if due_date_ref == "due" {
+                                indirect_filter_list.push( Filter { filter_type: FilterType::HasDueDate, ref_id: None });
+
+                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                    x.push( Filter { filter_type: FilterType::HasDueDate, ref_id: None } );
+                                }
+                            }
+                            else if due_date_ref == "dueSoon" {
+                                indirect_filter_list.push( Filter { filter_type: FilterType::DueSoon, ref_id: None });
+
+                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                    x.push( Filter { filter_type: FilterType::DueSoon, ref_id: None } );
+                                }
+                            }
+                            else if due_date_ref == "dueToday" {
+                                indirect_filter_list.push( Filter { filter_type: FilterType::DueToday, ref_id: None });
+                                
+                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                    x.push( Filter { filter_type: FilterType::DueToday, ref_id: None } );
+                                }
+                            }
+                            else if due_date_ref == "overdue" {
+                                indirect_filter_list.push( Filter { filter_type: FilterType::Overdue, ref_id: None });
+
+                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                    x.push( Filter { filter_type: FilterType::Overdue, ref_id: None } );
+                                }
+                            }
                         },
                         _ => {},
                     }
@@ -144,26 +351,6 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         };
     }
 
-    // Add 'label' filters, including 'No Label'
-    if let Value::Object(_) = filters {
-        match filters["labels"].as_array() {
-            Some(label_list) => {
-                for label_obj in label_list.iter() {
-                    match &label_obj["ref"] {
-                        Value::String(label_ref) => {
-                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) });
-                        },
-                        // 'No Label' filter
-                        Value::Null => {
-                            indirect_filter_list.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
-                        },
-                        _ => {},
-                    }
-                }
-            },
-            _ => {},
-        };
-    }
 
     // Set Strategy for ViewLoader: if direct_filter_list.len() > 0 { DirectQueryPaginate } else { GenericIssuePaginate }
     if direct_filter_list.len() > 0 { 
@@ -197,6 +384,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     
         direct_filters: direct_filter_list,
     
+        filter_ignorable_groups: filter_type_groups,
     
         direct_filter_queryable: direct_filter_queryable_list,
         direct_filter_query_idx: direct_filter_list_idx,
@@ -213,146 +401,517 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 // returns Vec of Issues matching direct_filters and indirect_filters in ViewLoader
 // 'ignorable_filters' are filters which are joined to the current query results with an INTERSECT and not a UNION,
 // and thus can be ignored
-pub fn filter_map_issues_by_loader( issues: Vec<Value>, ignorable_filters: Vec<FilterType>, view_loader: &ViewLoader ) -> Vec<Value> {
 
-    info!("filter_map_issues_by_loader - ignorable_filters: {:?}", ignorable_filters);
+// Note: Ignorable Filters needs to be included in the comparison process since, e.g.
+// if we have a Filter with two SelectedLabel filters and two SelectedState filters
+// and we are querying on one of the SelectedLabel filters, this method will correctly ignore the non-queried SelectedLabel filter
+// but it will expect both SelectedState filters to be applied simultaneously to the issue
+pub fn filter_map_issues_by_loader( issues: Vec<Value>,
+                                    team_tz_lookup: &HashMap<String,String>,
+                                    tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
+                                    linear_config: &LinearConfig,
+                                    view_loader: &ViewLoader ) -> Vec<Value> {
+
+    // info!("filter_map_issues_by_loader - filter_ignorable_groups.get('dueDate'): {:?}", view_loader.filter_ignorable_groups.get("dueDate"));
 
     issues
         .into_iter()
         .filter_map(|e| {
 
-            let mut issue_is_valid = true;
+            // let mut issue_is_valid = true;
 
-            // Apply all Filters in view_loader.direct_filters
-            for filter in view_loader.direct_filters.iter() {
+            // Filter groups (one filter success validates entire group):
+            /*
+                filter_type_groups.insert(String::from("team"), Vec::new());
+                filter_type_groups.insert(String::from("state"), Vec::new());
+                filter_type_groups.insert(String::from("creator"), Vec::new());
+                filter_type_groups.insert(String::from("label"), Vec::new());
+                filter_type_groups.insert(String::from("assignee"), Vec::new());
+                filter_type_groups.insert(String::from("project"), Vec::new());
+                filter_type_groups.insert(String::from("dueDate"), Vec::new());
+            */
 
-                let mut skip_current_filter = false;
+            let mut team_filter_met = false;
+            let mut state_filter_met = false;
+            let mut creator_filter_met = false;
+            let mut label_filter_met = false;
+            let mut assignee_filter_met = false;
+            let mut project_filter_met = false;
+            let mut due_date_filter_met = false;
 
-                // Determine whether FilterType can be ignored
-                for ignorable_filter_type in ignorable_filters.iter() {
-                    if filter.filter_type == *ignorable_filter_type {
-                        skip_current_filter = true;
+            // Iterate through each list in 'filter_type_groups' and see flag whether the group is satisfied
+            // at conclusion, if any group bools are false, set issue_is_valid to false
+
+            // set filter group bools to true if no filters in group
+            {
+                team_filter_met= if view_loader.filter_ignorable_groups.get("team")
+                                        .expect("'team' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
+                state_filter_met = if view_loader.filter_ignorable_groups.get("state")
+                                        .expect("'state' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+                
+                creator_filter_met = if view_loader.filter_ignorable_groups.get("creator")
+                                        .expect("'creator' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
+                label_filter_met = if view_loader.filter_ignorable_groups.get("label")
+                                        .expect("'label' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
+                assignee_filter_met = if view_loader.filter_ignorable_groups.get("assignee")
+                                        .expect("'assignee' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
+                project_filter_met = if view_loader.filter_ignorable_groups.get("project")
+                                        .expect("'project' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
+                due_date_filter_met = if view_loader.filter_ignorable_groups.get("dueDate")
+                                        .expect("'dueDate' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+            }
+
+            // "team"
+            for filter in view_loader.filter_ignorable_groups.get("team")
+                            .expect("'team' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if team_filter_met == true { continue };
+                
+                match filter.filter_type {
+                    FilterType::SelectedTeam => {
+
+                        let cmp_ref_id = Value::String(filter.ref_id
+                            .clone()
+                            .expect("'SelectedTeam Filter must have a ref_id'")
+                            .to_string());
+    
+                        if e["team"]["id"] == cmp_ref_id {
+                            team_filter_met = true;
+                        }
+                    },
+                    FilterType::AllTeams => {
+                        team_filter_met = true;
+                    },
+                    _ => {
+                        error!("'filter_ignorable_groups.get('team')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('team')' has invalid filter: {:?}", filter);
                     }
                 }
+            }
 
-                if skip_current_filter == true {
-                    continue;
-                }
+            // "state"
+            for filter in view_loader.filter_ignorable_groups.get("state")
+                            .expect("'state' key not found in filter_ignorable_groups")
+                            .iter() 
+            {
+                if state_filter_met == true { continue };
 
-                // ref id of Filter to compare against
-                let cmp_ref_id = Value::String(filter.ref_id
-                                    .clone()
-                                    .get_or_insert(String::default())
-                                    .to_string());
-                
-                debug!("cmp_ref_id: {:?}", cmp_ref_id);
-
-                // Determine whether issue satisfies current Filter
-                match &filter.filter_type {
+                match filter.filter_type {
                     FilterType::SelectedState => {
-                        // ["state"]["id"]
+                        let cmp_ref_id = Value::String(filter.ref_id
+                                            .clone()
+                                            .expect("'SelectedState Filter must have a ref_id'")
+                                            .to_string());
+                    
+                        if e["state"]["id"] == cmp_ref_id {
+                            state_filter_met = true;
+                        }
+                        
+                    },
+                    _ => {
+                        error!("'filter_ignorable_groups.get('state')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('state')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
 
-                        if e["state"]["id"] != cmp_ref_id {
-                            debug!("Removing Issue for not matching SelectedState Filter");
-                            issue_is_valid = false;
-                        }
-                    },
+            // "creator"
+            for filter in view_loader.filter_ignorable_groups.get("creator")
+                            .expect("'creator' key not found in filter_ignorable_groups")
+                            .iter() 
+            {
+                if creator_filter_met == true { continue };
+
+                match filter.filter_type {
                     FilterType::SelectedCreator => {
-                        // Note: ["creator"] can be null
-                        // ["creator"]["id"]
-                        if e["creator"]["id"] != cmp_ref_id {
-                            debug!("Removing Issue for not matching SelectedCreator Filter");
-                            issue_is_valid = false;
+                        let cmp_ref_id = Value::String(filter.ref_id
+                                            .clone()
+                                            .expect("'SelectedCreator Filter must have a ref_id'")
+                                            .to_string());
+                    
+                        if e["creator"]["id"] == cmp_ref_id {
+                            creator_filter_met = true;
                         }
                     },
-                    FilterType::SelectedAssignee => {
-                        // Note: ["assignee"] can be null
-                        // ["assignee"]["id"]
-                        if e["assignee"]["id"] != cmp_ref_id {
-                            debug!("Removing Issue for not matching SelectedAssignee Filter");
-                            issue_is_valid = false;
-                        }
-                    },
-                    // If label id not found in ["labels"]["node"], set issue_is_valid to false
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('creator')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('creator')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
+
+            // "label"
+            for filter in view_loader.filter_ignorable_groups.get("label")
+                            .expect("'label' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if label_filter_met == true { continue };
+
+                match filter.filter_type {
                     FilterType::SelectedLabel => {
-                        // Not nullable
-                        // ["labels"]["node"]["id", "id", "id"]
+
+                        let cmp_ref_id = Value::String(filter.ref_id
+                            .clone()
+                            .expect("'SelectedLabel Filter must have a ref_id'")
+                            .to_string());
+
                         if let Value::Array(ref label_list) = e["labels"]["nodes"] {
-                            if label_list.iter().any(|label_id| *label_id == cmp_ref_id) == false {
-                                debug!("Removing Issue for not matching SelectedLabel Filter");
-                                issue_is_valid = false;
+                            if label_list.iter().any(|label_id| label_id["id"] == cmp_ref_id) == true {
+                                label_filter_met = true;
                             }
-                        }
-                        else {
-                            debug!("Removing Issue for not finding a label list for SelectedLabel Filter");
-                            issue_is_valid = false;
                         }
                     },
-                
                     FilterType::NoLabel => {
-                        // Not nullable
-                        // ["labels"]["node"] -- Verify is empty (length == 0)
                         if let Value::Array(ref label_list) = e["labels"]["nodes"] {
-                            if label_list.len() != 0 {
-                                debug!("Removing Issue for not matching NoLabel Filter");
-                                issue_is_valid = false;
+                            if label_list.len() == 0 {
+                                label_filter_met = true;
                             }
                         }
-                        else {
-                            debug!("Removing Issue for not finding a label list for NoLabel Filter");
-                            issue_is_valid = false;
+                    },
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('label')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('label')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
+            // "assignee"
+            for filter in view_loader.filter_ignorable_groups.get("assignee")
+                            .expect("'assignee' key not found in filter_ignorable_groups")
+                            .iter() 
+            {
+                if assignee_filter_met == true { continue };
+
+                match filter.filter_type {
+                    FilterType::SelectedAssignee => {
+                        let cmp_ref_id = Value::String(filter.ref_id
+                                            .clone()
+                                            .expect("'SelectedAssignee Filter must have a ref_id'")
+                                            .to_string());
+                    
+                        if e["assignee"]["id"] == cmp_ref_id {
+                            assignee_filter_met = true;
                         }
                     },
                     FilterType::NoAssignee => {
-                        // ["assignee"]: null
-                        if Value::Null != e["assignee"] {
-                            debug!("Removing Issue for not matching NoAssignee Filter");
-                            issue_is_valid = false;
+                        if Value::Null == e["assignee"] {
+                            assignee_filter_met = true;
                         }
                     },
-                }
-
-                // If Issue doesn't satisfy return None
-                if issue_is_valid == false {
-                    debug!("returning None");
-                    return None;
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('assignee')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('assignee')' has invalid filter: {:?}", filter);
+                    }
                 }
             }
 
-            // TODO:
-            // Apply all Filters in view_loader.indirect_filters
-            // Determine whether FilterType
 
-            if issue_is_valid == true {
-                debug!("returning Some(e)");
-                Some(e)
+            // "project"
+            for filter in view_loader.filter_ignorable_groups.get("project")
+                            .expect("'project' key not found in filter_ignorable_groups")
+                            .iter() 
+            {
+                if project_filter_met == true { continue };
+
+                match filter.filter_type {
+                    FilterType::SelectedProject => {
+                        let cmp_ref_id = Value::String(filter.ref_id
+                                            .clone()
+                                            .expect("'SelectedProject Filter must have a ref_id'")
+                                            .to_string());
+                    
+                        if e["project"]["id"] == cmp_ref_id {
+                            project_filter_met = true;
+                        }
+                    },
+                    FilterType::NoProject => {
+                        if Value::Null == e["project"] {
+                            project_filter_met = true;
+                        }
+                    },
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('project')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('project')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
+            // "dueDate"
+            for filter in view_loader.filter_ignorable_groups.get("dueDate")
+                            .expect("'dueDate' key not found in filter_ignorable_groups")
+                            .iter() 
+            {
+                if due_date_filter_met == true { continue };
+
+                debug!("filter_map_issues_by_loader: found dueDate filters to filter issues by");
+
+                let tz_offset_lookup_lock = tz_offset_lookup.lock().unwrap();
+
+                let issue_due_date_filter = get_issue_due_date_category(    &team_tz_lookup,
+                                                &tz_offset_lookup_lock,
+                                                e["team"]["id"].clone(),
+                                                e["dueDate"].clone(),
+                                                &linear_config
+                                            );
+                debug!("filter_map_issues_by_loader: issue_due_date_filter: {:?}", issue_due_date_filter);
+
+                match filter.filter_type {
+
+                    FilterType::DueToday => {
+                        if issue_due_date_filter == FilterType::DueToday {
+                            due_date_filter_met = true;
+                        }
+                    },
+                    FilterType::Overdue => {
+                        if issue_due_date_filter == FilterType::Overdue {
+                            due_date_filter_met = true;
+                        }
+                    },
+                    FilterType::HasDueDate => {
+                        if issue_due_date_filter == FilterType::DueToday
+                            || issue_due_date_filter == FilterType::DueSoon
+                            || issue_due_date_filter == FilterType::Overdue
+                            || issue_due_date_filter == FilterType::HasDueDate
+                        {
+                            due_date_filter_met = true;
+                        }
+                    },
+                    FilterType::DueSoon => {
+                        if issue_due_date_filter == FilterType::DueToday
+                            || issue_due_date_filter == FilterType::DueSoon
+                        {
+                            due_date_filter_met = true;
+                        }
+                    },
+                    FilterType::NoDueDate => {
+                        if issue_due_date_filter == FilterType::NoDueDate
+                        {
+                            due_date_filter_met = true;
+                        }
+                    },
+                    _ => {
+                        error!("'filter_ignorable_groups.get('dueDate')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('dueDate')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
+
+            if  team_filter_met == false ||
+                state_filter_met == false ||
+                creator_filter_met == false ||
+                label_filter_met == false ||
+                assignee_filter_met == false ||
+                project_filter_met == false ||
+                due_date_filter_met == false 
+            {
+                debug!("team_filter_met: {:?} state_filter_met: {:?} creator_filter_met: {:?} label_filter_met: {:?} assignee_filter_met: {:?} project_filter_met: {:?} due_date_filter_met: {:?}",
+                            team_filter_met,
+                            state_filter_met,
+                            creator_filter_met,
+                            label_filter_met,
+                            assignee_filter_met,
+                            project_filter_met,
+                            due_date_filter_met);
+                None
             }
             else {
-                None
+                Some(e)
             }
         })
         .collect()
-
 }
 
-pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: Option<ViewLoader>, linear_config: LinearConfig ) -> ( Vec<Value>, ViewLoader ) {
+pub fn deduplicate_issue_list ( issues_to_filter: Vec<Value>, found_issue_list: &mut Vec<Value>, dedup_list: &mut Vec<Value> ) -> Vec<Value> {
+    issues_to_filter
+        .into_iter()
+        .filter_map(|e| {
+            if found_issue_list.len() < 1 && dedup_list.len() < 1 {
+                return Some(e);
+            }
+            // Check both found_issue_list and dedup_list for duplicates
+            match found_issue_list.iter().any(|x| {
+                // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
+                x["id"] == e["id"]
+            }) {
+                true => { return None },
+                false => {  }
+            };
 
-    info!("View Resolver received view_obj: {:?}", view_obj);
+            match dedup_list.iter().any(|x| {
+                // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
+                x["id"] == e["id"]
+            }) {
+                true => { None },
+                false => { Some(e) }
+            }
 
-    let filters = view_obj["filters"].clone();
+        })
+        .collect()
+}
 
-    let mut view_loader =  if let Some(loader) = view_loader_option { loader } else { create_loader_from_view(&filters) };
+pub async fn generic_issue_fetch (  view_loader: &mut ViewLoader,
+                                    dedup_list: &mut Vec<Value>,
+                                    request_num: &mut u32,
+                                    team_tz_lookup: &HashMap<String,String>,
+                                    tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
+                                    linear_config: &LinearConfig,
+                                ) -> Vec<Value> {
 
-    debug!("ViewLoader: {:?}", view_loader);
+    // Determine if a SelectedTeam filter is present in view_loader.filter_ignorable_groups.get('team')
+    // if so: query using fetch_issues_by_team
+    // else: query using fetch_all_issues
+
+    let fetch_by_team: bool = view_loader.filter_ignorable_groups.get("team")
+                                    .expect("'team' key not found in filter_ignorable_groups")
+                                    .iter()
+                                    .any(|e| e.filter_type == FilterType::SelectedTeam);
+    
+    let mut selected_team_id: String = String::default();
+
+    if fetch_by_team == true {
+        let selected_team_idx = view_loader.filter_ignorable_groups.get("team")
+                                    .expect("'team' key not found in filter_ignorable_groups")
+                                    .iter()
+                                    .position(|e| e.filter_type == FilterType::SelectedTeam)
+                                    .expect("'fetch_by_team is true, but no FilterType::SelectedTeam Filter found in filter_ignorable_groups.get('team')'");
+
+        selected_team_id = view_loader.filter_ignorable_groups.get("team")
+                                .expect("'team' key not found in filter_ignorable_groups")
+                                [selected_team_idx]
+                                .ref_id
+                                .clone()
+                                .expect("'SelectedTeam Filter must have a ref_id'");
+    }
 
     let mut found_issue_list: Vec<Value> = Vec::new();
 
-    let mut query_list_idx: usize;
+    let mut loop_num: u16 = 0;
 
-    // Currently only supporting DirectQueryPaginate strategies
-    if view_loader.load_strategy != ViewLoadStrategy::DirectQueryPaginate {
-        return ( found_issue_list, view_loader);
+    loop {
+
+        // If Indirect Query is exhausted
+        if view_loader.cursor.platform == Platform::Linear && view_loader.cursor.has_next_page == false {
+            // No more Pages in Indirect Query remaining, return found_issues_list
+            view_loader.exhausted = true; 
+            debug!("Indirect Query - no more issues to query, returning found_issues_list");
+            return found_issue_list;
+        }
+
+        let query_result: Result<Value, LinearClientError>;
+
+        match fetch_by_team {
+            true => {
+                let mut variables: Map<String, Value> = Map::new();
+
+                variables.insert(String::from("ref"), Value::String(selected_team_id.clone()));
+
+                query_result = LinearClient::get_issues_by_team(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+            },
+            false => {
+                query_result = LinearClient::get_all_issues(linear_config.clone(), Some(view_loader.cursor.clone()), true).await;
+            }
+        }
+
+        if let Ok(response) = query_result {
+
+            // Increment request_num here
+            *request_num += 1;
+
+            debug!("Current Indirect Filter Query Response: {:?}", response);
+
+            // Filter returned Issues by all other loader filters
+            // and add remainder to final_issue_list
+
+            let mut issues_to_filter: Vec<Value>;
+            
+            match response["issue_nodes"].as_array() {
+                Some(resp_issue_data) => {
+                    issues_to_filter = resp_issue_data.clone();
+                },
+                None => {
+                    error!("'issue_nodes' invalid format: {:?}", response["issue_nodes"]);
+                    panic!("'issue_nodes' invalid format");
+                }
+            }
+
+            debug!("issues_to_filter.len(): {:?}", issues_to_filter.len());
+
+            // Remove any Issues from issues_to_filter that are already in found_issue_list
+
+            issues_to_filter = deduplicate_issue_list(issues_to_filter, &mut found_issue_list, dedup_list);
+
+            debug!("issues_to_filter.len() (dedup): {:?}", issues_to_filter.len());
+
+            // Filter queried Issues by 
+            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(
+                                            issues_to_filter,
+                                            &team_tz_lookup,
+                                            &tz_offset_lookup,
+                                            &linear_config,
+                                            &view_loader
+                                        );
+            
+            debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
+
+
+            if filtered_issue_list.len() > 0 {
+                found_issue_list.append(&mut filtered_issue_list);
+            }
+
+
+            // Update GraphQLCursor
+            match GraphQLCursor::linear_cursor_from_page_info(response["cursor_info"].clone()) {
+                Some(new_cursor) => {
+                    view_loader.cursor = new_cursor;
+                },
+                None => {
+                    error!("GraphQLCursor could not be created from response['cursor_info']: {:?}", response["cursor_info"]);
+                    panic!("GraphQLCursor could not be created from response['cursor_info']: {:?}", response["cursor_info"]);
+                },
+            }
+
+        }
+        else {
+            error!("View_Resolver Query Failed: {:?}", query_result);
+            panic!("View_Resolver Query Failed: {:?}", query_result);
+        }
+
+        if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
+            return found_issue_list;
+        }
+
+        info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);
+        loop_num += 1;
+
     }
+
+
+}
+
+pub async fn direct_issue_fetch (   view_loader: &mut ViewLoader,
+                                    dedup_list: &mut Vec<Value>,
+                                    request_num: &mut u32,
+                                    team_tz_lookup: &HashMap<String,String>,
+                                    tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
+                                    linear_config: &LinearConfig
+                                ) -> Vec<Value> {
+
+    let mut query_list_idx: usize;
 
     // Assign to query_list_idx if view_loader has a direct_filter_query_idx
     // if not, then this is not a DirectQueryPaginate strategy, return
@@ -360,10 +919,13 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
         query_list_idx = x;
     }
     else {
-        return ( found_issue_list, view_loader );
+        error!("'direct_issue_fetch' - view_loader.direct_filter_query_idx must be Some()");
+        panic!("'direct_issue_fetch' - view_loader.direct_filter_query_idx must be Some()");
     }
 
     debug!("Direct Filter List: {:?}", view_loader.direct_filter_queryable);
+
+    let mut found_issue_list: Vec<Value> = Vec::new();
 
     let mut loop_num: u16 = 0;
 
@@ -392,7 +954,7 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
             else {
                 view_loader.exhausted = true; 
                 debug!("No more Direct Queries remaining, returning found_issues_list");
-                return ( found_issue_list, view_loader);
+                return found_issue_list;
             }
         }
 
@@ -456,6 +1018,19 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
                     panic!("SelectedCreator Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
                 }
             },
+            FilterType::SelectedProject => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_project(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("SelectedProject Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("SelectedProject Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            }
 
             _ => {
                 error!("Invalid Label found in view_loader.direct_filter_queryable");
@@ -466,6 +1041,9 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
 
         if let Ok(response) = query_result {
 
+            // Increment request_num here
+            *request_num += 1;
+
             debug!("Current Direct Filter Query Response: {:?}", response);
 
             // Filter returned Issues by all other loader filters
@@ -474,8 +1052,8 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
             let mut issues_to_filter: Vec<Value>;
             
             match response["issue_nodes"].as_array() {
-                Some(issue_data) => {
-                    issues_to_filter = issue_data.clone();
+                Some(resp_issue_data) => {
+                    issues_to_filter = resp_issue_data.clone();
                 },
                 None => {
                     error!("'issue_nodes' invalid format: {:?}", response["issue_nodes"]);
@@ -486,27 +1064,20 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
             debug!("issues_to_filter.len(): {:?}", issues_to_filter.len());
 
             // Remove any Issues from issues_to_filter that are already in found_issue_list
-            issues_to_filter = issues_to_filter
-                                    .into_iter()
-                                    .filter_map(|e| {
-                                        if found_issue_list.len() < 1 {
-                                            return Some(e);
-                                        }
-                                        match found_issue_list.iter().any(|x| {x["id"] == e["id"]}) {
-                                            true => { None },
-                                            false => { Some(e) }
-                                        }
-                                    })
-                                    .collect();
 
+            issues_to_filter = deduplicate_issue_list(issues_to_filter, &mut found_issue_list, dedup_list);
 
+            debug!("issues_to_filter.len() (dedup): {:?}", issues_to_filter.len());
 
             // Filter queried Issues by 
-            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(issues_to_filter,
-                                        IGNORABLE_FILTER_MAP[&current_direct_filter.filter_type].clone(),
-                                        &view_loader
+            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(
+                                            issues_to_filter,
+                                            &team_tz_lookup,
+                                            &tz_offset_lookup,
+                                            &linear_config,
+                                            &view_loader
                                         );
-            
+
             debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
 
             
@@ -514,7 +1085,7 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
                 found_issue_list.append(&mut filtered_issue_list);
             }
 
-            
+
             // Update GraphQLCursor
             match GraphQLCursor::linear_cursor_from_page_info(response["cursor_info"].clone()) {
                 Some(new_cursor) => {
@@ -533,13 +1104,73 @@ pub async fn optimized_view_issue_fetch ( view_obj: &Value, view_loader_option: 
         }
 
         if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
-             return ( found_issue_list, view_loader);
+             return found_issue_list;
         }
 
         info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);
         loop_num += 1;
     }
 
+}
+
+pub async fn optimized_view_issue_fetch (   view_obj: &Value,
+                                            view_loader_option: Option<ViewLoader>,
+                                            team_tz_lookup: HashMap<String,String>,
+                                            tz_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
+                                            issue_data: Arc<Mutex<Option<Value>>>,
+                                            linear_config: LinearConfig
+                                        ) -> ( Vec<Value>, ViewLoader, u32 ) {
+
+    info!("View Resolver received view_obj: {:?}", view_obj);
+
+    let filters = view_obj["filters"].clone();
+
+    let mut view_loader =  if let Some(loader) = view_loader_option { loader } else { create_loader_from_view(&filters) };
+
+    debug!("ViewLoader: {:?}", view_loader);
+
+    let mut dedup_list: Vec<Value> = Vec::new();
+
+    // Append currently found issues from 'issue_data' to 'dedup_list'
+    {
+        let issue_data_lock = issue_data.lock().unwrap();
+
+        if let Some(issue_list) = &*issue_data_lock {
+            match issue_list.as_array() {
+                Some(issue_vec) => {
+                    dedup_list.append(&mut issue_vec.clone());
+                },
+                None => {
+                    error!("ViewPanel.issue_table_data was Some but not a Value::Array");
+                    panic!("ViewPanel.issue_table_data was Some but not a Value::Array");
+                }
+            }
+        }
+    }
+
+
+
+
+    let mut query_list_idx: usize;
+
+    let mut request_num: u32 = 0;
+    let mut found_issue_list: Vec<Value> = Vec::new();
+
+    if view_loader.load_strategy == ViewLoadStrategy::DirectQueryPaginate {
+        found_issue_list = direct_issue_fetch(  &mut view_loader, &mut dedup_list,
+                                                &mut request_num, &team_tz_lookup,
+                                                &tz_offset_lookup, &linear_config).await;
+    }
+    else if view_loader.load_strategy == ViewLoadStrategy::GenericIssuePaginate {
+        found_issue_list = generic_issue_fetch( &mut view_loader, &mut dedup_list,
+                                                &mut request_num, &team_tz_lookup,
+                                                &tz_offset_lookup, &linear_config).await;
+    }
+
+    info!("'optimized_view_issue_fetch' returning found_issue_list.len(): {:?}", found_issue_list.len());
+    info!("'optimized_view_issue_fetch' returning found_issue_list: {:?}", found_issue_list);
+
+    return (found_issue_list, view_loader, request_num);
 }
 
 
@@ -725,248 +1356,6 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
     }
 
     return None;
-}
-
-
-// Is it better to fetch all issues by workflow states, then filter by state_list?
-// Current approach: query once for each workflow state present in state_list, then merge
-// wofklowStates() -> { nodes [ { issues() } ] }
-async fn get_issues_by_state( state_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_state_filters received state_list: {:?}", state_list);
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = state_list
-    .into_iter()
-    .map(|item| {
-        info!("Spawning Get Issue By Workflow State Task");
-        let temp_config = linear_config.clone();
-        tokio::spawn(async move {
-            match item.as_object() {
-                Some(state_obj) => {
-                    let state_issues = LinearClient::get_issues_by_workflow_state( temp_config, state_obj.clone() ).await;
-                    state_issues
-                },
-                _ => {
-                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Workflow State Obj not found") } ) )
-                },
-            }
-        })
-    })
-    .collect();
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-    /*
-    // verify that we've got the results
-    for item in &items {
-        info!("get_issues_by_workflow_state Result: {:?}", item);
-    }
-    */
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_workflow_state Issues: {:?}", issues);
-
-
-    return Some(issues);
-}
-
-// Note: Currently will ignore 'No Assignee' filter
-async fn get_issues_by_assignee ( assignee_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_assignee received assignee_list: {:?}", assignee_list);
-
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = assignee_list
-    .into_iter()
-    .map(|item| {
-
-        let mut invalid_filter = false;
-
-        // If 'item' does not have a ref, is 'No Assignee' filter, skip
-        if let Value::Null = item["ref"] {
-            invalid_filter = true;
-        }
-
-        info!("Spawning Get Issue By Assignee Task");
-        let temp_config = linear_config.clone();
-        tokio::spawn(async move {
-            if invalid_filter == true {
-                return Err(LinearClientError::InvalidConfig(
-                        ConfigError::InvalidParameter { parameter: String::from("View Assignee filter") }
-                    )
-                );
-            };
-            match item.as_object() {
-                Some(assignee_obj) => {
-                    let assignee_issues = LinearClient::get_issues_by_assignee( temp_config, assignee_obj.clone() ).await;
-                    assignee_issues
-                },
-                _ => {
-                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Assignee Obj not found") } ) )
-                },
-            }
-        })
-    })
-    .collect();
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-    /*
-    // verify that we've got the results
-    for item in &items {
-        info!("get_issues_by_assignee Result: {:?}", item);
-    }
-    */
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_assignee Issues: {:?}", issues);
-
-
-    return Some(issues);
-
-}
-
-// Note: Currently will ignore 'No Label' filter
-async fn get_issues_by_label ( label_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_label received label_list: {:?}", label_list);
-
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = label_list
-        .into_iter()
-        .map(|item| {
-
-            let mut invalid_filter = false;
-
-            // If 'item' does not have a ref, is 'No Label' filter, skip
-            if let Value::Null = item["ref"] {
-                invalid_filter = true;
-            }
-
-            info!("Spawning Get Issue By Label Task");
-            let temp_config = linear_config.clone();
-            tokio::spawn(async move {
-                if invalid_filter == true {
-                    return Err(LinearClientError::InvalidConfig(
-                            ConfigError::InvalidParameter { parameter: String::from("View Label filter") }
-                        )
-                    );
-                };
-                match item.as_object() {
-                    Some(label_obj) => {
-                        let label_issues = LinearClient::get_issues_by_label( temp_config, label_obj.clone() ).await;
-                        label_issues
-                    },
-                    _ => {
-                        Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Label Obj not found") } ) )
-                    },
-                }
-            })
-        })
-        .collect();
-    
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_label Issues: {:?}", issues);
-
-
-    return Some(issues);
-}
-
-async fn get_issues_by_creator ( creator_list:  Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_creator received creator: {:?}", creator_list);
-
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = creator_list
-    .into_iter()
-    .map(|item| {
-
-        info!("Spawning Get Issue By Creator Task");
-        let temp_config = linear_config.clone();
-        tokio::spawn(async move {
-            match item.as_object() {
-                Some(creator_obj) => {
-                    let creator_issues = LinearClient::get_issues_by_creator( temp_config, creator_obj.clone() ).await;
-                    creator_issues
-                },
-                _ => {
-                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Creator Obj not found") } ) )
-                },
-            }
-        })
-    })
-    .collect();
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-    /*
-    // verify that we've got the results
-    for item in &items {
-        info!("get_issues_by_creator Result: {:?}", item);
-    }
-    */
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_creator Issues: {:?}", issues);
-
-
-    return Some(issues);
 }
 
 */

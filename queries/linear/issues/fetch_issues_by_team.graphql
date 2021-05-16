@@ -1,18 +1,18 @@
-{   "query": "query fetchIssuesByWorkflowState($firstNum: Int, $afterCursor: String, $ref: String!) {
-        workflowState(id: $ref) {
-            id
-            name
-            color
-            description
+{   "query": "query fetchIssuesByTeam($ref: String!, $firstNum: Int, $afterCursor: String) {
+        team(id: $ref) {
             issues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     createdAt
                     number
+                    dueDate
                     title
                     description
                     priority
                     estimate
+                    team {
+                        id
+                    }
                     state {
                         id
                         name
@@ -31,6 +31,9 @@
                             id
                         }
                     }
+                    project {
+                        id
+                    }
                 }
                 pageInfo {
                     hasPreviousPage
@@ -41,5 +44,5 @@
             }
         }
     }",
-    "operationName": "fetchIssuesByWorkflowState"
+    "operationName": "fetchIssuesByTeam"
 }

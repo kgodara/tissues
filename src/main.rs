@@ -65,7 +65,7 @@ use command::{ Command,
                 exec_confirm_cmd,
                 exec_scroll_down_cmd,
                 exec_scroll_up_cmd,
-            };
+};
 use network::IOEvent;
 
 
@@ -110,15 +110,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("Manager received IOEvent::{:?}", cmd);
             match cmd {
+                IOEvent::LoadLinearTeamTimeZones { linear_config, resp } => {
+                    let tz_list_option = linear::load_linear_team_timezones(linear_config).await;
+                    info!("LoadLinearTeamTimeZones data: {:?}", tz_list_option);
+
+                    let _ = resp.send(tz_list_option);
+                },
                 IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
                     let option_stateful = components::linear_custom_view_select::LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
                     info!("LoadCustomViews data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
-                IOEvent::LoadViewIssues { linear_config, view, view_loader, resp } => {
+                IOEvent::LoadViewIssues { linear_config, view, team_tz_lookup, tz_offset_lookup, issue_data, view_loader, resp } => {
                     // let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
-                    let issue_list = linear::view_resolver::optimized_view_issue_fetch(&view, view_loader, linear_config).await;
+                    let issue_list = linear::view_resolver::optimized_view_issue_fetch(&view, view_loader,
+                                                                                        team_tz_lookup,
+                                                                                        tz_offset_lookup,
+                                                                                        issue_data,
+                                                                                        linear_config).await;
                     info!("LoadViewIssues data: {:?}", issue_list);
 
                     let _ = resp.send(issue_list);
@@ -177,8 +187,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
 
+
     // Create default app state
     let mut app = app::App::default();
+
+
+    // Load Linear Team Timezones for all teams within organization and add to app.team_tz_map
+
+    let tx2 = tx.clone();
+
+    let linear_config_dup = app.linear_client.config.clone();
+    let team_tz_map_handle = app.team_tz_map.clone();
+    let team_tz_load_done_handle = app.team_tz_load_done.clone();
+
+    let time_zone_load = tokio::spawn(async move {
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+
+        let cmd = IOEvent::LoadLinearTeamTimeZones {    linear_config: linear_config_dup,
+                                                        resp: resp_tx };
+        
+        tx2.send(cmd).await.unwrap();
+
+        let res = resp_rx.await.ok();
+
+        info!("LoadLinearTeamTimeZones IOEvent returned: {:?}", res);
+
+        let mut team_tz_map_lock = team_tz_map_handle.lock().unwrap();
+        let mut team_tz_load_done_lock = team_tz_load_done_handle.lock().unwrap();
+
+        match res {
+            // id_tz_pairs: Vec<(String, String)>
+            Some(id_tz_pairs) => {
+                for pair in id_tz_pairs.iter() {
+                    team_tz_map_lock.insert(pair.0.clone(), pair.1.clone());
+                }
+                *team_tz_load_done_lock = true;
+            },
+            None => {},
+        };
+    });
 
 
     // Terminal initialization
