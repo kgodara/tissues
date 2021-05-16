@@ -29,7 +29,7 @@ impl LinearIssueDisplay {
     pub async fn load_issues(linear_config: LinearConfig, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
 
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, 
+            let issue_fetch_result = LinearClient::get_issues_by_team_old(linear_config, 
                                                                         None,
                                                                         selected_team.as_object()
                                                                         .cloned()
@@ -69,7 +69,7 @@ impl LinearIssueDisplay {
 
     pub async fn load_issues_paginate(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
         if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team(linear_config, linear_cursor, selected_team.as_object()
+            let issue_fetch_result = LinearClient::get_issues_by_team_old(linear_config, linear_cursor, selected_team.as_object()
                                                                                     .cloned()
                                                                                     .unwrap_or(serde_json::Map::default())
                                                                     ).await;

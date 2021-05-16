@@ -1,22 +1,38 @@
-{   "query": "query fetchIssuesByTeam($id: String!, $firstNum: Int, $afterCursor: String) {
-        team(id: $id) {
+{   "query": "query fetchIssuesByTeam($ref: String!, $firstNum: Int, $afterCursor: String) {
+        team(id: $ref) {
             issues(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     createdAt
                     number
+                    dueDate
                     title
                     description
                     priority
                     estimate
+                    team {
+                        id
+                    }
                     state {
+                        id
                         name
                         type
                         description
                         color
                     }
+                    creator {
+                        id
+                    }
                     assignee {
-                        name
+                        id
+                    }
+                    labels {
+                        nodes {
+                            id
+                        }
+                    }
+                    project {
+                        id
                     }
                 }
                 pageInfo {

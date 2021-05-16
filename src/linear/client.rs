@@ -7,6 +7,8 @@ use super::config::LinearConfig;
 use super::query::fetch_custom_views;
 use super::query::fetch_team_timezones as exec_fetch_team_timezones;
 
+use super::query::fetch_all_issues as exec_fetch_all_issues;
+use super::query::fetch_issues_by_team as exec_fetch_issues_by_team;
 use super::query::fetch_issues_by_workflow_state as exec_fetch_issues_by_workflow_state;
 use super::query::fetch_issues_by_assignee as exec_fetch_issues_by_assignee;
 use super::query::fetch_issues_by_label as exec_fetch_issues_by_label;
@@ -108,6 +110,66 @@ impl LinearClient {
     }
 
     // View Resolver Query Section Start -------
+
+    pub async fn get_all_issues( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, use_view_panel_config: bool ) -> ClientResult {
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+
+
+        let query_response = exec_fetch_all_issues(linear_api_key, linear_cursor, page_size).await?;
+
+        let ref issue_nodes = query_response["data"]["issues"]["nodes"];
+        let ref cursor_info = query_response["data"]["issues"]["pageInfo"];
+
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+    }
+
+    pub async fn get_issues_by_team( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
+
+        info!("Calling exec_fetch_issues_by_team - variables: {:?}", variables);
+
+        let linear_api_key;
+        match &linear_config.api_key {
+            Some(x) => linear_api_key = x,
+            None => return Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
+        };
+
+
+        let page_size: u32;
+        if use_view_panel_config == true {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+
+
+        let query_response = exec_fetch_issues_by_team(linear_api_key, linear_cursor, variables, page_size).await?;
+
+        let ref issue_nodes = query_response["data"]["team"]["issues"]["nodes"];
+        let ref cursor_info = query_response["data"]["team"]["issues"]["pageInfo"];
+
+
+        Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+    }
+
+
     pub async fn get_issues_by_workflow_state( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
 
         info!("Calling exec_fetch_issues_by_workflow_state - variables: {:?}", variables);
@@ -259,7 +321,7 @@ impl LinearClient {
 
 
 
-    pub async fn get_issues_by_team( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
+    pub async fn get_issues_by_team_old( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
 
         info!("Calling exec_get_issues_by_team - variables: {:?}", variables);
 

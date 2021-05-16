@@ -27,6 +27,10 @@ pub enum ViewLoadStrategy {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum FilterType {
+
+    SelectedTeam,
+    AllTeams,
+
     SelectedState,
     SelectedCreator,
     SelectedLabel,
@@ -133,6 +137,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         NoProject,
     */
 
+    filter_type_groups.insert(String::from("team"), Vec::new());
     filter_type_groups.insert(String::from("state"), Vec::new());
     filter_type_groups.insert(String::from("creator"), Vec::new());
     filter_type_groups.insert(String::from("label"), Vec::new());
@@ -142,7 +147,30 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 
 
     if let Value::Object(_) = filters {
-        
+
+        // Add 'team' filters to 'indirect_filter_list' &
+        // 'filter_type_groups.get("team")'
+        match &filters["team"]["id"] {
+            Value::String(team_id) => { 
+                indirect_filter_list.push( Filter { filter_type: FilterType::SelectedTeam, ref_id: Some(team_id.to_string()) } );
+
+                if let Some(x) = filter_type_groups.get_mut("team") {
+                    x.push( Filter { filter_type: FilterType::SelectedTeam, ref_id: Some(team_id.to_string()) } );
+                }
+            },
+            Value::Null => {
+                indirect_filter_list.push( Filter { filter_type: FilterType::AllTeams, ref_id: None } );
+
+                if let Some(x) = filter_type_groups.get_mut("team") {
+                    x.push( Filter { filter_type: FilterType::AllTeams, ref_id: None } );
+                }
+            },
+            _ => {
+                error!("Custom View team id should be Value::String or Value::Null");
+                panic!("Custom View team id should be Value::String or Value::Null");
+            }
+        }
+
         // Add 'state' filters to 'direct_filter_list' &
         // 'filter_type_groups.get("state")'
         match filters["state"].as_array() {
@@ -374,18 +402,15 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 // 'ignorable_filters' are filters which are joined to the current query results with an INTERSECT and not a UNION,
 // and thus can be ignored
 
-// TODO: Ignorable Filters needs to be included in the comparison process since, e.g.
+// Note: Ignorable Filters needs to be included in the comparison process since, e.g.
 // if we have a Filter with two SelectedLabel filters and two SelectedState filters
 // and we are querying on one of the SelectedLabel filters, this method will correctly ignore the non-queried SelectedLabel filter
 // but it will expect both SelectedState filters to be applied simultaneously to the issue
 pub fn filter_map_issues_by_loader( issues: Vec<Value>,
-                                    ignorable_filters: Vec<FilterType>,
                                     team_tz_lookup: &HashMap<String,String>,
                                     tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
                                     linear_config: &LinearConfig,
                                     view_loader: &ViewLoader ) -> Vec<Value> {
-
-    info!("filter_map_issues_by_loader - ignorable_filters: {:?}", ignorable_filters);
 
     // info!("filter_map_issues_by_loader - filter_ignorable_groups.get('dueDate'): {:?}", view_loader.filter_ignorable_groups.get("dueDate"));
 
@@ -397,6 +422,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
 
             // Filter groups (one filter success validates entire group):
             /*
+                filter_type_groups.insert(String::from("team"), Vec::new());
                 filter_type_groups.insert(String::from("state"), Vec::new());
                 filter_type_groups.insert(String::from("creator"), Vec::new());
                 filter_type_groups.insert(String::from("label"), Vec::new());
@@ -405,6 +431,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 filter_type_groups.insert(String::from("dueDate"), Vec::new());
             */
 
+            let mut team_filter_met = false;
             let mut state_filter_met = false;
             let mut creator_filter_met = false;
             let mut label_filter_met = false;
@@ -417,6 +444,10 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
 
             // set filter group bools to true if no filters in group
             {
+                team_filter_met= if view_loader.filter_ignorable_groups.get("team")
+                                        .expect("'team' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
                 state_filter_met = if view_loader.filter_ignorable_groups.get("state")
                                         .expect("'state' key not found in filter_ignorable_groups")
                                         .len() == 0 { true } else { false };
@@ -442,6 +473,35 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                                         .len() == 0 { true } else { false };
             }
 
+            // "team"
+            for filter in view_loader.filter_ignorable_groups.get("team")
+                            .expect("'team' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if team_filter_met == true { continue };
+                
+                match filter.filter_type {
+                    FilterType::SelectedTeam => {
+
+                        let cmp_ref_id = Value::String(filter.ref_id
+                            .clone()
+                            .expect("'SelectedTeam Filter must have a ref_id'")
+                            .to_string());
+    
+                        if e["team"]["id"] == cmp_ref_id {
+                            team_filter_met = true;
+                        }
+                    },
+                    FilterType::AllTeams => {
+                        team_filter_met = true;
+                    },
+                    _ => {
+                        error!("'filter_ignorable_groups.get('team')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('team')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
             // "state"
             for filter in view_loader.filter_ignorable_groups.get("state")
                             .expect("'state' key not found in filter_ignorable_groups")
@@ -461,7 +521,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                         }
                         
                     },
-                    _ => { 
+                    _ => {
                         error!("'filter_ignorable_groups.get('state')' has invalid filter: {:?}", filter);
                         panic!("'filter_ignorable_groups.get('state')' has invalid filter: {:?}", filter);
                     }
@@ -651,13 +711,22 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
             }
 
 
-            if state_filter_met == false ||
+            if  team_filter_met == false ||
+                state_filter_met == false ||
                 creator_filter_met == false ||
                 label_filter_met == false ||
                 assignee_filter_met == false ||
                 project_filter_met == false ||
                 due_date_filter_met == false 
             {
+                debug!("team_filter_met: {:?} state_filter_met: {:?} creator_filter_met: {:?} label_filter_met: {:?} assignee_filter_met: {:?} project_filter_met: {:?} due_date_filter_met: {:?}",
+                            team_filter_met,
+                            state_filter_met,
+                            creator_filter_met,
+                            label_filter_met,
+                            assignee_filter_met,
+                            project_filter_met,
+                            due_date_filter_met);
                 None
             }
             else {
@@ -665,54 +734,184 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
             }
         })
         .collect()
+}
+
+pub fn deduplicate_issue_list ( issues_to_filter: Vec<Value>, found_issue_list: &mut Vec<Value>, dedup_list: &mut Vec<Value> ) -> Vec<Value> {
+    issues_to_filter
+        .into_iter()
+        .filter_map(|e| {
+            if found_issue_list.len() < 1 && dedup_list.len() < 1 {
+                return Some(e);
+            }
+            // Check both found_issue_list and dedup_list for duplicates
+            match found_issue_list.iter().any(|x| {
+                // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
+                x["id"] == e["id"]
+            }) {
+                true => { return None },
+                false => {  }
+            };
+
+            match dedup_list.iter().any(|x| {
+                // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
+                x["id"] == e["id"]
+            }) {
+                true => { None },
+                false => { Some(e) }
+            }
+
+        })
+        .collect()
+}
+
+pub async fn generic_issue_fetch (  view_loader: &mut ViewLoader,
+                                    dedup_list: &mut Vec<Value>,
+                                    request_num: &mut u32,
+                                    team_tz_lookup: &HashMap<String,String>,
+                                    tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
+                                    linear_config: &LinearConfig,
+                                ) -> Vec<Value> {
+
+    // Determine if a SelectedTeam filter is present in view_loader.filter_ignorable_groups.get('team')
+    // if so: query using fetch_issues_by_team
+    // else: query using fetch_all_issues
+
+    let fetch_by_team: bool = view_loader.filter_ignorable_groups.get("team")
+                                    .expect("'team' key not found in filter_ignorable_groups")
+                                    .iter()
+                                    .any(|e| e.filter_type == FilterType::SelectedTeam);
+    
+    let mut selected_team_id: String = String::default();
+
+    if fetch_by_team == true {
+        let selected_team_idx = view_loader.filter_ignorable_groups.get("team")
+                                    .expect("'team' key not found in filter_ignorable_groups")
+                                    .iter()
+                                    .position(|e| e.filter_type == FilterType::SelectedTeam)
+                                    .expect("'fetch_by_team is true, but no FilterType::SelectedTeam Filter found in filter_ignorable_groups.get('team')'");
+
+        selected_team_id = view_loader.filter_ignorable_groups.get("team")
+                                .expect("'team' key not found in filter_ignorable_groups")
+                                [selected_team_idx]
+                                .ref_id
+                                .clone()
+                                .expect("'SelectedTeam Filter must have a ref_id'");
+    }
+
+    let mut found_issue_list: Vec<Value> = Vec::new();
+
+    let mut loop_num: u16 = 0;
+
+    loop {
+
+        // If Indirect Query is exhausted
+        if view_loader.cursor.platform == Platform::Linear && view_loader.cursor.has_next_page == false {
+            // No more Pages in Indirect Query remaining, return found_issues_list
+            view_loader.exhausted = true; 
+            debug!("Indirect Query - no more issues to query, returning found_issues_list");
+            return found_issue_list;
+        }
+
+        let query_result: Result<Value, LinearClientError>;
+
+        match fetch_by_team {
+            true => {
+                let mut variables: Map<String, Value> = Map::new();
+
+                variables.insert(String::from("ref"), Value::String(selected_team_id.clone()));
+
+                query_result = LinearClient::get_issues_by_team(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+            },
+            false => {
+                query_result = LinearClient::get_all_issues(linear_config.clone(), Some(view_loader.cursor.clone()), true).await;
+            }
+        }
+
+        if let Ok(response) = query_result {
+
+            // Increment request_num here
+            *request_num += 1;
+
+            debug!("Current Indirect Filter Query Response: {:?}", response);
+
+            // Filter returned Issues by all other loader filters
+            // and add remainder to final_issue_list
+
+            let mut issues_to_filter: Vec<Value>;
+            
+            match response["issue_nodes"].as_array() {
+                Some(resp_issue_data) => {
+                    issues_to_filter = resp_issue_data.clone();
+                },
+                None => {
+                    error!("'issue_nodes' invalid format: {:?}", response["issue_nodes"]);
+                    panic!("'issue_nodes' invalid format");
+                }
+            }
+
+            debug!("issues_to_filter.len(): {:?}", issues_to_filter.len());
+
+            // Remove any Issues from issues_to_filter that are already in found_issue_list
+
+            issues_to_filter = deduplicate_issue_list(issues_to_filter, &mut found_issue_list, dedup_list);
+
+            debug!("issues_to_filter.len() (dedup): {:?}", issues_to_filter.len());
+
+            // Filter queried Issues by 
+            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(
+                                            issues_to_filter,
+                                            &team_tz_lookup,
+                                            &tz_offset_lookup,
+                                            &linear_config,
+                                            &view_loader
+                                        );
+            
+            debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
+
+
+            if filtered_issue_list.len() > 0 {
+                found_issue_list.append(&mut filtered_issue_list);
+            }
+
+
+            // Update GraphQLCursor
+            match GraphQLCursor::linear_cursor_from_page_info(response["cursor_info"].clone()) {
+                Some(new_cursor) => {
+                    view_loader.cursor = new_cursor;
+                },
+                None => {
+                    error!("GraphQLCursor could not be created from response['cursor_info']: {:?}", response["cursor_info"]);
+                    panic!("GraphQLCursor could not be created from response['cursor_info']: {:?}", response["cursor_info"]);
+                },
+            }
+
+        }
+        else {
+            error!("View_Resolver Query Failed: {:?}", query_result);
+            panic!("View_Resolver Query Failed: {:?}", query_result);
+        }
+
+        if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
+            return found_issue_list;
+        }
+
+        info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);
+        loop_num += 1;
+
+    }
+
 
 }
 
-pub async fn optimized_view_issue_fetch (   view_obj: &Value,
-                                            view_loader_option: Option<ViewLoader>,
-                                            team_tz_lookup: HashMap<String,String>,
-                                            tz_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
-                                            issue_data: Arc<Mutex<Option<Value>>>,
-                                            linear_config: LinearConfig
-                                        ) -> ( Vec<Value>, ViewLoader, u32 ) {
-
-    info!("View Resolver received view_obj: {:?}", view_obj);
-
-    let filters = view_obj["filters"].clone();
-
-    let mut view_loader =  if let Some(loader) = view_loader_option { loader } else { create_loader_from_view(&filters) };
-
-    debug!("ViewLoader: {:?}", view_loader);
-
-    let mut found_issue_list: Vec<Value> = Vec::new();
-    let mut dedup_list: Vec<Value> = Vec::new();
-
-    // Append currently found issues from 'issue_data' to 'found_issue_list'
-    {
-        let issue_data_lock = issue_data.lock().unwrap();
-
-        if let Some(issue_list) = &*issue_data_lock {
-            match issue_list.as_array() {
-                Some(issue_vec) => {
-                    dedup_list.append(&mut issue_vec.clone());
-                },
-                None => {
-                    error!("ViewPanel.issue_table_data was Some but not a Value::Array");
-                    panic!("ViewPanel.issue_table_data was Some but not a Value::Array");
-                }
-            }
-        }
-    }
-
+pub async fn direct_issue_fetch (   view_loader: &mut ViewLoader,
+                                    dedup_list: &mut Vec<Value>,
+                                    request_num: &mut u32,
+                                    team_tz_lookup: &HashMap<String,String>,
+                                    tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
+                                    linear_config: &LinearConfig
+                                ) -> Vec<Value> {
 
     let mut query_list_idx: usize;
-
-    let mut request_num: u32 = 0;
-
-    // Currently only supporting DirectQueryPaginate strategies
-    if view_loader.load_strategy != ViewLoadStrategy::DirectQueryPaginate {
-        return ( found_issue_list, view_loader, request_num);
-    }
 
     // Assign to query_list_idx if view_loader has a direct_filter_query_idx
     // if not, then this is not a DirectQueryPaginate strategy, return
@@ -720,10 +919,13 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
         query_list_idx = x;
     }
     else {
-        return ( found_issue_list, view_loader, request_num );
+        error!("'direct_issue_fetch' - view_loader.direct_filter_query_idx must be Some()");
+        panic!("'direct_issue_fetch' - view_loader.direct_filter_query_idx must be Some()");
     }
 
     debug!("Direct Filter List: {:?}", view_loader.direct_filter_queryable);
+
+    let mut found_issue_list: Vec<Value> = Vec::new();
 
     let mut loop_num: u16 = 0;
 
@@ -752,7 +954,7 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
             else {
                 view_loader.exhausted = true; 
                 debug!("No more Direct Queries remaining, returning found_issues_list");
-                return ( found_issue_list, view_loader, request_num);
+                return found_issue_list;
             }
         }
 
@@ -840,7 +1042,7 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
         if let Ok(response) = query_result {
 
             // Increment request_num here
-            request_num += 1;
+            *request_num += 1;
 
             debug!("Current Direct Filter Query Response: {:?}", response);
 
@@ -862,44 +1064,20 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
             debug!("issues_to_filter.len(): {:?}", issues_to_filter.len());
 
             // Remove any Issues from issues_to_filter that are already in found_issue_list
-            issues_to_filter = issues_to_filter
-                                    .into_iter()
-                                    .filter_map(|e| {
-                                        if found_issue_list.len() < 1 && dedup_list.len() < 1 {
-                                            return Some(e);
-                                        }
-                                        // Check both found_issue_list and dedup_list for duplicates
-                                        match found_issue_list.iter().any(|x| {
-                                            // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
-                                            x["id"] == e["id"]
-                                        }) {
-                                            true => { return None },
-                                            false => {  }
-                                        };
 
-                                        match dedup_list.iter().any(|x| {
-                                            // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
-                                            x["id"] == e["id"]
-                                        }) {
-                                            true => { None },
-                                            false => { Some(e) }
-                                        }
-
-                                    })
-                                    .collect();
+            issues_to_filter = deduplicate_issue_list(issues_to_filter, &mut found_issue_list, dedup_list);
 
             debug!("issues_to_filter.len() (dedup): {:?}", issues_to_filter.len());
 
             // Filter queried Issues by 
             let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(
                                             issues_to_filter,
-                                            IGNORABLE_FILTER_MAP[&current_direct_filter.filter_type].clone(),
                                             &team_tz_lookup,
                                             &tz_offset_lookup,
                                             &linear_config,
                                             &view_loader
                                         );
-            
+
             debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
 
             
@@ -926,13 +1104,73 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
         }
 
         if found_issue_list.len() >= (linear_config.view_panel_page_size as usize)  {
-             return ( found_issue_list, view_loader, request_num);
+             return found_issue_list;
         }
 
         info!("Loop {} - found_issue_list: {:?}", loop_num, found_issue_list);
         loop_num += 1;
     }
 
+}
+
+pub async fn optimized_view_issue_fetch (   view_obj: &Value,
+                                            view_loader_option: Option<ViewLoader>,
+                                            team_tz_lookup: HashMap<String,String>,
+                                            tz_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
+                                            issue_data: Arc<Mutex<Option<Value>>>,
+                                            linear_config: LinearConfig
+                                        ) -> ( Vec<Value>, ViewLoader, u32 ) {
+
+    info!("View Resolver received view_obj: {:?}", view_obj);
+
+    let filters = view_obj["filters"].clone();
+
+    let mut view_loader =  if let Some(loader) = view_loader_option { loader } else { create_loader_from_view(&filters) };
+
+    debug!("ViewLoader: {:?}", view_loader);
+
+    let mut dedup_list: Vec<Value> = Vec::new();
+
+    // Append currently found issues from 'issue_data' to 'dedup_list'
+    {
+        let issue_data_lock = issue_data.lock().unwrap();
+
+        if let Some(issue_list) = &*issue_data_lock {
+            match issue_list.as_array() {
+                Some(issue_vec) => {
+                    dedup_list.append(&mut issue_vec.clone());
+                },
+                None => {
+                    error!("ViewPanel.issue_table_data was Some but not a Value::Array");
+                    panic!("ViewPanel.issue_table_data was Some but not a Value::Array");
+                }
+            }
+        }
+    }
+
+
+
+
+    let mut query_list_idx: usize;
+
+    let mut request_num: u32 = 0;
+    let mut found_issue_list: Vec<Value> = Vec::new();
+
+    if view_loader.load_strategy == ViewLoadStrategy::DirectQueryPaginate {
+        found_issue_list = direct_issue_fetch(  &mut view_loader, &mut dedup_list,
+                                                &mut request_num, &team_tz_lookup,
+                                                &tz_offset_lookup, &linear_config).await;
+    }
+    else if view_loader.load_strategy == ViewLoadStrategy::GenericIssuePaginate {
+        found_issue_list = generic_issue_fetch( &mut view_loader, &mut dedup_list,
+                                                &mut request_num, &team_tz_lookup,
+                                                &tz_offset_lookup, &linear_config).await;
+    }
+
+    info!("'optimized_view_issue_fetch' returning found_issue_list.len(): {:?}", found_issue_list.len());
+    info!("'optimized_view_issue_fetch' returning found_issue_list: {:?}", found_issue_list);
+
+    return (found_issue_list, view_loader, request_num);
 }
 
 
@@ -1118,248 +1356,6 @@ pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig
     }
 
     return None;
-}
-
-
-// Is it better to fetch all issues by workflow states, then filter by state_list?
-// Current approach: query once for each workflow state present in state_list, then merge
-// wofklowStates() -> { nodes [ { issues() } ] }
-async fn get_issues_by_state( state_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_state_filters received state_list: {:?}", state_list);
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = state_list
-    .into_iter()
-    .map(|item| {
-        info!("Spawning Get Issue By Workflow State Task");
-        let temp_config = linear_config.clone();
-        tokio::spawn(async move {
-            match item.as_object() {
-                Some(state_obj) => {
-                    let state_issues = LinearClient::get_issues_by_workflow_state( temp_config, state_obj.clone() ).await;
-                    state_issues
-                },
-                _ => {
-                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Workflow State Obj not found") } ) )
-                },
-            }
-        })
-    })
-    .collect();
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-    /*
-    // verify that we've got the results
-    for item in &items {
-        info!("get_issues_by_workflow_state Result: {:?}", item);
-    }
-    */
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_workflow_state Issues: {:?}", issues);
-
-
-    return Some(issues);
-}
-
-// Note: Currently will ignore 'No Assignee' filter
-async fn get_issues_by_assignee ( assignee_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_assignee received assignee_list: {:?}", assignee_list);
-
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = assignee_list
-    .into_iter()
-    .map(|item| {
-
-        let mut invalid_filter = false;
-
-        // If 'item' does not have a ref, is 'No Assignee' filter, skip
-        if let Value::Null = item["ref"] {
-            invalid_filter = true;
-        }
-
-        info!("Spawning Get Issue By Assignee Task");
-        let temp_config = linear_config.clone();
-        tokio::spawn(async move {
-            if invalid_filter == true {
-                return Err(LinearClientError::InvalidConfig(
-                        ConfigError::InvalidParameter { parameter: String::from("View Assignee filter") }
-                    )
-                );
-            };
-            match item.as_object() {
-                Some(assignee_obj) => {
-                    let assignee_issues = LinearClient::get_issues_by_assignee( temp_config, assignee_obj.clone() ).await;
-                    assignee_issues
-                },
-                _ => {
-                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Assignee Obj not found") } ) )
-                },
-            }
-        })
-    })
-    .collect();
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-    /*
-    // verify that we've got the results
-    for item in &items {
-        info!("get_issues_by_assignee Result: {:?}", item);
-    }
-    */
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_assignee Issues: {:?}", issues);
-
-
-    return Some(issues);
-
-}
-
-// Note: Currently will ignore 'No Label' filter
-async fn get_issues_by_label ( label_list: Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_label received label_list: {:?}", label_list);
-
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = label_list
-        .into_iter()
-        .map(|item| {
-
-            let mut invalid_filter = false;
-
-            // If 'item' does not have a ref, is 'No Label' filter, skip
-            if let Value::Null = item["ref"] {
-                invalid_filter = true;
-            }
-
-            info!("Spawning Get Issue By Label Task");
-            let temp_config = linear_config.clone();
-            tokio::spawn(async move {
-                if invalid_filter == true {
-                    return Err(LinearClientError::InvalidConfig(
-                            ConfigError::InvalidParameter { parameter: String::from("View Label filter") }
-                        )
-                    );
-                };
-                match item.as_object() {
-                    Some(label_obj) => {
-                        let label_issues = LinearClient::get_issues_by_label( temp_config, label_obj.clone() ).await;
-                        label_issues
-                    },
-                    _ => {
-                        Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Label Obj not found") } ) )
-                    },
-                }
-            })
-        })
-        .collect();
-    
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_label Issues: {:?}", issues);
-
-
-    return Some(issues);
-}
-
-async fn get_issues_by_creator ( creator_list:  Vec<Value>, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    info!("get_issues_by_creator received creator: {:?}", creator_list);
-
-    // note the use of `into_iter()` to consume `items`
-    let tasks: Vec<_> = creator_list
-    .into_iter()
-    .map(|item| {
-
-        info!("Spawning Get Issue By Creator Task");
-        let temp_config = linear_config.clone();
-        tokio::spawn(async move {
-            match item.as_object() {
-                Some(creator_obj) => {
-                    let creator_issues = LinearClient::get_issues_by_creator( temp_config, creator_obj.clone() ).await;
-                    creator_issues
-                },
-                _ => {
-                    Err( LinearClientError::InvalidConfig( ConfigError::InvalidParameter { parameter: String::from("Creator Obj not found") } ) )
-                },
-            }
-        })
-    })
-    .collect();
-
-    // await the tasks for resolve's to complete and give back our items
-    let mut items = vec![];
-    for task in tasks {
-        items.push(task.await.unwrap());
-    }
-    /*
-    // verify that we've got the results
-    for item in &items {
-        info!("get_issues_by_creator Result: {:?}", item);
-    }
-    */
-
-    let issues: Vec<Value> = items
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        Ok(val) => Some(val),
-                        Err(_) => None,
-                    })
-                    .map(|e| match e {
-                        Value::Array(x) => {x},
-                        _ => {vec![]}
-                    })
-                    .flatten()
-                    .collect();
-    debug!("get_issues_by_creator Issues: {:?}", issues);
-
-
-    return Some(issues);
 }
 
 */
