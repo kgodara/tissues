@@ -15,7 +15,7 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 
 
-use serde_json::{ Value, Map };
+use serde_json::{ Value, Map, Number };
 
 use crate::util::GraphQLCursor;
 
@@ -36,6 +36,7 @@ pub enum FilterType {
     SelectedLabel,
     SelectedAssignee,
     SelectedProject,
+    SelectedPriority,
 
     DueToday,
     Overdue,
@@ -125,6 +126,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         SelectedLabel,
         SelectedAssignee,
         SelectedProject,
+        SelectedPriority,
 
         DueToday,
         Overdue,
@@ -143,6 +145,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     filter_type_groups.insert(String::from("label"), Vec::new());
     filter_type_groups.insert(String::from("assignee"), Vec::new());
     filter_type_groups.insert(String::from("project"), Vec::new());
+    filter_type_groups.insert(String::from("priority"), Vec::new());
     filter_type_groups.insert(String::from("dueDate"), Vec::new());
 
 
@@ -300,6 +303,33 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
             _ => {},
         };
 
+        // Add 'priority' filters:
+        // SelectedPriority to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("priority")'
+        match filters["priority"].as_array() {
+            Some(priority_list) => {
+                for priority_obj in priority_list.iter() {
+                    match &priority_obj["ref"] {
+                        Value::Number(priority_ref) => {
+
+                            let u64_data = priority_ref.as_u64()
+                                                        .expect("Expected 'priority' 'ref' to be a Number parseable as u64")
+                                                        .to_string();
+
+                            indirect_filter_list.push( Filter { filter_type: FilterType::SelectedPriority, ref_id: Some(u64_data.clone()) });
+
+
+                            if let Some(x) = filter_type_groups.get_mut("priority") {
+                                x.push( Filter { filter_type: FilterType::SelectedPriority, ref_id: Some(u64_data) } );
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            },
+            _ => {},
+        };
+
         // Add 'dueDateQualifier' filters to 'indirect_filter_list' &
         // 'filter_type_groups.get("dueDate")'
         match filters["dueDateQualifier"].as_array() {
@@ -428,16 +458,18 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 filter_type_groups.insert(String::from("label"), Vec::new());
                 filter_type_groups.insert(String::from("assignee"), Vec::new());
                 filter_type_groups.insert(String::from("project"), Vec::new());
+                filter_type_groups.insert(String::from("priority"), Vec::new());
                 filter_type_groups.insert(String::from("dueDate"), Vec::new());
             */
 
-            let mut team_filter_met = false;
-            let mut state_filter_met = false;
-            let mut creator_filter_met = false;
-            let mut label_filter_met = false;
-            let mut assignee_filter_met = false;
-            let mut project_filter_met = false;
-            let mut due_date_filter_met = false;
+            let mut team_filter_met;
+            let mut state_filter_met;
+            let mut creator_filter_met;
+            let mut label_filter_met;
+            let mut assignee_filter_met;
+            let mut project_filter_met;
+            let mut priority_filter_met;
+            let mut due_date_filter_met;
 
             // Iterate through each list in 'filter_type_groups' and see flag whether the group is satisfied
             // at conclusion, if any group bools are false, set issue_is_valid to false
@@ -466,6 +498,10 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
 
                 project_filter_met = if view_loader.filter_ignorable_groups.get("project")
                                         .expect("'project' key not found in filter_ignorable_groups")
+                                        .len() == 0 { true } else { false };
+
+                priority_filter_met = if view_loader.filter_ignorable_groups.get("priority")
+                                        .expect("'priority' key not found in filter_ignorable_groups")
                                         .len() == 0 { true } else { false };
 
                 due_date_filter_met = if view_loader.filter_ignorable_groups.get("dueDate")
@@ -650,6 +686,38 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 }
             }
 
+            // "priority"
+            for filter in view_loader.filter_ignorable_groups.get("priority")
+                            .expect("'priority' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if priority_filter_met == true { continue };
+
+                match filter.filter_type {
+                    FilterType::SelectedPriority => {
+                        let cmp_ref_id = Value::Number(
+                                            Number::from(filter.ref_id
+                                                .clone()
+                                                .expect("SelectedPriority Filter must have a ref_id")
+                                                .parse::<u64>()
+                                                .expect("SelectedPriority Filter ref_id must be parseable as u64")
+                                            )
+                                        );
+                        
+                        debug!("Comparing SelectedPriority e['priority']: {:?} == cmp_ref_id: {:?}", e["priority"], cmp_ref_id);
+                    
+                        if e["priority"] == cmp_ref_id {
+                            debug!("Found SelectedPriority Filter Match");
+                            priority_filter_met = true;
+                        }
+                    },
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('priority')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('priority')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
             // "dueDate"
             for filter in view_loader.filter_ignorable_groups.get("dueDate")
                             .expect("'dueDate' key not found in filter_ignorable_groups")
@@ -717,6 +785,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 label_filter_met == false ||
                 assignee_filter_met == false ||
                 project_filter_met == false ||
+                priority_filter_met == false ||
                 due_date_filter_met == false 
             {
                 debug!("team_filter_met: {:?} state_filter_met: {:?} creator_filter_met: {:?} label_filter_met: {:?} assignee_filter_met: {:?} project_filter_met: {:?} due_date_filter_met: {:?}",
@@ -1172,190 +1241,3 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
 
     return (found_issue_list, view_loader, request_num);
 }
-
-
-
-/*
-// Accepts a custom view object: &Value
-// TODO: Certain filter resolvers may have to paginate in order to create accurate view and filter lists
-pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    // Determine which filter resolver methods to call based on available attributes,
-    // and perform an Intersect operation on returned issues to determine 
-
-    info!("View Resolver received view_obj: {:?}", view_obj);
-
-    let filters = view_obj["filters"].clone();
-
-    info!("ViewLoader: {:?}", create_loader_from_view(&filters));
-
-    if Value::Null == filters {
-        return None;
-    }
-
-    if let Value::Object(_) = filters {
-
-        let mut filter_component_results: Vec<Option<Vec<Value>>> = Vec::new();
-
-        // Handle 'state' filters
-        match filters["state"].as_array() {
-            Some(state_list) => {
-                filter_component_results.push(
-                    get_issues_by_state(state_list.clone(), linear_config.clone()).await
-                );
-            },
-            _ => {},
-        };
-
-        // Handle 'assignee' filters
-        match filters["assignee"].as_array() {
-            Some(assignee_list) => {
-                filter_component_results.push(
-                    get_issues_by_assignee(assignee_list.clone(), linear_config.clone()).await
-                );
-            }
-            _ => {},
-        }
-
-        // Handle 'creator' filters
-        match filters["creator"].as_array() {
-            Some(creator_list) => {
-                filter_component_results.push(
-                    get_issues_by_creator(creator_list.clone(), linear_config.clone()).await
-                );
-            },
-            _ => {},
-        }
-
-        // Handle 'labels' filters
-        match filters["labels"].as_array() {
-            Some(label_list) => {
-                filter_component_results.push(
-                    get_issues_by_label(label_list.clone(), linear_config.clone()).await
-                );
-            },
-            _ => {},
-        }
-        
-        // Final Merge operation:
-        //     let mut final_issue_list: Vec<Value> = Vec::new();
-        //     let mut issue_id_set: Set<String>
-        //     Remove 'None' reponses from filter_component_results
-        //     Iterate over all Some(Vec<Value>) responses in filter_component_results, for each:
-        //         If first list, add all issue ids to issue_id_set & for every issue id not already in issue_id_set, add issue to final issue list
-        //         Else:
-        //             Create array of issue ids 'unfound_issue_ids' from issue_id_set
-        //             iterate over current Vec<Value>
-        //                 if issue id not in issue_id_set, skip
-        //                 else remove issue id from 'unfound_issue_ids'
-        //             Remove all issue_ids remaining in 'unfound_issue_ids' from 'issue_id_set'
-        //             Remove all issues from 'final_issue_list' whose ids are in 'unfound_issue_ids'
-        //    Return final_issue_list
-
-        let mut final_issue_list: Vec<Value> = Vec::new();
-        let mut issue_id_set: HashSet<String> = HashSet::new();
-
-        let mut resolver_issue_values: Vec<Vec<Value>> = filter_component_results
-                                    .into_iter()
-                                    .filter_map(|e| {
-                                        // e: Option<Vec<Value>>
-                                        match e {
-                                            Some(_) => e,
-                                            None => None,
-                                        }
-                                    })
-                                    .collect();
-        debug!("resolver_issue_values: {:?}", resolver_issue_values);
-    
-        for (idx, value_list) in resolver_issue_values.iter().enumerate() {
-
-            // If first list, add all issue ids to issue_id_set 
-            //     for every issue id not already in issue_id_set, add issue to final issue list
-
-            if idx == 0 {
-                let mut current_issue_id: String;
-                for issue_obj in value_list.iter() {
-                    let mut not_already_in_set = false;
-
-                    match issue_obj["id"].as_str() {
-                        Some(id) => {
-                            debug!("Inserting Issue id ${:?} into issue_id_set", id);
-                            not_already_in_set = issue_id_set.insert(String::from(id));
-                        },
-                        None => {
-                            debug!("Skipping, no 'id' found - issue_obj: {:?}", issue_obj);
-                            continue;
-                        },
-                    }
-                    // Issue id not already in issue_id_set, add issue to final issue list
-                    if not_already_in_set == true {
-                        final_issue_list.push(issue_obj.clone());
-                    }
-                }
-            }
-
-            // Else:
-            //     Create array of issue ids 'unfound_issue_ids' from issue_id_set
-            //     iterate over current Vec<Value> 'value_list'
-            //         if issue id not in issue_id_set, skip
-            //         else remove issue id from 'unfound_issue_ids'
-            //     Remove all issue_ids remaining in 'unfound_issue_ids' from 'issue_id_set'
-            //     Remove all issues from 'final_issue_list' whose ids are in 'unfound_issue_ids'
-            else {
-                let mut unfound_issue_ids: HashSet<String> = issue_id_set.iter()
-                                                                        .cloned()
-                                                                        .collect();
-                // iterate over current Vec<Value> 'value_list'
-                for issue_obj in value_list.iter() {
-                    match issue_obj["id"].as_str() {
-                        Some(id) => {
-                            // if issue id not in issue_id_set, skip
-                            if !issue_id_set.contains(id) {
-                                continue;
-                            }
-                            // else remove issue id from 'unfound_issue_ids'
-                            else {
-                                unfound_issue_ids.remove(id);
-                            }
-                        },
-                        None => {continue;},
-                    }
-                }
-
-                // Remove all issue_ids remaining in 'unfound_issue_ids' from 'issue_id_set'
-                for issue_id in unfound_issue_ids.iter() {
-                    issue_id_set.remove(issue_id);
-                }
-
-                // Remove all issues from 'final_issue_list' whose ids are in 'unfound_issue_ids'
-                final_issue_list = final_issue_list.into_iter()
-                                                    .filter_map(|e| {
-                                                        match e["id"].as_str() {
-                                                            Some(id) => {
-                                                                if unfound_issue_ids.contains(id) {
-                                                                    None
-                                                                }
-                                                                else {
-                                                                    Some(e)
-                                                                }
-                                                            },
-                                                            None => {None},
-                                                        }
-                                                    })
-                                                    .collect();
-
-            }
-            debug!("Iter {:?}, issue_id_set: {:?}", idx, issue_id_set);
-            debug!("Iter {:?}, final_issue_list: {:?}", idx, final_issue_list);
-        }
-
-        info!("get_issues_from_view returning final_issue_list: {:?}", final_issue_list);
-        return Some(final_issue_list);
-    }
-    else {
-        panic!("view.filters was not an Object or Null")
-    }
-
-    return None;
-}
-
-*/

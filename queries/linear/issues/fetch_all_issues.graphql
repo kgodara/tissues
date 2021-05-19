@@ -33,6 +33,11 @@
                 project {
                     id
                 }
+                subscribers {
+                    nodes {
+                        id
+                    }
+                }
             }
             pageInfo {
                 hasPreviousPage
