@@ -35,6 +35,11 @@
                             id
                         }
                     }
+                    subscribers {
+                        nodes {
+                            id
+                        }
+                    }
                 }
                 pageInfo {
                     hasPreviousPage

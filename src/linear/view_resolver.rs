@@ -37,6 +37,7 @@ pub enum FilterType {
     SelectedAssignee,
     SelectedProject,
     SelectedPriority,
+    SelectedSubscriber,
 
     DueToday,
     Overdue,
@@ -127,6 +128,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         SelectedAssignee,
         SelectedProject,
         SelectedPriority,
+        SelectedSubscriber,
 
         DueToday,
         Overdue,
@@ -146,6 +148,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     filter_type_groups.insert(String::from("assignee"), Vec::new());
     filter_type_groups.insert(String::from("project"), Vec::new());
     filter_type_groups.insert(String::from("priority"), Vec::new());
+    filter_type_groups.insert(String::from("subscriber"), Vec::new());
     filter_type_groups.insert(String::from("dueDate"), Vec::new());
 
 
@@ -330,6 +333,28 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
             _ => {},
         };
 
+        // Add 'subscriber' filters:
+        // SelectedSubscriber to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("subscriber")'
+        match filters["subscribers"].as_array() {
+            Some(subscriber_list) => {
+                for subscriber_obj in subscriber_list.iter() {
+                    match &subscriber_obj["ref"] {
+                        Value::String(subscriber_ref) => {
+
+                            indirect_filter_list.push( Filter { filter_type: FilterType::SelectedSubscriber, ref_id: Some(subscriber_ref.to_string()) });
+
+                            if let Some(x) = filter_type_groups.get_mut("subscriber") {
+                                x.push( Filter { filter_type: FilterType::SelectedSubscriber, ref_id: Some(subscriber_ref.to_string()) } );
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            },
+            _ => {},
+        }
+
         // Add 'dueDateQualifier' filters to 'indirect_filter_list' &
         // 'filter_type_groups.get("dueDate")'
         match filters["dueDateQualifier"].as_array() {
@@ -469,6 +494,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
             let mut assignee_filter_met;
             let mut project_filter_met;
             let mut priority_filter_met;
+            let mut subscriber_filter_met;
             let mut due_date_filter_met;
 
             // Iterate through each list in 'filter_type_groups' and see flag whether the group is satisfied
@@ -503,6 +529,10 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 priority_filter_met = if view_loader.filter_ignorable_groups.get("priority")
                                         .expect("'priority' key not found in filter_ignorable_groups")
                                         .len() == 0 { true } else { false };
+
+                subscriber_filter_met = if view_loader.filter_ignorable_groups.get("subscriber")
+                                            .expect("'subscriber' key not found in filter_ignorable_groups")
+                                            .len() == 0 { debug!("setting subscriber_filter_met == true"); true } else { false };
 
                 due_date_filter_met = if view_loader.filter_ignorable_groups.get("dueDate")
                                         .expect("'dueDate' key not found in filter_ignorable_groups")
@@ -704,7 +734,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                                             )
                                         );
                         
-                        debug!("Comparing SelectedPriority e['priority']: {:?} == cmp_ref_id: {:?}", e["priority"], cmp_ref_id);
+                        // debug!("Comparing SelectedPriority e['priority']: {:?} == cmp_ref_id: {:?}", e["priority"], cmp_ref_id);
                     
                         if e["priority"] == cmp_ref_id {
                             debug!("Found SelectedPriority Filter Match");
@@ -717,6 +747,39 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                     }
                 }
             }
+
+            // "subscriber"
+            for filter in view_loader.filter_ignorable_groups.get("subscriber")
+                            .expect("'subscriber' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if subscriber_filter_met == true { 
+                    debug!("subscriber_filter_met == true, skipping");
+                    continue 
+                };
+
+                match filter.filter_type {
+                    FilterType::SelectedSubscriber => {
+                        let cmp_ref_id = Value::String(filter.ref_id
+                                            .clone()
+                                            .expect("'SelectedSubscriber Filter must have a ref_id'")
+                                            .to_string());
+
+
+                        if let Value::Array(ref subscriber_list) = e["subscribers"]["nodes"] {
+                            debug!("Comparing SelectedSubscriber cmp_ref_id: {:?} with subscriber_list: {:?}", cmp_ref_id, subscriber_list);
+                            if subscriber_list.iter().any(|subscriber_id| subscriber_id["id"] == cmp_ref_id) == true {
+                                subscriber_filter_met = true;
+                            }
+                        }
+                    },
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('subscriber')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('subscriber')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
 
             // "dueDate"
             for filter in view_loader.filter_ignorable_groups.get("dueDate")
@@ -786,6 +849,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 assignee_filter_met == false ||
                 project_filter_met == false ||
                 priority_filter_met == false ||
+                subscriber_filter_met == false ||
                 due_date_filter_met == false 
             {
                 debug!("team_filter_met: {:?} state_filter_met: {:?} creator_filter_met: {:?} label_filter_met: {:?} assignee_filter_met: {:?} project_filter_met: {:?} due_date_filter_met: {:?}",
