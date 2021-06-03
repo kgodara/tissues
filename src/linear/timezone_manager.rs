@@ -16,8 +16,6 @@ use crate::linear::error::LinearClientError;
 
 use crate::linear::view_resolver::FilterType;
 
-use std::sync::{Arc, Mutex};
-
 
 const TIMEZONE_JSON_PATH: &str = "data/timezones.json";
 
@@ -42,8 +40,8 @@ pub fn parse_timezones_from_file() -> HashMap<String, f64> {
                 let time_zone_location = time_zone_obj["location"].clone();
                 let time_zone_offset = time_zone_obj["decimal_offset"].clone();
 
-                let mut location_name: String;
-                let mut offset: f64;
+                let location_name: String;
+                let offset: f64;
 
                 match time_zone_location.as_str() {
                     Some(location_str) => { location_name = String::from(location_str) },
@@ -82,7 +80,7 @@ pub async fn load_linear_team_timezones(linear_config: LinearConfig) -> Vec<(Str
 
     // Paginate through all teams
     loop {
-        if cursor.platform == Platform::Linear && cursor.has_next_page == false {
+        if cursor.platform == Platform::Linear && !cursor.has_next_page {
             break;
         }
 
@@ -159,7 +157,7 @@ pub async fn load_linear_team_timezones(linear_config: LinearConfig) -> Vec<(Str
 // Accept: due_date_str: &str ("yyyy-mm-dd")
 // Return: (i32, i32, i32) (y, m, d)
 fn parse_linear_issue_due_date (due_date_str: &str) -> Vec<i32> {
-    let mut split = due_date_str.split("-");
+    let split = due_date_str.split('-');
 
     let vec: Vec<i32> = split
                         .map(|e| {
@@ -220,7 +218,7 @@ pub fn get_issue_due_date_category( team_tz_lookup: &HashMap<String, String>,
 
     // Fetch f64 offset by matching timezone name 
     let offset: f64 = match tz_offset_lookup.get(&tz_name) {
-        Some(offset_float) => { offset_float.clone() },
+        Some(offset_float) => { *offset_float },
         None => {
             error!("get_issue_due_date_category no float offset found for timezone name {:?}", tz_name);
             panic!("get_issue_due_date_category no float offset found for timezone name {:?}", tz_name)

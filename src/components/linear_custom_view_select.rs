@@ -1,9 +1,9 @@
 
 use tui::{
-    layout::{Constraint, Layout},
+    layout::{Constraint},
     style::{Color, Modifier, Style},
+    text::{Span, Spans},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
-    Terminal,
 };
 
 use std::sync::{ Arc, Mutex };
@@ -15,12 +15,12 @@ use crate::util::GraphQLCursor;
 use crate::linear::client::LinearClient;
 use crate::linear::LinearConfig;
 
-use crate::util::ui::style_color_from_hex_str;
+use crate::util::ui::{ TableStyle, style_color_from_hex_str };
 
 
 
 pub struct LinearCustomViewSelect {
-    pub view_table_data: Arc<Mutex<Option<Value>>>,
+    pub view_table_data: Arc<Mutex<Vec<Value>>>,
     pub view_table_state: TableState,
 }
 
@@ -29,8 +29,8 @@ impl LinearCustomViewSelect {
     pub async fn load_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Option<Value> {
         let view_fetch_result = LinearClient::get_custom_views(linear_config, linear_cursor).await;
 
-        let mut views: serde_json::Value = serde_json::Value::Null;
-        let mut cursor_info: serde_json::Value = serde_json::Value::Null;
+        let views: Value;
+        let cursor_info: Value;
 
         match view_fetch_result {
             Ok(x) => { 
@@ -57,20 +57,7 @@ impl LinearCustomViewSelect {
     }
 
 
-    pub fn get_rendered_view_data(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
-
-        let table_items;
-
-        match table_data {
-            Some(x) => table_items = x,
-            None => { return Err("Table Items is None"); }
-        }
-
-        let table_array;
-        match table_items.as_array() {
-            Some(x) => table_array = x,
-            None => { return Err("table_data is not an Array") }
-        }
+    pub fn get_rendered_view_data(table_data: &[Value], table_style: TableStyle) -> Result<Table, &'static str> {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
@@ -87,7 +74,7 @@ impl LinearCustomViewSelect {
 
 
 
-        let rows = table_array.iter().enumerate().map(|(idx, row)| {
+        let rows = table_data.iter().map(|row| {
 
             // info!("Table Row Raw: {:?}", row);
 
@@ -140,10 +127,10 @@ impl LinearCustomViewSelect {
 
                 match name {
                     Some(x) => { match style_color {
-                        Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
-                        None => return Cell::from(x),
+                        Some(y) => { Cell::from(x).style(Style::default().fg(y)) },
+                        None => Cell::from(x),
                     }},
-                    None => return Cell::from(String::default()),
+                    None => Cell::from(String::default()),
                 }
             };
 
@@ -153,9 +140,45 @@ impl LinearCustomViewSelect {
         });
 
 
+        // Determine if this table is selected and should be highlighted by
+        // Comparing (table_style.view_idx-1) == (table_style.selected_view_idx)
+        let highlight_table = match table_style.view_idx {
+            Some(view_idx) => {
+                if let Some(selected_view_idx) = table_style.selected_view_idx {
+                    view_idx == selected_view_idx
+                }
+                else { false }
+            },
+            None => {false}
+        };
+
+        let table_block = Block::default()
+                                    .borders(Borders::ALL)
+                                    .border_style(Style::default().fg(if highlight_table == true { Color::Yellow } else { Color::White }))
+                                    .title( match table_style.title_style {
+                                        Some(title_style) => {
+                
+                                            Spans::from(vec![   Span::styled(match table_style.view_idx {
+                                                                                Some(idx) => {
+                                                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
+                                                                                },
+                                                                                None => {String::default()}
+                                                                            },
+                                                                            Style::default()
+                                                                ),
+                                                                Span::styled(String::from("Select a Custom View"),
+                                                                    Style::default()
+                                                                        .add_modifier(Modifier::BOLD)
+                                                                        .fg(Color::White)
+                                                                )
+                                                            ])
+                                        },
+                                        None => { Spans::from(Span::styled("Table", Style::default())) }
+                                    });
+
         let t = Table::new(rows)
             .header(header)
-            .block(Block::default().borders(Borders::ALL).title("Select a Custom View"))
+            .block(table_block)
             .highlight_style(selected_style)
             .highlight_symbol(">> ")
             .widths(&[
@@ -177,7 +200,7 @@ impl Default for LinearCustomViewSelect {
 
     fn default() -> LinearCustomViewSelect {
         LinearCustomViewSelect {
-            view_table_data: Arc::new(Mutex::new(None)),
+            view_table_data: Arc::new(Mutex::new(Vec::new())),
             view_table_state: TableState::default(),
         }
     }

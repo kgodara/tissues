@@ -1,6 +1,5 @@
 
 use tokio::sync::oneshot;
-use crate::util::StatefulList;
 
 use serde_json::Value;
 
@@ -30,35 +29,24 @@ pub enum IOEvent {
         view: Value,
         team_tz_lookup: HashMap<String, String>,
         tz_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
-        issue_data: Arc<Mutex<Option<Value>>>,
+        issue_data: Arc<Mutex<Vec<Value>>>,
         view_loader: Option<ViewLoader>,
         resp: oneshot::Sender<(Vec<Value>, ViewLoader, u32)>,
+    },
+    LoadWorkflowStates {
+        linear_config: LinearConfig,
+        team: Value,
+        resp: Responder<Value>,
+    },
+    UpdateIssueWorkflowState {
+        linear_config: LinearConfig,
+        issue_id: String,
+        workflow_state_id: String,
+        resp: Responder<Value>,
     },
     LoadLinearTeams {
         api_key: Option<String>,
         resp: Responder<Value>
-    },
-    LoadLinearIssues {
-        linear_config: LinearConfig,
-        selected_team: Value,
-        resp: Responder<Value>
-    },
-    LoadLinearIssuesPaginate {
-        linear_config: LinearConfig,
-        linear_cursor: GraphQLCursor,
-        selected_team: Value,
-        resp: Responder<Value>
-    },
-    LoadWorkflowStates {
-        api_key: Option<String>,
-        selected_team: Value,
-        resp: Responder<Value>,
-    },
-    UpdateIssueWorkflowState {
-        api_key: Option<String>,
-        selected_issue: Value,
-        selected_workflow_state: Value,
-        resp: Responder<Value>,
     },
 }
 

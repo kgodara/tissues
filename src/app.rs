@@ -20,6 +20,9 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
+use crate::util::fetch_selected_view_panel_issue;
+use crate::util::fetch_selected_workflow_state;
+
 use tui::{
     widgets::{ TableState },
 };
@@ -31,19 +34,16 @@ pub struct ViewLoadBundle {
     pub tz_name_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
 
     pub item_filter: Value,
-    pub table_data: Arc<Mutex<Option<Value>>>,
+    pub table_data: Arc<Mutex<Vec<Value>>>,
     pub loader: Arc<Mutex<Option<ViewLoader>>>,
     pub request_num: Arc<Mutex<u32>>,
     pub tx: tokio::sync::mpsc::Sender<IOEvent>,
 }
 
-
+#[derive(PartialEq)]
 pub enum Route {
     ActionSelect,
-    DashboardViewDisplay,
-    CustomViewSelect,
-    TeamSelect,
-    LinearInterface,
+    DashboardViewDisplay
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,8 +79,9 @@ pub struct App<'a> {
     // Linear Dashboard Custom View List Display
     pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
     // Linear Dashbaord Custom View List
-    pub linear_dashboard_view_list: Vec<Option<serde_json::Value>>,
+    pub linear_dashboard_view_list: Vec<Option<Value>>,
     pub linear_dashboard_view_idx: Option<usize>,
+    pub linear_dashboard_view_list_selected: bool,
 
     // Linear Dashboard View Panel Display
 
@@ -139,6 +140,7 @@ impl<'a> Default for App<'a> {
             dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
             linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
             linear_dashboard_view_idx: None,
+            linear_dashboard_view_list_selected: true,
 
             linear_dashboard_view_panel_list: Arc::new(Mutex::new(Vec::with_capacity(6))),
             linear_dashboard_view_panel_selected: None,
@@ -178,9 +180,9 @@ impl<'a> App<'a> {
 
     pub fn draw_issue_state_select(&self, platform: Platform) -> &bool {
         match platform {
-            Platform::Linear => { return &self.linear_draw_workflow_state_select },
-            Platform::Github => { return &false },
-            Platform::Na => { return &false }
+            Platform::Linear => { &self.linear_draw_workflow_state_select },
+            Platform::Github => { &false },
+            Platform::Na => { &false }
         }
     }
 
@@ -202,128 +204,26 @@ impl<'a> App<'a> {
                 self.dispatch_event("load_dashboard_views", &tx);
             },
 
-            Route::DashboardViewDisplay => {},
-            Route::CustomViewSelect => {
+            Route::DashboardViewDisplay => {
+
+                /*
                 // TODO: Clear any previous CustomViewSelect related values on self
                 self.linear_custom_view_select = components::linear_custom_view_select::LinearCustomViewSelect::default();
                 self.linear_selected_custom_view_idx = None;
                 self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
 
                 self.dispatch_event("load_custom_views", tx);
+                */
 
-            },
-            Route::TeamSelect => {
+                // TODO: Clear any previous CustomViewSelect related values on self
+                self.linear_custom_view_select = components::linear_custom_view_select::LinearCustomViewSelect::default();
+                self.linear_selected_custom_view_idx = None;
+                self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
 
-                let tx2 = tx.clone();
+                self.linear_dashboard_view_list_selected = true;
 
-                let api_key = self.linear_client.config.api_key.clone();
-
-                let team_data_handle = self.linear_team_select.teams_data.clone();
-
-
-                let t1 = tokio::spawn(async move {
-
-                    let (resp_tx, resp_rx) = oneshot::channel();
-
-                    let cmd = IOEvent::LoadLinearTeams { api_key: api_key, resp: resp_tx };
-                    tx2.send(cmd).await.unwrap();
-
-                    let res = resp_rx.await.ok();
-
-                    info!("LoadLinearTeams IOEvent returned: {:?}", res);
-
-                    let mut team_data_lock = team_data_handle.lock().unwrap();
-
-                    match res {
-                        Some(x) => {
-                            *team_data_lock = x;
-                        }
-                        None => {},
-                    }
-
-                    info!("New self.linear_team_select.teams_data: {:?}", team_data_lock);
-                });
-
-
-                // self.linear_team_select.load_teams(&mut self.linear_client).await;
-            },
-
-            Route::LinearInterface => {
-
-                let tx3 = tx.clone();
-                
-                // let api_key = self.linear_client.config.api_key.clone();
-                let linear_config = self.linear_client.config.clone();
-
-                let team_data_handle = self.linear_team_select.teams_data.clone();
-                let team_issue_handle = self.linear_issue_display.issue_table_data.clone();
-
-                let team_issue_cursor_handle = self.linear_issue_cursor.clone();
-
-                match self.linear_selected_team_idx {
-                    Some(idx) => {
-                        // Arc<Option<T>> -> Option<&T>
-                        match &*team_data_handle.lock().unwrap() {
-                            Some(data) => {
-                                
-                                let team = data[idx].clone();
-
-                                match team {
-                                    serde_json::Value::Null => return,
-                                    _ => {},
-                                }
-
-                                let t2 = tokio::spawn(async move {
-                    
-                                    let (resp2_tx, resp2_rx) = oneshot::channel();
-                
-                                    let cmd = IOEvent::LoadLinearIssues { linear_config: linear_config, selected_team: team, resp: resp2_tx };
-                                    tx3.send(cmd).await.unwrap();
-                
-                                    let res = resp2_rx.await.ok();
-
-                                    info!("LoadLinearIssues IOEvent returned: {:?}", res);
-
-                                    let mut issue_data_lock = team_issue_handle.lock().unwrap();
-                                    let mut issue_cursor_data_lock = team_issue_cursor_handle.lock().unwrap();
-
-                                    match res {
-                                        Some(x) => {
-                                            match x {
-                                                Some(y) => {
-                                                    match y["issues"] {
-                                                        serde_json::Value::Array(_) => {
-                                                            *issue_data_lock = Some(y["issues"].clone());
-                                                        },
-                                                        _ => {},
-                                                    };
-                                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
-                                                        Some(z) => {
-                                                            info!("Updating issue_cursor_data_lock to: {:?}", z);
-                                                            *issue_cursor_data_lock = z;
-                                                        },
-                                                        None => {},
-                                                    }
-                                                },
-                                                None => {
-
-                                                }
-                                            };
-                                        }
-                                        None => {},
-                                    }
-                
-                                    // info!("New self.linear_team_select.teams_data: {:?}", issue_data_lock);
-                
-                
-                                });
-                            }
-                            None => {},
-                        }
-                    },
-                    _ => {return;},
-                }
-            },
+                self.dispatch_event("load_custom_views", tx);
+            }
         }
         self.route = route;
     }
@@ -341,21 +241,17 @@ impl<'a> App<'a> {
 
                 let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
 
-                let view_cursor_handle = self.linear_custom_view_cursor.clone();
-
                 let view_cursor_handle = self.linear_custom_view_cursor.lock().unwrap();
                 let view_cursor: GraphQLCursor = view_cursor_handle.clone();
                 drop(view_cursor_handle);
 
                 let view_cursor_handle = self.linear_custom_view_cursor.clone();
 
-
-
-                let t1 = tokio::spawn(async move {
+                let _t1 = tokio::spawn(async move {
 
                     let (resp_tx, resp_rx) = oneshot::channel();
 
-                    let cmd = IOEvent::LoadCustomViews { linear_config: linear_config,
+                    let cmd = IOEvent::LoadCustomViews { linear_config,
                                                             linear_cursor: view_cursor,
                                                             resp: resp_tx };
                     tx2.send(cmd).await.unwrap();
@@ -368,58 +264,25 @@ impl<'a> App<'a> {
                     let mut view_cursor_data_lock = view_cursor_handle.lock().unwrap();
 
                     let mut current_views = view_data_lock.clone();
-                    let mut merged_views = false;
 
-                    match res {
-                        Some(x) => {
-                            match x {
-                                Some(y) => {
-                                    match y["views"] {
-                                        serde_json::Value::Array(_) => {
-                                            // info!("Updating view_data_lock to: {:?}", y["views"]);
-                                            // *view_data_lock = Some(y["views"].clone());
+                    if let Some(Some(mut y)) = res {
 
-                                            // Append to existing list of Views
-                                            match current_views {
-                                                Some(mut view_data) => {
-                                                    match view_data {
-                                                        serde_json::Value::Array(ref mut view_vec) => {
-                                                            view_vec.append(
-                                                                &mut y["views"]
-                                                                    .clone()
-                                                                    .as_array_mut()
-                                                                    .get_or_insert(&mut vec![]));
-                                                            *view_data_lock = Some( serde_json::Value::Array(view_vec.clone()) );
-                                                            merged_views = true;
-                                                        },
-                                                        _ => {},
-                                                    }
-                                                },
-                                                _ => {}
-                                            }
-
-                                            if merged_views == false {
-                                                *view_data_lock = Some( y["views"].clone());
-                                            }
-                                        },
-                                        _ => {},
-                                    };
-                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
-                                        Some(z) => {
-                                            info!("Updating view_cursor_data_lock to: {:?}", z);
-                                            *view_cursor_data_lock = z;
-                                        },
-                                        None => {},
-                                    }
-                                },
-                                None => {
-
-                                }
-                            };
+                        if let Some(new_views_vec) = y["views"].as_array_mut() {
+                            current_views.append(new_views_vec);
+                            *view_data_lock = current_views;
                         }
-                        None => {},
-                    }
 
+                        match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
+                            Some(z) => {
+                                info!("Updating view_cursor_data_lock to: {:?}", z);
+                                *view_cursor_data_lock = z;
+                            },
+                            None => {
+                                error!("'load_custom_views' linear_cursor_from_page_info() failed for cursor_info: {:?}", y["cursor_info"]);
+                                panic!("'load_custom_views' linear_cursor_from_page_info() failed for cursor_info: {:?}", y["cursor_info"]);
+                            },
+                        }
+                    }
 
                     info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
                 });
@@ -432,7 +295,7 @@ impl<'a> App<'a> {
 
                 // view_panel_list_handle.clear();
 
-                let mut new_panel_set = HashSet::new();
+                let mut existing_panel_set = HashSet::new();
 
                 info!("Attempting to load Dashboard Views");
 
@@ -443,63 +306,56 @@ impl<'a> App<'a> {
                     //  then if the index doesn't match:
                     //  clone the view panel and insert into the correct index within self.linear_dashboard_view_panel_list
                     //  else: do not insert a new view panel
-                    let mut used_cached_panel = false;
-                    match filter_opt {
+
+                    if let Some(filter) = filter_opt {
                         // Create DashboardViewPanels for each filter
 
-                        Some(filter) => {
-
-                            let filter_id = filter["id"].clone();
-                            let filter_view_panel_exists = view_panel_list_handle
-                                                            .iter()
-                                                            .position(|e| { 
-                                                                debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
-                                                                e.filter["id"] == filter_id
-                                                            });
-                            debug!("i: {:?}, filter_view_panel_exists: {:?}", i, filter_view_panel_exists);
+                        let filter_id = filter["id"].clone();
+                        let filter_view_panel_exists = view_panel_list_handle
+                                                        .iter()
+                                                        .position(|e| { 
+                                                            debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
+                                                            e.filter["id"] == filter_id
+                                                        });
+                        debug!("i: {:?}, filter_view_panel_exists: {:?}", i, filter_view_panel_exists);
 
 
-                            match filter_view_panel_exists {
-                                Some(filter_view_panel_idx) => {
+                        match filter_view_panel_exists {
+                            Some(filter_view_panel_idx) => {
 
-                                    //  if the index doesn't match:
-                                    //      clone the view panel and replace into the correct index
-                                    //      within self.linear_dashboard_view_panel_list
+                                //  if the index doesn't match:
+                                //      clone the view panel and replace into the correct index
+                                //      within self.linear_dashboard_view_panel_list
 
-                                    if i != filter_view_panel_idx {
-                                        let dup_view_panel = view_panel_list_handle[filter_view_panel_idx].clone();
-                                        // view_panel_list_handle.insert(i, dup_view_panel);
-                                        if i < view_panel_list_handle.len() {
-                                            let got = std::mem::replace(&mut view_panel_list_handle[i], dup_view_panel);
-                                        }
-                                        else {
-                                            view_panel_list_handle.insert(i, dup_view_panel);
-                                        }
+                                if i != filter_view_panel_idx {
+                                    let dup_view_panel = view_panel_list_handle[filter_view_panel_idx].clone();
+                                    // view_panel_list_handle.insert(i, dup_view_panel);
+                                    if i < view_panel_list_handle.len() {
+                                        let _got = std::mem::replace(&mut view_panel_list_handle[i], dup_view_panel);
                                     }
+                                    else {
+                                        view_panel_list_handle.insert(i, dup_view_panel);
+                                    }
+                                }
 
-                                    //  else: do not insert a new view panel
+                                // if the index does match, then a ViewPanel already exists for this filter, skip
+                                existing_panel_set.insert(i);
 
-                                    used_cached_panel = true;
-                                    new_panel_set.insert(i);
-
-                                },
-                                None => {}
-                            };
-
-                            if used_cached_panel == false {
+                            },
+                            // Need to create a new View Panel
+                            None => {
                                 debug!("Attempting to use insert for i: {:?}", i);
                                 // view_panel_list_handle.insert(i, components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
                                 // let got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
 
                                 if i < view_panel_list_handle.len() {
-                                    let got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                    let _got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
                                 }
                                 else {
                                     view_panel_list_handle.insert(i, components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
                                 }
                             }
-                        },
-                        None => {},
+                        };
                     }
                 }
 
@@ -512,7 +368,7 @@ impl<'a> App<'a> {
                                                                     .cloned()
                                                                     .enumerate()
                                                                     .filter_map(|(i, e)| {
-                                                                        if new_panel_set.contains(&i) {
+                                                                        if existing_panel_set.contains(&i) {
                                                                             None
                                                                         }
                                                                         else {
@@ -581,7 +437,7 @@ impl<'a> App<'a> {
                             let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(),
                                                                 team_tz_lookup: item.tz_id_name_lookup,
                                                                 tz_offset_lookup: item.tz_name_offset_lookup,
-                                                                issue_data: Arc::new(Mutex::new(None)),
+                                                                issue_data: Arc::new(Mutex::new(Vec::new())),
                                                                 view: item.item_filter.clone(), 
                                                                 view_loader: loader,
                                                                 resp: resp_tx };
@@ -597,7 +453,7 @@ impl<'a> App<'a> {
                             let mut request_num_lock = item.request_num.lock().unwrap();
 
                             if let Some(x) = res {
-                                *view_panel_data_lock = Some(Value::Array(x.0));
+                                *view_panel_data_lock = x.0;
                                 *loader_handle = Some(x.1);
                                 *request_num_lock += x.2;
                             }
@@ -622,7 +478,7 @@ impl<'a> App<'a> {
 
                 let tx2 = tx.clone();
 
-                let mut view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
+                let view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
 
                 let config = self.linear_client.config.clone();
 
@@ -645,10 +501,10 @@ impl<'a> App<'a> {
                 drop(view_panel_list_handle);
 
 
-                let t1 = tokio::spawn(async move {
+                let _t1 = tokio::spawn(async move {
                     let (resp_tx, resp_rx) = oneshot::channel();
 
-                    
+
                     let cmd = IOEvent::LoadViewIssues { linear_config: config,
                                                         team_tz_lookup: tz_id_name_lookup_dup,
                                                         tz_offset_lookup: tz_name_offset_lookup_dup,
@@ -667,325 +523,162 @@ impl<'a> App<'a> {
                     let mut loader = loader_handle.lock().unwrap();
                     let mut request_num_lock = request_num_handle.lock().unwrap();
 
-                    let current_view_issues = view_panel_data_lock.clone();
+                    let mut current_view_issues = view_panel_data_lock.clone();
 
                     if let Some(mut x) = res {
 
+                        current_view_issues.append(&mut x.0);
+                        *view_panel_data_lock = current_view_issues.clone();
+                        *loader = Some(x.1);
+                        *request_num_lock += x.2;
 
-                        match current_view_issues {
-                            Some(mut issue_data) => {
-                                match issue_data {
-                                    serde_json::Value::Array(ref mut issue_vec) => {
-                                        issue_vec.append(&mut x.0);
-                                        *view_panel_data_lock = Some( Value::Array(issue_vec.clone()) );
-                                        *loader = Some(x.1);
-                                        *request_num_lock += x.2;
-                                    },
-                                    _ => {},
-                                }
-                            },
-                            _ => {}
-                        }
-
-
-
-
-                        // *view_panel_data_lock = Some(Value::Array(x.0));
                     }
                     info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                 });
-            }
-
-            // Acquire these values to dispatch LoadLinearIssuesPaginate:
-            //  linear_config: LinearConfig,
-            //  linear_cursor: GraphQLCursor,
-            //  selected_team: serde_json::Value,
-            "load_issues_paginated" => {
-                let tx2 = tx.clone();
-
-                let linear_config = self.linear_client.config.clone();
-
-                let linear_cursor_data_handle = self.linear_issue_cursor.lock().unwrap();
-                let linear_cursor: GraphQLCursor = linear_cursor_data_handle.clone();
-                drop(linear_cursor_data_handle);
-
-                let team_issue_handle = self.linear_issue_display.issue_table_data.clone();
-                let team_issue_cursor_handle = self.linear_issue_cursor.clone();
-
-                let team_data_handle = self.linear_team_select.teams_data.clone();
-
-                match self.linear_selected_team_idx {
-                    Some(idx) => {
-                        // Arc<Option<T>> -> Option<&T>
-                        match &*team_data_handle.lock().unwrap() {
-                            Some(data) => {
-                                
-                                let team = data[idx].clone();
-
-                                match team {
-                                    serde_json::Value::Null => return,
-                                    _ => {},
-                                }
-
-                                let t1 = tokio::spawn(async move {
-
-                                    let (resp_tx, resp_rx) = oneshot::channel();
-
-                                    let cmd = IOEvent::LoadLinearIssuesPaginate { linear_config: linear_config,
-                                                                                  linear_cursor: linear_cursor,
-                                                                                  selected_team: team,
-                                                                                  resp: resp_tx 
-                                                                                };
-                                    tx2.send(cmd).await.unwrap();
-
-                                    let res = resp_rx.await.ok();
-
-                                    info!("LoadLinearIssuesPaginate IOEvent returned: {:?}", res);
-
-                                    let mut issue_data_lock = team_issue_handle.lock().unwrap();
-                                    let mut issue_cursor_data_lock = team_issue_cursor_handle.lock().unwrap();
-                                    let mut current_issues = issue_data_lock.clone();
-                                    let mut merged_issues = false;
-
-                                    match res {
-                                        Some(x) => {
-                                            match x {
-                                                Some(y) => {
-                                                    match y["issues"] {
-                                                        serde_json::Value::Array(_) => {
-                                                            // Append to existing list of Issues
-                                                            match current_issues {
-                                                                Some(mut issue_data) => {
-                                                                    match issue_data {
-                                                                        serde_json::Value::Array(ref mut issue_vec) => {
-                                                                            issue_vec.append(
-                                                                                &mut y["issues"]
-                                                                                    .clone()
-                                                                                    .as_array_mut()
-                                                                                    .get_or_insert(&mut vec![]));
-                                                                            *issue_data_lock = Some( serde_json::Value::Array(issue_vec.clone()) );
-                                                                            merged_issues = true;
-                                                                        },
-                                                                        _ => {},
-                                                                    }
-                                                                },
-                                                                _ => {}
-                                                            }
-
-                                                            if merged_issues == false {
-                                                                *issue_data_lock = Some( y["issues"].clone());
-                                                            }
-
-                                                        },
-                                                        _ => {},
-                                                    };
-                                                    match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
-                                                        Some(z) => {
-                                                            info!("Updating issue_cursor_data_lock to: {:?}", z);
-                                                            *issue_cursor_data_lock = z;
-                                                        },
-                                                        None => {},
-                                                    }
-                                                },
-                                                None => {
-
-                                                }
-                                            };
-                                        }
-                                        None => {},
-                                    }
-
-                                });
-
-
-                            },
-                            None => {},
-                        };
-                    },
-                    None => {return;}
-                }
             },
             "load_workflows" => {
                 let tx2 = tx.clone();
 
-                let api_key = self.linear_client.config.api_key.clone();
-
-                let team_data_handle = self.linear_team_select.teams_data.clone();
-
                 let workflow_data_handle = self.linear_workflow_select.workflow_states_data.clone();
 
+                let linear_config = self.linear_client.config.clone();
 
-                match self.linear_selected_team_idx {
-                    Some(idx) => {
-                        // Arc<Option<T>> -> Option<&T>
-                        match &*team_data_handle.lock().unwrap() {
-                            Some(data) => {
-                                
-                                let team = data[idx].clone();
+                let selected_issue_opt = fetch_selected_view_panel_issue(&self);
+                let selected_issue;
+                let selected_team;
+                
+                // Check that an Issue is selected, if not return
+                if let Some(x) = selected_issue_opt {
+                    selected_issue = x;
+                }
+                else {
+                    return;
+                }
 
-                                match team {
-                                    serde_json::Value::Null => return,
-                                    _ => {},
-                                }
+                // Get the Issue's team,
+                // panic if not found since every Issue should have a value for ['team']['id']
+                selected_team = selected_issue["team"]["id"].clone();
 
-                                let t1 = tokio::spawn(async move {
+                if selected_team.is_null() {
+                    error!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
+                    panic!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
+                }
 
-                                    let (resp_tx, resp_rx) = oneshot::channel();
+                debug!("dispatch_event('load_workflows') fetched Issue's team");
 
-                                    let cmd = IOEvent::LoadWorkflowStates { api_key: api_key, selected_team: team, resp: resp_tx };
-                                    tx2.send(cmd).await.unwrap();
 
-                                    let res = resp_rx.await.ok();
+                let _t1 = tokio::spawn(async move {
 
-                                    info!("LoadWorkflowStates IOEvent returned: {:?}", res);
+                    let (resp_tx, resp_rx) = oneshot::channel();
 
-                                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
+                    debug!("Dispatching LoadWorkflowStates event");
 
-                                    match res {
-                                        Some(x) => {
-                                            *workflow_data_lock = x;
-                                        }
-                                        None => {},
-                                    }
-                                    info!("New self.linear_workflow_select.workflow_states_data: {:?}", workflow_data_lock);
+                    let cmd = IOEvent::LoadWorkflowStates { linear_config, team: selected_team, resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
 
-                                });
-                            }
-                            None => {}
+                    let mut res = resp_rx.await.ok();
+
+                    info!("LoadWorkflowStates IOEvent returned: {:?}", res);
+
+                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
+
+                    info!("dispatch_event('load_workflows') acquired lock on workflow_data_handle");
+
+                    if let Some(Some(ref mut x)) = res {
+                        if let Some(states_vec) = x.as_array_mut() {
+                            *workflow_data_lock = states_vec.to_vec();
                         }
                     }
-                    None => {return;}
-                }
+
+                    info!("New self.linear_workflow_select.workflow_states_data: {:?}", workflow_data_lock);
+                });
             },
-            "update_issue_workflow" => {
+            "update_issue_workflow_state" => {
                 let tx3 = tx.clone();
 
-                let api_key = self.linear_client.config.api_key.clone();
+                let issue_id: String;
+                let selected_state_id: String;
+                let state_obj;
 
-                // Need to get selected Workflow State and selected Issue
-                let issue_data_handle = self.linear_issue_display.issue_table_data.clone();
-                let workflow_state_data_handle = self.linear_workflow_select.workflow_states_data.clone();
+                // Get relevant issue and workflow_state id, return if anything not found
+                {
+                    let selected_issue_opt = fetch_selected_view_panel_issue(&self);
+                    let issue_obj = if let Some(x) = selected_issue_opt { x } else { return; };
+                    let issue_id_opt = issue_obj["id"].as_str();
 
-                // Get Linear selected Issue index
-                match self.linear_selected_issue_idx {
-                    Some(issue_idx) => {
-                        // Acquire a lock on Linear Issue data
-                        match &*issue_data_handle.lock().unwrap() {
-                            Some(issue_data) => {
-                                // Get Linear selected Workflow State index
-                                match self.linear_selected_workflow_state_idx {
-                                    Some(workflow_idx) => {
-                                        // Acquire a lock on Linear Workflow state data
-                                        match &*workflow_state_data_handle.lock().unwrap() {
-                                            Some(workflow_data) => {
-                                                // Acquire relevant issue and workflow state
-                                                let selected_issue = issue_data[issue_idx].clone();
-                                                let selected_workflow_state = workflow_data[workflow_idx].clone();
-                                                let mut issue_update_data_handle = self.linear_issue_display.issue_table_data.clone();
+                    let selected_state_opt = fetch_selected_workflow_state(&self);
+                    state_obj = if let Some(x) = selected_state_opt { x } else { return; };
+                    let state_id_opt = state_obj["id"].as_str();
 
-                                                // Spawn task to issue command to update workflow state
-                                                let t3 = tokio::spawn( async move {
-                                                    let (resp2_tx, resp2_rx) = oneshot::channel();
+                    if let Some(x) = issue_id_opt {
+                        issue_id = String::from(x);
+                    }
+                    else {
+                        return;
+                    }
 
-                                                    let cmd = IOEvent::UpdateIssueWorkflowState {   api_key: api_key,
-                                                                                                    selected_issue: selected_issue.clone(),
-                                                                                                    selected_workflow_state: selected_workflow_state.clone(),
-                                                                                                    resp: resp2_tx  
-                                                                                                };
-                                                    tx3.send(cmd).await.unwrap();
-
-                                                    let res = resp2_rx.await.ok();
-
-                                                    info!("UpdateIssueWorkflowState IOEvent returned: {:?}", res);
-
-                                                    // UpdateIssueWorkflowState IOEvent returned: Some(Some(Object({"issue_response": Object({"createdAt": String("2021-02-06T17:47:01.039Z"), "id": String("ace38e69-8a64-46f8-ad57-dc70c61f5599"), "number": Number(11), "title": String("Test Insomnia 1")}), "success": Bool(true)})))
-                                                    // If Some(Some(Object({"success": Bool(true)})))
-                                                    // then can match linear_issue_display.issue_table_data using selected_issue["id"]
-                                                    // and update linear_issue_display.issue_table_data[x]["state"] with selected_workflow_state
-
-                                                    let mut update_succeeded = false;
-                                                    
-                                                    match res {
-                                                        Some(x) => {
-                                                            match x {
-                                                                Some(query_response) => {
-                                                                    // update_succeeded = queryResponse["success"].as_bool().get_or_insert(false);
-                                                                    if let serde_json::Value::Bool(value) = query_response["success"] {
-                                                                        update_succeeded = value;//.as_bool().get_or_insert(false);
-                                                                    }
-                                                                },
-                                                                None => {}
-                                                            }
-                                                        },
-                                                        None => {},
-                                                    }
-
-                                                    let updated_issue_id = String::from(*selected_issue["id"].as_str().get_or_insert(""));// = selected_issue["id"];
-                                                    /*
-                                                    match &selected_issue["id"] {
-                                                        serde_json::Value::String(x) => updated_issue_id = x,
-                                                        _ => { update_succeeded = false }
-                                                    };
-                                                    */
-
-                                                    // match linear_issue_display.issue_table_data using selected_issue["id"]
-                                                    if update_succeeded == true && updated_issue_id.chars().count() > 0 {
-
-                                                        let mut state = &mut *issue_update_data_handle.lock().unwrap();                                                        
-
-                                                        
-                                                        match state.as_mut() {// &*issue_update_data_handle.lock().unwrap() { 
-                                                            Some(issue_update_target_data) =>  {
-                                                                match issue_update_target_data.as_array_mut() {
-                                                                    Some(table_array) => {
-                                                                        let issue_to_update_option = table_array.iter()
-                                                                                                                .position(|r| {
-                                                                                                                                if let serde_json::Value::String(issue_id) = &r["id"] {
-                                                                                                                                    if *issue_id == *updated_issue_id {
-                                                                                                                                        return true;
-                                                                                                                                    }
-                                                                                                                                }
-                                                                                                                                return false;
-                                                                                                                });
-                                                                        // Should be Some(x{0..})
-                                                                        info!("issue_to_update_option: {:?}", issue_to_update_option);
-
-                                                                        if let Some(issue_to_update_index) = issue_to_update_option {
-                                                                            //table_array[issue_to_update_index]["state"] = selected_workflow_state;
-                                                                            match table_array[issue_to_update_index].as_object_mut() {
-                                                                                Some(issue_object_to_update) => {
-                                                                                    issue_object_to_update["state"] = selected_workflow_state.clone();
-                                                                                },
-                                                                                None => {}
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    None => {}
-                                                                }
-                                                            }
-                                                            None => {}
-                                                        }
-                                                        // Get index where: linear_issue_display.issue_table_data[index]["id"] == selected_issue["id"]
-
-
-                                                    }
-
-                                                });
-                                            },
-                                            None => {},
-                                        }
-
-                                    },
-                                    None => {}
-                                };
-                            },
-                            None => {},
-                        };
-                    },
-                    None => {},
+                    if let Some(x) = state_id_opt {
+                        selected_state_id = String::from(x);
+                    }
+                    else {
+                        return;
+                    }
                 }
-            }
-            _ => {return},
+
+                let linear_config = self.linear_client.config.clone();
+                let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();
+
+                // Spawn task to issue command to update workflow state
+                let t3 = tokio::spawn( async move {
+                    let (resp2_tx, resp2_rx) = oneshot::channel();
+
+                    let cmd = IOEvent::UpdateIssueWorkflowState {   linear_config,
+                                                                    issue_id: issue_id.clone(),
+                                                                    workflow_state_id: selected_state_id,
+                                                                    resp: resp2_tx  
+                                                                };
+                    tx3.send(cmd).await.unwrap();
+
+                    let res = resp2_rx.await.ok();
+
+                    info!("UpdateIssueWorkflowState IOEvent returned: {:?}", res);
+
+                    // UpdateIssueWorkflowState IOEvent returned: Some(Some(Object({"issue_response": Object({"createdAt": String("2021-02-06T17:47:01.039Z"), "id": String("ace38e69-8a64-46f8-ad57-dc70c61f5599"), "number": Number(11), "title": String("Test Insomnia 1")}), "success": Bool(true)})))
+                    // If Some(Some(Object({"success": Bool(true)})))
+                    // then can match linear_issue_display.issue_table_data using selected_issue["id"]
+                    // and update linear_issue_display.issue_table_data[x]["state"] with selected_workflow_state
+
+                    let mut update_succeeded = false;
+
+                    if let Some(Some(query_response)) = res {
+                        if let Value::Bool(value) = query_response["success"] {
+                            update_succeeded = value;
+                        }
+                    }
+
+                    // If update succeeded, iterate over all Issues in all ViewPanels
+                    // and set issue["state"] = state_obj 
+                    //     where id matches 'issue_id'
+                    if update_succeeded {
+                        let view_panel_list_handle = view_panel_list_arc.lock().unwrap();
+                        for view_panel in view_panel_list_handle.iter() {
+
+                            // Iterate over ViewPanel Issues
+                            let mut issue_list_handle = view_panel.issue_table_data.lock().unwrap();
+
+                            for issue_obj in issue_list_handle.iter_mut() {
+                                if let Some(panel_issue_id) = issue_obj["id"].as_str() {
+                                    if panel_issue_id == issue_id.as_str() {
+                                        issue_obj["state"] = state_obj.clone();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+
+            _ => {},
         }
 
     }

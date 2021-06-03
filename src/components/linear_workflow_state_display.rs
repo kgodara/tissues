@@ -6,6 +6,8 @@ use tui::{
     Terminal,
 };
 
+use serde_json::{ Value, Map };
+
 use std::sync::{Arc, Mutex};
 
 use colorsys::{Rgb};
@@ -13,24 +15,35 @@ use colorsys::{Rgb};
 
 
 use crate::linear::client::LinearClient;
+use crate::linear::LinearConfig;
+
 use crate::util::ui::style_color_from_hex_str;
 
 pub struct LinearWorkflowStateDisplayState {
-    pub workflow_states_data: Arc<Mutex<Option<serde_json::Value>>>,
+    pub workflow_states_data: Arc<Mutex<Vec<Value>>>,
     pub workflow_states_state: TableState,
 }
 
 
 impl LinearWorkflowStateDisplayState {
 
-    pub async fn load_workflow_states_by_team(api_key: Option<String>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
+    pub async fn load_workflow_states_by_team(linear_config: LinearConfig, team: &Value) -> Option<Value> {
+
+        let team_id;
+        if let Some(x) = team.as_str() {
+            team_id = x;
+        }
+        else {
+            return None;
+        }
 
         info!("Loading workflow states");
 
-        let workflow_states_result = LinearClient::get_workflow_states_by_team(api_key, selected_team.as_object()
-                                                                                                        .cloned()
-                                                                                                        .unwrap_or(serde_json::Map::default())
-                                                                                ).await;
+        let mut variables: Map<String, Value> = Map::new();
+        variables.insert(String::from("ref"), Value::String(String::from(team_id)));
+
+        let workflow_states_result = LinearClient::get_workflow_states_by_team(linear_config, variables).await;
+
         let mut workflow_states: serde_json::Value = serde_json::Value::Null;
 
         match workflow_states_result {
@@ -55,21 +68,7 @@ impl LinearWorkflowStateDisplayState {
         }
     }
 
-    pub fn get_rendered_workflow_state_select(table_data: &Option<serde_json::Value>) -> Result<Table, &'static str> {
-
-        let table_items;
-
-        match table_data {
-            Some(x) => table_items = x,
-            None => { return Err("Table Items is None"); }
-        }
-
-        let table_array;
-        match table_items.as_array() {
-            Some(x) => table_array = x,
-            None => { return Err("table_data is not an Array") }
-        }
-
+    pub fn get_rendered_workflow_state_select(table_data: &Vec<Value>) -> Result<Table, &'static str> {
 
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
@@ -83,7 +82,7 @@ impl LinearWorkflowStateDisplayState {
             .height(1)
             .bottom_margin(1);
 
-        let rows = table_array.iter().enumerate().map(|(idx, row)| {
+        let rows = table_data.iter().enumerate().map(|(idx, row)| {
 
             let cell_fields: std::vec::Vec<std::string::String> = vec![row["type"].clone(), row["description"].clone()]
                                 .iter()
@@ -161,7 +160,7 @@ impl LinearWorkflowStateDisplayState {
 impl Default for LinearWorkflowStateDisplayState {
     fn default() -> LinearWorkflowStateDisplayState {
         LinearWorkflowStateDisplayState {
-            workflow_states_data: Arc::new(Mutex::new(Some(serde_json::Value::Array(vec![])))),
+            workflow_states_data: Arc::new(Mutex::new(vec![])),
             workflow_states_state: TableState::default(),
         }
     }

@@ -1,5 +1,5 @@
-{   "query": "query fetchWorkflowStatesByTeam($id: String!) {
-        team(id: $id) {
+{   "query": "query fetchWorkflowStatesByTeam($ref: String!) {
+        team(id: $ref) {
             states {
                 nodes {
                     id
