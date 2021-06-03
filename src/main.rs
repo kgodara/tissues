@@ -8,8 +8,6 @@ extern crate lazy_static;
 use std::io;
 use std::fs;
 
-use serde_json;
-
 mod app;
 mod graphql;
 mod linear;
@@ -22,29 +20,24 @@ mod network;
 mod components;
 
 use app::Route as Route;
-use app::Platform as Platform;
+
+use serde_json::Value;
 
 extern crate dotenv;
 
 use dotenv::dotenv;
-use std::env;
 
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
+use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::{
     backend::TermionBackend,
-    layout::{Constraint, Corner, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem},
     Terminal,
 };
 
 use util::{
     event::{Event, Events},
-    StatefulList,
 };
 
 #[macro_use] extern crate log;
@@ -60,6 +53,8 @@ use command::{ Command,
                 exec_replace_cmd,
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
+                exec_select_dashboard_view_list_cmd,
+                exec_select_custom_view_select_cmd,
                 exec_open_linear_workflow_state_selection_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
@@ -101,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new channel with a capacity of at most 8.
     let (tx, mut rx) = mpsc::channel(8);
 
-    let manager = tokio::spawn(async move {
+    let _manager = tokio::spawn(async move {
         // Establish a connection to the server
         // let mut client = client::connect("127.0.0.1:6379").await.unwrap();
     
@@ -141,46 +136,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // client.get(&key).await;
                 },
-                IOEvent::LoadLinearIssues { linear_config, selected_team, resp } => {
-                    // client.set(&key, val).await;
-                    let option_stateful = components::linear_issue_display::LinearIssueDisplay::load_issues(linear_config, &selected_team).await;
-                    info!("LoadLinearIssuesByTeam data: {:?}", option_stateful);
+                IOEvent::LoadWorkflowStates { linear_config, team, resp } => {
 
-                    let _ = resp.send(option_stateful);
-                },
-                IOEvent::LoadLinearIssuesPaginate { linear_config, linear_cursor, selected_team, resp } => {
-                    let option_stateful = components::linear_issue_display::LinearIssueDisplay::load_issues_paginate(linear_config, Some(linear_cursor), &selected_team).await;
-                    info!("LoadLinearIssuesPaginate data: {:?}", option_stateful);
-
-                    let _ = resp.send(option_stateful);
-                },
-                IOEvent::LoadWorkflowStates { api_key, selected_team, resp } => {
-                    let option_stateful = components::linear_workflow_state_display::LinearWorkflowStateDisplayState::load_workflow_states_by_team(api_key, &selected_team).await;
+                    let option_stateful = components::
+                                            linear_workflow_state_display::
+                                                LinearWorkflowStateDisplayState::load_workflow_states_by_team(linear_config, &team).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
-                IOEvent::UpdateIssueWorkflowState { api_key, selected_issue, selected_workflow_state, resp } => {
+                IOEvent::UpdateIssueWorkflowState { linear_config, issue_id, workflow_state_id, resp } => {
 
-                    // Get id field from issue Object
-                    let issue_id = selected_issue["id"].clone();
-                    // Get id field from workflow state Object
-                    let workflow_state_id = selected_workflow_state["id"].clone();
+                    let mut issue_update_variables = serde_json::Map::new();
 
-                    // Return if id not found for the issue or workflow state
-                    if issue_id == serde_json::Value::Null || workflow_state_id == serde_json::Value::Null {
-                        let _ = resp.send(None);
-                    }
-                    else {
-                        let mut issue_update_variables = serde_json::Map::new();
+                    issue_update_variables.insert(String::from("issueId"), Value::String(issue_id));
+                    issue_update_variables.insert(String::from("stateId"), Value::String(workflow_state_id));
 
-                        issue_update_variables.insert(String::from("issueId"), issue_id);
-                        issue_update_variables.insert(String::from("newStateId"), workflow_state_id);
+                    let option_stateful = linear::client::LinearClient::update_issue_workflow_state(linear_config, issue_update_variables).await;
 
-                        let option_stateful = linear::client::LinearClient::update_issue_workflow_state(api_key, issue_update_variables).await;
+                    info!("UpdateIssueWorkflowState data: {:?}", option_stateful);
 
-                        let _ = resp.send(option_stateful.ok());
-                    }
+
+                    let _ = resp.send(option_stateful.ok());
                 }
             }
         }
@@ -200,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let team_tz_map_handle = app.team_tz_map.clone();
     let team_tz_load_done_handle = app.team_tz_load_done.clone();
 
-    let time_zone_load = tokio::spawn(async move {
+    let _time_zone_load = tokio::spawn(async move {
         let (resp_tx, resp_rx) = oneshot::channel();
 
 
@@ -216,16 +193,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut team_tz_map_lock = team_tz_map_handle.lock().unwrap();
         let mut team_tz_load_done_lock = team_tz_load_done_handle.lock().unwrap();
 
-        match res {
-            // id_tz_pairs: Vec<(String, String)>
-            Some(id_tz_pairs) => {
-                for pair in id_tz_pairs.iter() {
-                    team_tz_map_lock.insert(pair.0.clone(), pair.1.clone());
-                }
-                *team_tz_load_done_lock = true;
-            },
-            None => {},
-        };
+        if let Some(id_tz_pairs) = res {
+            for pair in id_tz_pairs.iter() {
+                team_tz_map_lock.insert(pair.0.clone(), pair.1.clone());
+            }
+            *team_tz_load_done_lock = true;
+        }
     });
 
 
@@ -251,15 +224,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             Route::DashboardViewDisplay => {
                 ui::draw_dashboard_view_display(&mut f, &mut app);
-            },
-            Route::CustomViewSelect => {
-                ui::draw_view_select(&mut f, &mut app);
-            },
-            Route::TeamSelect => {
-              ui::draw_team_select(&mut f, &mut app);
-            }
-            Route::LinearInterface => {
-                ui::draw_issue_display(&mut f, &mut app);
             }
         })?;
         let event_next = events.next()?;
@@ -267,7 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match event_next {
             Event::Input(input) => {
                 // Update Command String / Get Command to apply
-                cmd_option = get_cmd(&mut app.cmd_str, input);
+                cmd_option = get_cmd(&mut app.cmd_str, input, & app.route);
                 info!("cmd_option: {:?}", cmd_option);
 
                 if let Some(cmd) = cmd_option {
@@ -280,18 +244,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             break;
                         },
                         Command::Add => {
-                            exec_add_cmd(&mut app, &tx).await;
+                            exec_add_cmd(&mut app).await;
                         },
                         Command::Replace => {
-                            exec_replace_cmd(&mut app, &tx).await;
+                            exec_replace_cmd(&mut app).await;
                         },
                         Command::Delete => {
-                            exec_delete_cmd(&mut app, &tx).await;
+                            exec_delete_cmd(&mut app).await;
                         },
                         Command::SelectViewPanel(idx) => {
                             // linear_dashboard_view_panel_selected
-                            exec_select_view_panel_cmd(&mut app, idx, &tx).await;
-                        }
+                            exec_select_view_panel_cmd(&mut app, idx).await;
+                        },
+                        Command::SelectDashboardViewList => {
+                            exec_select_dashboard_view_list_cmd(&mut app);
+                        },
+                        Command::SelectCustomViewSelect => {
+                            exec_select_custom_view_select_cmd(&mut app);
+                        },
                         Command::OpenLinearWorkflowStateSelection => {
                             exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
                         },

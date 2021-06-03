@@ -1,9 +1,8 @@
 use tui::{
-    layout::{Constraint, Layout},
+    layout::{Constraint },
     style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
+    text::{Span, Spans },
     widgets::{Block, Borders, Cell, Row, Table, TableState},
-    Terminal,
 };
 
 use std::sync::{Arc, Mutex};
@@ -11,10 +10,6 @@ use serde_json::json;
 use serde_json::Value;
 
 // use colorsys::Color as CTColor;
-
-use crate::util::GraphQLCursor;
-use crate::linear::client::LinearClient;
-use crate::linear::LinearConfig;
 
 use crate::util::ui::{ TableStyle, style_color_from_hex_str };
 use crate::util::colors::{ API_REQ_NUM };
@@ -26,110 +21,9 @@ pub struct LinearIssueDisplay {
 
 impl LinearIssueDisplay {
 
-    pub async fn load_issues(linear_config: LinearConfig, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
+    pub fn get_rendered_issue_data(table_data: &[Value], table_style: TableStyle) -> Result<Table, &'static str> {
 
-        if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team_old(linear_config, 
-                                                                        None,
-                                                                        selected_team.as_object()
-                                                                        .cloned()
-                                                                        .unwrap_or(serde_json::Map::default())
-                                                                    ).await;
-
-            let mut issues: serde_json::Value = serde_json::Value::Null;
-            let mut cursor_info: serde_json::Value = serde_json::Value::Null;
-
-            match issue_fetch_result {
-                Ok(x) => { 
-                    issues = x["issue_nodes"].clone();
-                    cursor_info = x["cursor_info"].clone();
-                },
-                Err(y) => {
-                                info!("Get Issues By Team failed: {:?}", y);
-                                return None;
-                            },
-            }
-
-            info!("Issue Fetch Result: {:?}", issues);
-
-            match issues {
-                serde_json::Value::Array(_) => {
-                    info!("Populating LinearIssueDisplay::issue_table_data with: {:?}", issues);
-
-                    // return Some(issues);
-                    return Some(json!( { "issues": issues, "cursor_info": cursor_info } ));
-                },
-                _ => {return None;},
-            }
-
-        } else {
-            return None;
-        }
-    }
-
-    pub async fn load_issues_paginate(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, selected_team: &serde_json::Value) -> Option<serde_json::Value> {
-        if let serde_json::Value::Object(team) = selected_team {
-            let issue_fetch_result = LinearClient::get_issues_by_team_old(linear_config, linear_cursor, selected_team.as_object()
-                                                                                    .cloned()
-                                                                                    .unwrap_or(serde_json::Map::default())
-                                                                    ).await;
-
-            let mut issues: serde_json::Value = serde_json::Value::Null;
-            let mut cursor_info: serde_json::Value = serde_json::Value::Null;
-
-            match issue_fetch_result {
-                Ok(x) => { 
-                    issues = x["issue_nodes"].clone();
-                    cursor_info = x["cursor_info"].clone();
-                },
-                Err(y) => {
-                                info!("Get Issues By Team failed: {:?}", y);
-                                return None;
-                            },
-            }
-
-            info!("Issue Fetch Result: {:?}", issues);
-
-            match issues {
-                serde_json::Value::Array(_) => {
-                    info!("Populating LinearIssueDisplay::issue_table_data with: {:?}", issues);
-
-                    // return Some(issues);
-                    return Some(json!( { "issues": issues, "cursor_info": cursor_info } ));
-                },
-                _ => {return None;},
-            }
-
-        } else {
-            return None;
-        }
-    }
-
-
-
-    pub fn get_rendered_issue_data(table_data: &Option<serde_json::Value>, table_style: TableStyle) -> Result<Table, &'static str> {
-
-        let mut table_items: &Value = &Value::Array(Vec::new());
-
-        let bottom_margin = match table_style.row_bottom_margin {
-            Some(margin) => margin,
-            None => { 0 }
-        };
-
-        match table_data {
-            Some(x) => table_items = x,
-            None => { 
-                // error!("Table Items is None"); 
-            }
-        }
-
-        let mut table_array: &Vec<Value> = &Vec::new();
-        match table_items.as_array() {
-            Some(x) => table_array = x,
-            None => { 
-                error!("table_data is not an Array"); 
-            }
-        }
+        let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
@@ -146,7 +40,7 @@ impl LinearIssueDisplay {
 
 
 
-        let rows = table_array.iter().enumerate().map(|(idx, row)| {
+        let rows = table_data.iter().map(|row| {
 
             // info!("Table Row Raw: {:?}", row);
 
@@ -191,10 +85,10 @@ impl LinearIssueDisplay {
 
                 match name {
                     Some(x) => { match style_color {
-                        Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
-                        None => return Cell::from(String::default()),
+                        Some(y) => { Cell::from(x).style(Style::default().fg(y)) },
+                        None => Cell::from(String::default()),
                     }},
-                    None => return Cell::from(String::default()),
+                    None => Cell::from(String::default()),
                 }
             };
 
@@ -209,8 +103,7 @@ impl LinearIssueDisplay {
             Some(view_idx) => {
                 if let Some(selected_view_idx) = table_style.selected_view_idx {
                     // debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
-                    if view_idx == selected_view_idx { true }
-                    else { false }
+                    view_idx == selected_view_idx
                 }
                 else { false }
             },
@@ -220,7 +113,7 @@ impl LinearIssueDisplay {
 
         let table_block = Block::default()
                                     .borders(Borders::ALL)
-                                    .border_style(Style::default().fg(if highlight_table == true { Color::Yellow } else { Color::White }))
+                                    .border_style(Style::default().fg(if highlight_table { Color::Yellow } else { Color::White }))
                                     .title( match table_style.title_style {
                                         Some(title_style) => {
                 

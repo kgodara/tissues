@@ -10,9 +10,14 @@ pub mod colors;
 
 mod cursor;
 pub use cursor::GraphQLCursor;
-// pub use ui::*;
 
-// pub use state_list;
+mod query;
+pub use query::set_linear_after_cursor_from_opt;
+pub use query::verify_linear_api_key;
+
+mod dashboard;
+pub use dashboard::fetch_selected_view_panel_issue;
+pub use dashboard::fetch_selected_workflow_state;
 
 #[derive(Debug)]
 pub struct StatefulList<T> {

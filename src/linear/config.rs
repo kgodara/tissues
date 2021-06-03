@@ -25,10 +25,7 @@ impl Default for LinearConfig {
 
         LinearConfig {
             selected_team: String::new(),
-            api_key: match env::var("LINEAR_PERSONAL_API_KEY").ok() {
-                Some(x) =>  Some(String::from(x)),
-                None => None,
-            },
+            api_key: env::var("LINEAR_PERSONAL_API_KEY").ok().map(String::from), 
             issue_page_size: match env::var("LINEAR_ISSUE_PAGE_SIZE").ok() {
                 Some(x) => *x.parse::<u32>().ok().get_or_insert(DEFAULT_LINEAR_ISSUE_PAGE_SIZE),
                 None => DEFAULT_LINEAR_ISSUE_PAGE_SIZE,

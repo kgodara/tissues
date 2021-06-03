@@ -1,7 +1,7 @@
 
 pub mod client;
 mod config;
-mod error;
+pub mod error;
 pub mod view_resolver;
 
 mod query;

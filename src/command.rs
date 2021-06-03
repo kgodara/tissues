@@ -1,11 +1,13 @@
 
 use termion::{event::Key,};
 
-use std::collections::HashMap;
-
 use crate::app::{App, Platform, Route};
 use crate::network::IOEvent;
 use crate::util::{ state_list, state_table };
+
+use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
+
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc::Sender;
 
@@ -30,22 +32,16 @@ pub enum Command {
     Replace,
     Delete,
     SelectViewPanel(usize),
+    SelectDashboardViewList,
+    SelectCustomViewSelect,
 
 
     OpenLinearWorkflowStateSelection,
 
 }
 
-/*
-let tuples = vec![  ("q", Quit),
-                    ("two", 2), 
-                    ("three", 3)
-                    ];
 
-const str_to_cmd_map: HashMap<String, Command> = tuples.into_iter().collect();
-*/
-
-pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
+pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Option<Command> {
     match input {
         // Navigation/Confirmation related inputs
         // These will always clear the command string
@@ -89,10 +85,24 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
 
                 // View Panel Selection Shortcuts
                 "1" => {
-                    Some(Command::SelectViewPanel(1))
+                    match current_route {
+                        Route::DashboardViewDisplay => {
+                            Some(Command::SelectDashboardViewList)
+                        },
+                        _ => {
+                            Some(Command::SelectViewPanel(1))
+                        }
+                    }
                 },
                 "2" => {
-                    Some(Command::SelectViewPanel(2))
+                    match current_route {
+                        Route::DashboardViewDisplay => {
+                            Some(Command::SelectCustomViewSelect)
+                        },
+                        _ => {
+                            Some(Command::SelectViewPanel(2))
+                        }
+                    }
                 },
                 "3" => {
                     Some(Command::SelectViewPanel(3))
@@ -117,146 +127,139 @@ pub fn get_cmd(cmd_str: &mut String, input: Key) -> Option<Command> {
     }
 }
 
-pub async fn exec_add_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+pub async fn exec_add_cmd(app: &mut App<'_>) {
 
     info!("Executing 'add' command");
 
-    match app.route {
-        // User is attempting to add a new Custom View to the Dashboard
-        Route::DashboardViewDisplay => {
-            // Verify that an empty slot is selected
-            // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
-            let mut view_is_selected = false;
-            let mut selected_view: Option<Value> = None;
-          
-            if let Some(view_idx) = app.linear_dashboard_view_idx {
-              view_is_selected = true;
-              selected_view = app.linear_dashboard_view_list[view_idx].clone();
+    if Route::DashboardViewDisplay == app.route {
+        // Verify that an empty slot is selected
+        // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
+        let selected_view: Option<Value>;
+        
+        if let Some(view_idx) = app.linear_dashboard_view_idx {
 
-                if view_is_selected == true {
-                    // An empty view slot is selected
-                    if let None = selected_view {
-                        app.change_route(Route::CustomViewSelect, &tx);
-                    }
-                }
+            selected_view = app.linear_dashboard_view_list[view_idx].clone();
+
+            // An empty view slot is selected
+            if selected_view.is_none() {
+                // app.change_route(Route::CustomViewSelect, &tx);
+                exec_select_custom_view_select_cmd(app);
             }
-        },
-        _ => {}
+
+        }
     }
 }
 
-pub async fn exec_replace_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+pub async fn exec_replace_cmd(app: &mut App<'_>) {
     info!("Executing 'replace' command");
+    
+    // User is attempting to replace a Custom View with a new Custom View on the Dashboard
+    if Route::DashboardViewDisplay == app.route {
+        // Verify that a populated slot is selected
+        // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
+        let selected_view: Option<Value>;
+        if let Some(view_idx) = app.linear_dashboard_view_idx {
+            selected_view = app.linear_dashboard_view_list[view_idx].clone();
 
-    match app.route {
-        // User is attempting to replace a Custom View with a new Custom View on the Dashboard
-        Route::DashboardViewDisplay => {
-            // Verify that a populated slot is selected
-            // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
-            let mut view_is_selected = false;
-            let mut selected_view: Option<Value> = None;
-            if let Some(view_idx) = app.linear_dashboard_view_idx {
-              view_is_selected = true;
-              selected_view = app.linear_dashboard_view_list[view_idx].clone();
-
-                if view_is_selected == true {
-                    // A populated view slot is selected
-                    if let Some(_) = selected_view {
-                        app.change_route(Route::CustomViewSelect, &tx);
-                    }
-                }
+            // A populated view slot is selected
+            if selected_view.is_some() {
+                // app.change_route(Route::CustomViewSelect, &tx);
+                exec_select_custom_view_select_cmd(app);
             }
-        },
-        _ => {}
+        }
     }
 }
 
-pub async fn exec_delete_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+pub async fn exec_delete_cmd(app: &mut App<'_>) {
     info!("Executing 'delete' command");
-    match app.route {
-        // User is attempting to remove a Custom View on the Dashboard
-        Route::DashboardViewDisplay => {
-            // Verify that a populated slot is selected
-            // if so, set it to None
-            let mut view_is_selected = false;
-            let mut selected_view: Option<Value> = None;
-            if let Some(view_idx) = app.linear_dashboard_view_idx {
-              view_is_selected = true;
-              selected_view = app.linear_dashboard_view_list[view_idx].clone();
 
-                if view_is_selected == true {
-                    // A populated view slot is selected
-                    if let Some(_) = selected_view {
-                        app.linear_dashboard_view_list[view_idx] = None;
+    // User is attempting to remove a Custom View on the Dashboard
+    if Route::DashboardViewDisplay == app.route {
+        // Verify that a populated slot is selected
+        // if so, set it to None
+        let selected_view: Option<Value>;
+        if let Some(view_idx) = app.linear_dashboard_view_idx {
+            selected_view = app.linear_dashboard_view_list[view_idx].clone();
 
-                        // Sort app.linear_dashboard_view_list so that all Some's are first
-                        app.linear_dashboard_view_list = app.linear_dashboard_view_list
-                        .iter()
-                        .filter_map(|e| {
-                            match e {
-                                Some(_) => Some(e.clone()),
-                                None => None,
-                            }
-                        })
-                        .collect();
-                        while app.linear_dashboard_view_list.len() < 6 {
-                            app.linear_dashboard_view_list.push(None);
-                        }
-                    }
+            // A populated view slot is selected
+            if selected_view.is_some() {
+                app.linear_dashboard_view_list[view_idx] = None;
+
+                // Sort app.linear_dashboard_view_list so that all Some's are first
+                app.linear_dashboard_view_list = app.linear_dashboard_view_list
+                .iter()
+                .filter_map(|e| {
+                    e.as_ref().map(|_| e.clone())
+                })
+                .collect();
+                while app.linear_dashboard_view_list.len() < 6 {
+                    app.linear_dashboard_view_list.push(None);
                 }
             }
-        },
-        _ => {}
+        }
     }
 }
 
-pub async fn exec_select_view_panel_cmd<'a>(app: &mut App<'a>, view_panel_idx: usize, tx: &Sender<IOEvent>) {
-    match app.route {
-        // User is attempting to select a View Panel
-        Route::ActionSelect => {
-            // Verify that view_panel_idx is within bounds of app.linear_dashboard_view_panel_list.len()
-            let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
-            if view_panel_idx <= view_panel_list_handle.len() {
+pub async fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize) {
 
-                // if so, update app.linear_dashboard_view_panel_selected to Some(view_panel_idx)
-                app.linear_dashboard_view_panel_selected = Some(view_panel_idx);
+    // User is attempting to select a View Panel
+    if Route::ActionSelect == app.route {
+        // Verify that view_panel_idx is within bounds of app.linear_dashboard_view_panel_list.len()
+        let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+        if view_panel_idx <= view_panel_list_handle.len() {
 
-                // If the DashboardViewPanel.issue_table_data is Some(Value::Array)
-                // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some( table_state )
-                let view_panel_handle = view_panel_list_handle[view_panel_idx-1].issue_table_data.lock().unwrap();
+            // if so, update app.linear_dashboard_view_panel_selected to Some(view_panel_idx)
+            app.linear_dashboard_view_panel_selected = Some(view_panel_idx);
 
-                if let Some(issue_data) = &*view_panel_handle {
-                    if let Value::Array(issue_vec) = issue_data {
-                        if issue_vec.len() > 0 {
-                            let mut table_state = TableState::default();
-                            state_table::next(&mut table_state, &issue_vec);
+            // If the DashboardViewPanel.issue_table_data is Some(Value::Array)
+            // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some( table_state )
+            let view_panel_handle = view_panel_list_handle[view_panel_idx-1].issue_table_data.lock().unwrap();
 
-                            app.view_panel_issue_selected = Some( table_state );
-                        }
-                    }
-                }
+            if !view_panel_handle.is_empty() {
+                let mut table_state = TableState::default();
+                state_table::next(&mut table_state, &view_panel_handle);
 
-                // Unselect from app.actions
-                app.actions.unselect();
+                app.view_panel_issue_selected = Some( table_state );
             }
-        },
 
-        _ => {}
+            // Unselect from app.actions
+            app.actions.unselect();
+        }
+    }
+}
+
+pub fn exec_select_dashboard_view_list_cmd(app: &mut App) {
+    app.linear_dashboard_view_list_selected = true;
+    app.linear_custom_view_select.view_table_state = TableState::default();
+}
+
+pub fn exec_select_custom_view_select_cmd(app: &mut App) {
+    app.linear_dashboard_view_list_selected = false;
+
+    // If the CustomViewSelect.issue_table_data is Some(Value::Array)
+    // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some( table_state )
+    let custom_view_select_handle = app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+    if !custom_view_select_handle.is_empty() {
+        let mut table_state = TableState::default();
+        state_table::next(&mut table_state, &custom_view_select_handle);
+
+        app.linear_custom_view_select.view_table_state = table_state;
     }
 }
 
 
 pub fn exec_open_linear_workflow_state_selection_cmd(app: &mut App, tx: &Sender<IOEvent>) {
-    match app.route {
-        // Create pop-up on top of issue display component
-        Route::LinearInterface => {
-            // Dispatch event to begin loading new data
-            app.dispatch_event("load_workflows", tx);
+    
+    // Create pop-up on top of issue display component
+    if Route::ActionSelect == app.route {
+        debug!("draw_action_select - setting app.linear_draw_workflow_state_select to true");
 
-            // Enable drawing of workflow state selection pop-up
-            app.set_draw_issue_state_select(Platform::Linear, true);
-        }
-        _ => {},
+        // Dispatch event to load workflow states for team of selected issue
+        app.dispatch_event("load_workflows", tx);
+
+        // Enable drawing of workflow state selection pop-up
+        app.set_draw_issue_state_select(Platform::Linear, true);
     }
 }
 
@@ -265,9 +268,16 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
         // Unselect from List of Actions
         Route::ActionSelect => {
+
+            // If state change cancelled, reset
+            if app.linear_draw_workflow_state_select {
+                app.linear_draw_workflow_state_select = false;
+                app.linear_workflow_select = LinearWorkflowStateDisplayState::default();
+            }
+
             // If a View Panel is selected, unselect it, reset app.linear_selected_issue_idx to None and
             // select app.actions()
-            if let Some(_) = app.linear_dashboard_view_panel_selected {
+            else if app.linear_dashboard_view_panel_selected.is_some() {
                 app.linear_dashboard_view_panel_selected = None;
                 app.linear_selected_issue_idx = None;
                 app.actions.next();
@@ -278,105 +288,76 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         Route::DashboardViewDisplay => {
             app.change_route(Route::ActionSelect, &tx);
         }
-
-        // Unselect from Selection of Teams
-        Route::TeamSelect => {
-            state_list::unselect(&mut app.linear_team_select.teams_state);
-        },
-
-        // Unselect from list of Linear Issues
-        Route::LinearInterface => {
-            state_table::unselect(&mut app.linear_issue_display.issue_table_state);
-        }
-
-        _ => {}
     }
 }
 
-pub async fn exec_confirm_cmd<'a>(app: &mut App<'a>, tx: &Sender<IOEvent>) {
+pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
     match app.route {
-        Route::ActionSelect => match app.actions.state.selected() {
-            Some(i) => {
+        Route::ActionSelect => {
+
+            // If a state change is confirmed, dispatch & reset
+            if app.linear_draw_workflow_state_select && app.linear_selected_workflow_state_idx.is_some() {
+                app.dispatch_event("update_issue_workflow_state", &tx);
+                app.linear_draw_workflow_state_select = false;
+                app.linear_workflow_select = LinearWorkflowStateDisplayState::default();
+            }
+
+            else if let Some(i) = app.actions.state.selected() {
                 match i {
                     0 => { app.change_route( Route::DashboardViewDisplay, &tx) },
-                    1 => { app.change_route( Route::TeamSelect, &tx) }
                     _ => {}
                 }
             }
-            _ => {}
         },
         // Add Custom View to app.linear_dashboard_view_list if a view is selected
-        Route::CustomViewSelect => match app.linear_selected_custom_view_idx {
+        Route::DashboardViewDisplay => if let Some(idx) = app.linear_selected_custom_view_idx {
             // Add Custom View to app.linear_dashboard_view_list
-            Some(idx) => {
-                let custom_view_data_lock = app.linear_custom_view_select.view_table_data.lock().unwrap();
 
-                match &*custom_view_data_lock {
-                    Some(view_data) => {
-                        info!("Got Custom View Data");
-                        let selected_view = view_data[idx].clone();
+            // Custom View Select component is not selected, return
+            if app.linear_dashboard_view_list_selected {
+                return;
+            }
 
-                        // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
-                        // If no empty slots, do nothing
+            let custom_view_data_lock = app.linear_custom_view_select.view_table_data.lock().unwrap();
 
-                        info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
+            info!("Got Custom View Data");
+            let selected_view = custom_view_data_lock[idx].clone();
 
-                        /*
-                        let slot_idx_option = app.linear_dashboard_view_list
-                                            .iter()
-                                            .position(|x| match x {
-                                                Some(_) => return true,
-                                                None => return false,
-                                            });
-                        */
-                        let slot_idx_option = app.linear_dashboard_view_idx;
-                        info!("slot_idx_option: {:?}", slot_idx_option);
-                        
-                        match slot_idx_option {
-                            Some(slot_idx) => {
-                                info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
-                                app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
+            // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
+            // If no empty slots, do nothing
 
-                                // Sort app.linear_dashboard_view_list so that all Some's are first
-                                app.linear_dashboard_view_list = app.linear_dashboard_view_list
-                                                                    .iter()
-                                                                    .filter_map(|e| {
-                                                                        match e {
-                                                                            Some(_) => Some(e.clone()),
-                                                                            None => None,
-                                                                        }
-                                                                    })
-                                                                    .collect();
-                                while app.linear_dashboard_view_list.len() < 6 {
-                                    app.linear_dashboard_view_list.push(None);
-                                }
+            info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
 
-                            },
-                            None => {},
-                        };
-                    },
-                    None => {}
-                };
-                drop(custom_view_data_lock);
-                // Change Route to Route::DashboardViewDisplay
-                app.change_route( Route::DashboardViewDisplay, &tx);
-            },
-            None => {},
+            /*
+            let slot_idx_option = app.linear_dashboard_view_list
+                                .iter()
+                                .position(|x| match x {
+                                    Some(_) => return true,
+                                    None => return false,
+                                });
+            */
+            let slot_idx_option = app.linear_dashboard_view_idx;
+            info!("slot_idx_option: {:?}", slot_idx_option);
+
+            if let Some(slot_idx) = slot_idx_option {
+                info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
+                app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
+
+                // Sort app.linear_dashboard_view_list so that all Some's are first
+                app.linear_dashboard_view_list = app.linear_dashboard_view_list
+                                                    .iter()
+                                                    .filter_map(|e| { e.as_ref().map(|_| e.clone()) })
+                                                    .collect();
+
+                while app.linear_dashboard_view_list.len() < 6 {
+                    app.linear_dashboard_view_list.push(None);
+                }
+            };
+
+            drop(custom_view_data_lock);
+            // Change Route to Route::DashboardViewDisplay
+            app.change_route( Route::DashboardViewDisplay, &tx);
         }
-
-        // Switch Route as long as a team is selected
-        Route::TeamSelect => match app.linear_selected_team_idx {
-            Some(_) => { app.change_route(Route::LinearInterface, &tx) },
-            None => {},
-        },
-        // Dispatch Update Issue Workflow State command if User selects a workflow state for a given Issue
-        Route::LinearInterface => {
-            app.dispatch_event("update_issue_workflow", &tx);
-            // Close Workflow States Panel
-            app.set_draw_issue_state_select(Platform::Linear, false);
-
-        },
-        _ => {}
     }
 }
 
@@ -385,175 +366,93 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         // Select next Action
         Route::ActionSelect => {
             let mut load_paginated = false;
+
+            // If the workflow state select panel is open, scroll down on modal
+            if app.linear_draw_workflow_state_select {
+                debug!("Attempting to scroll down on Workflow State Selection");
+                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
+
+                state_table::next(&mut app.linear_workflow_select.workflow_states_state, handle);
+                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
+            }
             // If a ViewPanel is selected, scroll down on the View Panel
-            if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
+            else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
                 if let Some(table_state) = &app.view_panel_issue_selected {
                     let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
 
                     let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
                     let view_panel_loader_handle = view_panel_list_handle[view_panel_selected_idx-1].view_loader.lock().unwrap();
-                    if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
-                        if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
 
-                            // Check if at end of app.view_panel_issue_selected
-                            //  If true: Check if app.view_panel_list_handle[view_panel_selected_idx-1].view_loader.exhausted == false
-                            //      If true: dispatch event to load next page view panel
-                            //          and merge with current app.view_panel_list_handle[view_panel_selected_idx-1].issue_table_data
+                    if !view_panel_issue_handle.is_empty() {
+                        // Check if at end of app.view_panel_issue_selected
+                        //  If true: Check if app.view_panel_list_handle[view_panel_selected_idx-1].view_loader.exhausted == false
+                        //      If true: dispatch event to load next page view panel
+                        //          and merge with current app.view_panel_list_handle[view_panel_selected_idx-1].issue_table_data
 
-                            let is_last_element = state_table::is_last_element(table_state, view_panel_issue_vec);
-                            let loader_is_exhausted = if let Some(loader_val) = &*view_panel_loader_handle {
-                                    loader_val.exhausted
-                                }
-                                else {
-                                    false
-                                };
-
-                            if is_last_element == true && loader_is_exhausted == false {
-                                app.view_panel_to_paginate = view_panel_selected_idx-1;
-                                load_paginated = true;
+                        let is_last_element = state_table::is_last_element(table_state, &view_panel_issue_handle);
+                        let loader_is_exhausted = if let Some(loader_val) = &*view_panel_loader_handle {
+                                loader_val.exhausted
                             }
                             else {
-                                app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_vec));
-                            }
+                                false
+                            };
 
+                        if is_last_element && !loader_is_exhausted {
+                            app.view_panel_to_paginate = view_panel_selected_idx-1;
+                            load_paginated = true;
+                        }
+                        else {
+                            app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_handle));
                         }
                     }
                 }
             }
-            // No View Panel selected, scroll on actions
+            // No View Panel selected or issue modal open, scroll on actions
             else {
                 app.actions.next();
             }
 
-            if load_paginated == true {
+            if load_paginated {
                 app.dispatch_event("paginate_dashboard_view", &tx);
             }
         },
 
         // Select next Custom View Slot
         Route::DashboardViewDisplay => {
-            state_table::next(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
-            app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
-        },
-
-        // Select next custom view from list of Linear custom views and update 'app.linear_selected_custom_view_idx'
-        Route::CustomViewSelect => {
-            let mut load_paginated = false;
-            {
-                let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
-                match *handle {
-                    Some(ref mut x) => {
-                        match x.as_array() {
-                            Some(y) => {
-                                // Check if at end of linear_custom_view_select.view_table_data
-                                //  If true: Check if app.linear_custom_view_cursor.has_next_page = true
-                                //      If true: dispatch event to load next page of linear issues
-                                //          and merge with current linear_custom_view_select.view_table_data
-
-                                let is_last_element = state_table::is_last_element(& app.linear_custom_view_select.view_table_state, y);
-                                let mut cursor_has_next_page = false;
-                                {
-                                    let view_cursor_data_handle = app.linear_custom_view_cursor.lock().unwrap();
-                                    cursor_has_next_page = view_cursor_data_handle.has_next_page;
-                                }
-
-                                if is_last_element == true && cursor_has_next_page == true {
-                                    load_paginated = true;
-                                }
-                                else {
-                                    state_table::next(&mut app.linear_custom_view_select.view_table_state, y);
-                                    app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
-                                    info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
-                                }
-                            },
-                            None => {},
-                        }
-                    }
-                    _ => {},
-                }
+            if app.linear_dashboard_view_list_selected {
+                state_table::next(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+                app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
             }
-
-            if load_paginated == true {
-                app.dispatch_event("load_custom_views", &tx);
-            }
-        },
-
-        // Select next team from list of Linear teams and update 'app.linear_selected_team_idx'
-        Route::TeamSelect => {
-            let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
-            match *handle {
-                Some(ref mut x) => {
-                    match x.as_array() {
-                        Some(y) => {
-                            state_list::next(&mut app.linear_team_select.teams_state, y);
-                            app.linear_selected_team_idx = app.linear_team_select.teams_state.selected();
-                        },
-                        None => {},
-                    }
-                }
-                _ => {},
-            }
-        },
-
-        // Select next issue from list of Linear issues and update 'app.linear_selected_issue_idx'
-        Route::LinearInterface => {
-            // If User is not selecting a new workflow state for an issue, select next issue
-            let mut load_paginated = false;
-            if *app.draw_issue_state_select(Platform::Linear) == false {
-                {
-                    let handle = &mut *app.linear_issue_display.issue_table_data.lock().unwrap();
-                    match *handle {
-                        Some(ref mut x) => {
-                            match x.as_array() {
-                                Some(y) => {
-                                    // Check if at end of linear_issue_display.issue_table_state
-                                    //  If true: Check if app.linear_issue_cursor.has_next_page = true
-                                    //      If true: dispatch event to load next page of linear issues
-                                    //          and merge with current linear_issue_display.issue_table_state
-
-                                    let is_last_element = state_table::is_last_element(& app.linear_issue_display.issue_table_state, y);
-                                    let mut cursor_has_next_page = false;
-                                    {
-                                        let issue_cursor_data_handle = app.linear_issue_cursor.lock().unwrap();
-                                        cursor_has_next_page = issue_cursor_data_handle.has_next_page;
-                                    }
-
-                                    if is_last_element == true && cursor_has_next_page == true {
-                                        load_paginated = true;
-                                    }
-                                    else {
-                                        state_table::next(&mut app.linear_issue_display.issue_table_state, y);
-                                        app.linear_selected_issue_idx = app.linear_issue_display.issue_table_state.selected();
-                                        info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
-                                    }
-                                },
-                                None => {},
-                            }
-                        }
-                        _ => {},
-                    }
-                }
-
-                if load_paginated == true {
-                    app.dispatch_event("load_issues_paginated", &tx);
-                }
-            }
-            // If User is selecting a new workflow state for an issue, select next workflow state
+            // Select next custom view from list of Linear custom views and update 'app.linear_selected_custom_view_idx'
             else {
-                info!("Attempting to scroll down on Workflow State Selection");
-                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
-                match *handle {
-                    Some(ref mut x) => {
-                        match x.as_array() {
-                            Some(y) => {
-                                state_table::next(&mut app.linear_workflow_select.workflow_states_state, y);
-                                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
-                                // info!("app.linear_selected_workflow_state_idx: {:?}", app.linear_selected_workflow_state_idx);
-                            },
-                            None => {},
-                        }
-                    },
-                    None => {}
+                let mut load_paginated = false;
+                {
+                    let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+                    // Check if at end of linear_custom_view_select.view_table_data
+                    //  If true: Check if app.linear_custom_view_cursor.has_next_page = true
+                    //      If true: dispatch event to load next page of linear issues
+                    //          and merge with current linear_custom_view_select.view_table_data
+
+                    let is_last_element = state_table::is_last_element(& app.linear_custom_view_select.view_table_state, handle);
+                    let cursor_has_next_page;
+                    {
+                        let view_cursor_data_handle = app.linear_custom_view_cursor.lock().unwrap();
+                        cursor_has_next_page = view_cursor_data_handle.has_next_page;
+                    }
+
+                    if is_last_element && cursor_has_next_page {
+                        load_paginated = true;
+                    }
+                    else {
+                        state_table::next(&mut app.linear_custom_view_select.view_table_state, handle);
+                        app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
+                        info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
+                    }
+                }
+    
+                if load_paginated {
+                    app.dispatch_event("load_custom_views", &tx);
                 }
             }
         }
@@ -564,93 +463,43 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
         Route::ActionSelect => {
-            // If a ViewPanel is selected, scroll down on the View Panel
-            if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
+
+            // If the workflow state select panel is open, scroll down on modal
+            if app.linear_draw_workflow_state_select {
+                debug!("Attempting to scroll up on Workflow State Selection");
+                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
+
+                state_table::previous(&mut app.linear_workflow_select.workflow_states_state, handle);
+                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
+            }
+            // If a ViewPanel is selected and no issue modal open, scroll down on the View Panel
+            else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
                 if let Some(table_state) = &app.view_panel_issue_selected {
                     let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
                     let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
-                    if let Some(view_panel_issue_data) = &*view_panel_issue_handle {
-                        if let Value::Array(view_panel_issue_vec) = view_panel_issue_data {
-                            app.view_panel_issue_selected = Some(state_table::with_previous(table_state, &view_panel_issue_vec));
-                        }
+
+                    if !view_panel_issue_handle.is_empty() {
+                        app.view_panel_issue_selected = Some(state_table::with_previous(table_state, &view_panel_issue_handle));
                     }
                 }
             }
-            // No View Panel selected, scroll on actions
+            // No View Panel selected or issue modal open, scroll on actions
             else {
                 app.actions.next();
             }
         },
         // Select previous Custom View Slot
         Route::DashboardViewDisplay => {
-            state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
-            app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
-        },
-        Route::CustomViewSelect => {
-            let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
-            match *handle {
-                Some(ref mut x) => {
-                    match x.as_array() {
-                        Some(y) => {
-                            state_table::previous(&mut app.linear_custom_view_select.view_table_state, y);
-                            app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
-                            info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
-                        },
-                        None => {},
-                    }
-                }
-                _ => {},
+            if app.linear_dashboard_view_list_selected {
+                state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+                app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
             }
-        }
-        Route::TeamSelect => {
-            let handle = &mut *app.linear_team_select.teams_data.lock().unwrap();
-            match handle {
-                Some(ref mut x) => {
-                    match x.as_array() {
-                        Some(y) => {
-                            state_list::previous(&mut app.linear_team_select.teams_state, y);
-                            app.linear_selected_team_idx = app.linear_team_select.teams_state.selected();
-                        },
-                        None => {},
-                    }
-                },
-                _ => {},
-            }
-        },
-        Route::LinearInterface => {
-            // If User is not selecting a new workflow state for an issue, select previous issue
-            if *app.draw_issue_state_select(Platform::Linear) == false {
-                let handle = &mut *app.linear_issue_display.issue_table_data.lock().unwrap();
-                match *handle {
-                    Some(ref mut x) => {
-                        match x.as_array() {
-                            Some(y) => {
-                                state_table::previous(&mut app.linear_issue_display.issue_table_state, y);
-                                app.linear_selected_issue_idx = app.linear_issue_display.issue_table_state.selected();
-                                info!("app.linear_selected_issue_idx: {:?}", app.linear_selected_issue_idx);
-                            },
-                            None => {},
-                        }
-                    }
-                    _ => {},
-                }
-            }
-            // If User is selecting a new workflow state for an issue, select previous workflow state
             else {
-                info!("Attempting to scroll up on Workflow State Selection");
-                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
-                match *handle {
-                    Some(ref mut x) => {
-                        match x.as_array() {
-                            Some(y) => {
-                                state_table::previous(&mut app.linear_workflow_select.workflow_states_state, y);
-                                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
-                            },
-                            None => {},
-                        }
-                    },
-                    None => {}
-                }
+                let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+                state_table::previous(&mut app.linear_custom_view_select.view_table_state, handle);
+                app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
+                info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
             }
         }
     }

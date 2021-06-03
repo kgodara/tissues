@@ -10,12 +10,11 @@ use super::error::LinearClientError;
 
 use std::sync::{ Arc, Mutex };
 
-use std::collections::HashSet;
 
 use std::collections::HashMap;
 
 
-use serde_json::{ Value, Map };
+use serde_json::{ Value, Map, Number };
 
 use crate::util::GraphQLCursor;
 
@@ -36,6 +35,8 @@ pub enum FilterType {
     SelectedLabel,
     SelectedAssignee,
     SelectedProject,
+    SelectedPriority,
+    SelectedSubscriber,
 
     DueToday,
     Overdue,
@@ -125,6 +126,8 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         SelectedLabel,
         SelectedAssignee,
         SelectedProject,
+        SelectedPriority,
+        SelectedSubscriber,
 
         DueToday,
         Overdue,
@@ -143,6 +146,8 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     filter_type_groups.insert(String::from("label"), Vec::new());
     filter_type_groups.insert(String::from("assignee"), Vec::new());
     filter_type_groups.insert(String::from("project"), Vec::new());
+    filter_type_groups.insert(String::from("priority"), Vec::new());
+    filter_type_groups.insert(String::from("subscriber"), Vec::new());
     filter_type_groups.insert(String::from("dueDate"), Vec::new());
 
 
@@ -173,187 +178,239 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 
         // Add 'state' filters to 'direct_filter_list' &
         // 'filter_type_groups.get("state")'
-        match filters["state"].as_array() {
-            Some(state_list) => {
-                for state_obj in state_list.iter() {
-                    match &state_obj["ref"] {
-                        Value::String(state_ref) => {
-                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedState, ref_id: Some(state_ref.to_string()) });
+        if let Some(state_list) = filters["state"].as_array() {
+            for state_obj in state_list.iter() {
+                match &state_obj["ref"] {
+                    Value::String(state_ref) => {
+                        direct_filter_list.push( Filter { filter_type: FilterType::SelectedState, ref_id: Some(state_ref.to_string()) });
 
-                            if let Some(x) = filter_type_groups.get_mut("state") {
-                                x.push( Filter { filter_type: FilterType::SelectedState, ref_id: Some(state_ref.to_string()) } );
-                            }
-                        },
-                        _ => {},
-                    }
+                        if let Some(x) = filter_type_groups.get_mut("state") {
+                            x.push( Filter { filter_type: FilterType::SelectedState, ref_id: Some(state_ref.to_string()) } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view did not find 'ref' field for 'state' filter object");
+                        panic!("create_loader_from_view did not find 'ref' field for 'state' filter object");
+                    },
                 }
-            },
-            _ => {},
+            }
         };
 
         // Add 'creator' filters to 'direct_filter_list' &
         // 'filter_type_groups.get("creator")'
-        match filters["creator"].as_array() {
-            Some(creator_list) => {
-                for creator_obj in creator_list.iter() {
-                    match &creator_obj["ref"] {
-                        Value::String(creator_ref) => {
-                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedCreator, ref_id: Some(creator_ref.to_string()) });
+        if let Some(creator_list) = filters["creator"].as_array() {
+            for creator_obj in creator_list.iter() {
+                match &creator_obj["ref"] {
+                    Value::String(creator_ref) => {
+                        direct_filter_list.push( Filter { filter_type: FilterType::SelectedCreator, ref_id: Some(creator_ref.to_string()) });
 
-                            if let Some(x) = filter_type_groups.get_mut("creator") {
-                                x.push( Filter { filter_type: FilterType::SelectedCreator, ref_id: Some(creator_ref.to_string()) } );
-                            }
-                        },
-                        _ => {},
-                    }
+                        if let Some(x) = filter_type_groups.get_mut("creator") {
+                            x.push( Filter { filter_type: FilterType::SelectedCreator, ref_id: Some(creator_ref.to_string()) } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view did not find 'ref' field for 'creator' filter object");
+                        panic!("create_loader_from_view did not find 'ref' field for 'creator' filter object");
+                    },
                 }
-            },
-            _ => {},
+            }
         };
 
         // Add 'assignee' filters:
         // SelectedAssignee to 'direct_filter_list' & NoAssignee to 'indirect_filter_list'
         // & all to 'filter_type_groups.get("assignee")'
-        match filters["assignee"].as_array() {
-            Some(assignee_list) => {
-                for assignee_obj in assignee_list.iter() {
-                    match &assignee_obj["ref"] {
-                        Value::String(assignee_ref) => {
-                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedAssignee, ref_id: Some(assignee_ref.to_string()) });
+        if let Some(assignee_list) = filters["assignee"].as_array() {
+            for assignee_obj in assignee_list.iter() {
+                match &assignee_obj["ref"] {
+                    Value::String(assignee_ref) => {
+                        direct_filter_list.push( Filter { filter_type: FilterType::SelectedAssignee, ref_id: Some(assignee_ref.to_string()) });
 
-                            if let Some(x) = filter_type_groups.get_mut("assignee") {
-                                x.push( Filter { filter_type: FilterType::SelectedAssignee, ref_id: Some(assignee_ref.to_string()) } );
-                            }
+                        if let Some(x) = filter_type_groups.get_mut("assignee") {
+                            x.push( Filter { filter_type: FilterType::SelectedAssignee, ref_id: Some(assignee_ref.to_string()) } );
+                        }
 
-                        },
-                        // 'No Assignee' filter
-                        Value::Null => {
-                            indirect_filter_list.push( Filter { filter_type: FilterType::NoAssignee, ref_id: None } );
+                    },
+                    // 'No Assignee' filter
+                    Value::Null => {
+                        indirect_filter_list.push( Filter { filter_type: FilterType::NoAssignee, ref_id: None } );
 
-                            if let Some(x) = filter_type_groups.get_mut("assignee") {
-                                x.push( Filter { filter_type: FilterType::NoAssignee, ref_id: None } );
-                            }
-                        },
-                        _ => {},
-                    }
+                        if let Some(x) = filter_type_groups.get_mut("assignee") {
+                            x.push( Filter { filter_type: FilterType::NoAssignee, ref_id: None } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view 'assignee' filter obj must either be Value::String or Value::Null: {:?}", assignee_obj["ref"]);
+                        panic!("create_loader_from_view 'assignee' filter obj must either be Value::String or Value::Null: {:?}", assignee_obj["ref"]);
+                    },
                 }
-            },
-            _ => {},
-        };
+            }
+        }
 
         // Add 'label' filters:
         // SelectedLabel to 'direct_filter_list' & NoLabel to 'indirect_filter_list'
         // & all to 'filter_type_groups.get("label")'
-        match filters["labels"].as_array() {
-            Some(label_list) => {
-                for label_obj in label_list.iter() {
-                    match &label_obj["ref"] {
-                        Value::String(label_ref) => {
-                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) });
+        if let Some(label_list) = filters["labels"].as_array() {
+            for label_obj in label_list.iter() {
+                match &label_obj["ref"] {
+                    Value::String(label_ref) => {
+                        direct_filter_list.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) });
 
-                            if let Some(x) = filter_type_groups.get_mut("label") {
-                                x.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) } );
-                            }
-                        },
-                        // 'No Label' filter
-                        Value::Null => {
-                            indirect_filter_list.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
+                        if let Some(x) = filter_type_groups.get_mut("label") {
+                            x.push( Filter { filter_type: FilterType::SelectedLabel, ref_id: Some(label_ref.to_string()) } );
+                        }
+                    },
+                    // 'No Label' filter
+                    Value::Null => {
+                        indirect_filter_list.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
 
-                            if let Some(x) = filter_type_groups.get_mut("label") {
-                                x.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
-                            }
-                        },
-                        _ => {},
-                    }
+                        if let Some(x) = filter_type_groups.get_mut("label") {
+                            x.push( Filter { filter_type: FilterType::NoLabel, ref_id: None } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view 'labels' filter obj must either be Value::String or Value::Null: {:?}", label_obj["ref"]);
+                        panic!("create_loader_from_view 'labels' filter obj must either be Value::String or Value::Null: {:?}", label_obj["ref"]);
+                    },
                 }
-            },
-            _ => {},
-        };
+            }
+        }
 
         // Add 'project' filters:
         // SelectedProject to 'direct_filter_list' & NoProject to 'indirect_filter_list'
         // & all to 'filter_type_groups.get("project")'
-        match filters["project"].as_array() {
-            Some(project_list) => {
-                for project_obj in project_list.iter() {
-                    match &project_obj["ref"] {
-                        Value::String(project_ref) => {
-                            direct_filter_list.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) });
 
-                            if let Some(x) = filter_type_groups.get_mut("project") {
-                                x.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) } );
-                            }
+        if let Some(project_list) = filters["project"].as_array() {
+            for project_obj in project_list.iter() {
+                match &project_obj["ref"] {
+                    Value::String(project_ref) => {
+                        direct_filter_list.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) });
 
-                        },
-                        // 'No Project' filter
-                        Value::Null => {
-                            indirect_filter_list.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
+                        if let Some(x) = filter_type_groups.get_mut("project") {
+                            x.push( Filter { filter_type: FilterType::SelectedProject, ref_id: Some(project_ref.to_string()) } );
+                        }
 
-                            if let Some(x) = filter_type_groups.get_mut("project") {
-                                x.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
-                            }
-                        },
-                        _ => {},
-                    }
+                    },
+                    // 'No Project' filter
+                    Value::Null => {
+                        indirect_filter_list.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
+
+                        if let Some(x) = filter_type_groups.get_mut("project") {
+                            x.push( Filter { filter_type: FilterType::NoProject, ref_id: None } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view 'project' filter obj must either be Value::String or Value::Null: {:?}", project_obj["ref"]);
+                        panic!("create_loader_from_view 'project' filter obj must either be Value::String or Value::Null: {:?}", project_obj["ref"]);
+                    },
                 }
-            },
-            _ => {},
-        };
+            }
+        }
+
+        // Add 'priority' filters:
+        // SelectedPriority to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("priority")'
+
+        if let Some(priority_list) = filters["priority"].as_array() {
+            for priority_obj in priority_list.iter() {
+                match &priority_obj["ref"] {
+                    Value::Number(priority_ref) => {
+
+                        let u64_data = priority_ref.as_u64()
+                                                    .expect("Expected 'priority' 'ref' to be a Number parseable as u64")
+                                                    .to_string();
+
+                        indirect_filter_list.push( Filter { filter_type: FilterType::SelectedPriority, ref_id: Some(u64_data.clone()) });
+
+
+                        if let Some(x) = filter_type_groups.get_mut("priority") {
+                            x.push( Filter { filter_type: FilterType::SelectedPriority, ref_id: Some(u64_data) } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view did not find 'ref' field for 'priority' filter object: {:?}", priority_obj["ref"]);
+                        panic!("create_loader_from_view did not find 'ref' field for 'priority' filter object: {:?}", priority_obj["ref"]);
+                    },
+                }
+            }
+        }
+
+        // Add 'subscriber' filters:
+        // SelectedSubscriber to 'indirect_filter_list'
+        // & all to 'filter_type_groups.get("subscriber")'
+
+        if let Some(subscriber_list) = filters["subscribers"].as_array() {
+            for subscriber_obj in subscriber_list.iter() {
+                match &subscriber_obj["ref"] {
+                    Value::String(subscriber_ref) => {
+
+                        indirect_filter_list.push( Filter { filter_type: FilterType::SelectedSubscriber, ref_id: Some(subscriber_ref.to_string()) });
+
+                        if let Some(x) = filter_type_groups.get_mut("subscriber") {
+                            x.push( Filter { filter_type: FilterType::SelectedSubscriber, ref_id: Some(subscriber_ref.to_string()) } );
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view did not find 'ref' field for 'subscribers' filter object: {:?}", subscriber_obj["ref"]);
+                        panic!("create_loader_from_view did not find 'ref' field for 'subscribers' filter object: {:?}", subscriber_obj["ref"]);
+                    },
+                }
+            }
+        }
 
         // Add 'dueDateQualifier' filters to 'indirect_filter_list' &
         // 'filter_type_groups.get("dueDate")'
-        match filters["dueDateQualifier"].as_array() {
-            Some(due_date_filter_list) => {
-                for due_date_filter in due_date_filter_list.iter() {
-                    match &due_date_filter["ref"] {
-                        Value::String(due_date_ref) => {
-                            if due_date_ref == "none" {
-                                indirect_filter_list.push( Filter { filter_type: FilterType::NoDueDate, ref_id: None });
+        if let Some(due_date_filter_list) = filters["dueDateQualifier"].as_array() {
+            for due_date_filter in due_date_filter_list.iter() {
+                match &due_date_filter["ref"] {
+                    Value::String(due_date_ref) => {
+                        if due_date_ref == "none" {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::NoDueDate, ref_id: None });
 
-                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
-                                    x.push( Filter { filter_type: FilterType::NoDueDate, ref_id: None } );
-                                }
+                            if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                x.push( Filter { filter_type: FilterType::NoDueDate, ref_id: None } );
                             }
-                            else if due_date_ref == "due" {
-                                indirect_filter_list.push( Filter { filter_type: FilterType::HasDueDate, ref_id: None });
+                        }
+                        else if due_date_ref == "due" {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::HasDueDate, ref_id: None });
 
-                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
-                                    x.push( Filter { filter_type: FilterType::HasDueDate, ref_id: None } );
-                                }
+                            if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                x.push( Filter { filter_type: FilterType::HasDueDate, ref_id: None } );
                             }
-                            else if due_date_ref == "dueSoon" {
-                                indirect_filter_list.push( Filter { filter_type: FilterType::DueSoon, ref_id: None });
+                        }
+                        else if due_date_ref == "dueSoon" {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::DueSoon, ref_id: None });
 
-                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
-                                    x.push( Filter { filter_type: FilterType::DueSoon, ref_id: None } );
-                                }
+                            if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                x.push( Filter { filter_type: FilterType::DueSoon, ref_id: None } );
                             }
-                            else if due_date_ref == "dueToday" {
-                                indirect_filter_list.push( Filter { filter_type: FilterType::DueToday, ref_id: None });
-                                
-                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
-                                    x.push( Filter { filter_type: FilterType::DueToday, ref_id: None } );
-                                }
+                        }
+                        else if due_date_ref == "dueToday" {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::DueToday, ref_id: None });
+                            
+                            if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                x.push( Filter { filter_type: FilterType::DueToday, ref_id: None } );
                             }
-                            else if due_date_ref == "overdue" {
-                                indirect_filter_list.push( Filter { filter_type: FilterType::Overdue, ref_id: None });
+                        }
+                        else if due_date_ref == "overdue" {
+                            indirect_filter_list.push( Filter { filter_type: FilterType::Overdue, ref_id: None });
 
-                                if let Some(x) = filter_type_groups.get_mut("dueDate") {
-                                    x.push( Filter { filter_type: FilterType::Overdue, ref_id: None } );
-                                }
+                            if let Some(x) = filter_type_groups.get_mut("dueDate") {
+                                x.push( Filter { filter_type: FilterType::Overdue, ref_id: None } );
                             }
-                        },
-                        _ => {},
-                    }
+                        }
+                    },
+                    _ => {
+                        error!("create_loader_from_view did not find 'ref' field for 'dueDateQualifier' filter object: {:?}", due_date_filter["ref"]);
+                        panic!("create_loader_from_view did not find 'ref' field for 'dueDateQualifier' filter object: {:?}", due_date_filter["ref"]);
+                    },
                 }
-            },
-            _ => {},
+            }
         };
     }
 
 
     // Set Strategy for ViewLoader: if direct_filter_list.len() > 0 { DirectQueryPaginate } else { GenericIssuePaginate }
-    if direct_filter_list.len() > 0 { 
+    if !direct_filter_list.is_empty() {
         load_strat = ViewLoadStrategy::DirectQueryPaginate;
     }
     else {
@@ -368,13 +425,8 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         direct_filter_queryable_list = direct_filter_list
                                         .clone()
                                         .into_iter()
-                                        .filter_map(|e| {
-                                            if e.filter_type == direct_filter_list[0].filter_type {
-                                                Some(e) 
-                                            }
-                                            else {
-                                                None
-                                            }
+                                        .filter(|e| {
+                                            e.filter_type == direct_filter_list[0].filter_type
                                         })
                                         .collect();
     }
@@ -406,7 +458,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 // if we have a Filter with two SelectedLabel filters and two SelectedState filters
 // and we are querying on one of the SelectedLabel filters, this method will correctly ignore the non-queried SelectedLabel filter
 // but it will expect both SelectedState filters to be applied simultaneously to the issue
-pub fn filter_map_issues_by_loader( issues: Vec<Value>,
+pub fn filter_issues_by_loader( issues: Vec<Value>,
                                     team_tz_lookup: &HashMap<String,String>,
                                     tz_offset_lookup: &Arc<Mutex<HashMap<String, f64>>>,
                                     linear_config: &LinearConfig,
@@ -416,7 +468,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
 
     issues
         .into_iter()
-        .filter_map(|e| {
+        .filter(|e| {
 
             // let mut issue_is_valid = true;
 
@@ -428,49 +480,60 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 filter_type_groups.insert(String::from("label"), Vec::new());
                 filter_type_groups.insert(String::from("assignee"), Vec::new());
                 filter_type_groups.insert(String::from("project"), Vec::new());
+                filter_type_groups.insert(String::from("priority"), Vec::new());
                 filter_type_groups.insert(String::from("dueDate"), Vec::new());
             */
 
-            let mut team_filter_met = false;
-            let mut state_filter_met = false;
-            let mut creator_filter_met = false;
-            let mut label_filter_met = false;
-            let mut assignee_filter_met = false;
-            let mut project_filter_met = false;
-            let mut due_date_filter_met = false;
+            let mut team_filter_met;
+            let mut state_filter_met;
+            let mut creator_filter_met;
+            let mut label_filter_met;
+            let mut assignee_filter_met;
+            let mut project_filter_met;
+            let mut priority_filter_met;
+            let mut subscriber_filter_met;
+            let mut due_date_filter_met;
 
             // Iterate through each list in 'filter_type_groups' and see flag whether the group is satisfied
             // at conclusion, if any group bools are false, set issue_is_valid to false
 
             // set filter group bools to true if no filters in group
             {
-                team_filter_met= if view_loader.filter_ignorable_groups.get("team")
+                team_filter_met= view_loader.filter_ignorable_groups.get("team")
                                         .expect("'team' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
 
-                state_filter_met = if view_loader.filter_ignorable_groups.get("state")
+                state_filter_met = view_loader.filter_ignorable_groups.get("state")
                                         .expect("'state' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
                 
-                creator_filter_met = if view_loader.filter_ignorable_groups.get("creator")
+                creator_filter_met = view_loader.filter_ignorable_groups.get("creator")
                                         .expect("'creator' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
 
-                label_filter_met = if view_loader.filter_ignorable_groups.get("label")
+                label_filter_met = view_loader.filter_ignorable_groups.get("label")
                                         .expect("'label' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
 
-                assignee_filter_met = if view_loader.filter_ignorable_groups.get("assignee")
+                assignee_filter_met = view_loader.filter_ignorable_groups.get("assignee")
                                         .expect("'assignee' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
 
-                project_filter_met = if view_loader.filter_ignorable_groups.get("project")
+                project_filter_met = view_loader.filter_ignorable_groups.get("project")
                                         .expect("'project' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
 
-                due_date_filter_met = if view_loader.filter_ignorable_groups.get("dueDate")
+                priority_filter_met = view_loader.filter_ignorable_groups.get("priority")
+                                        .expect("'priority' key not found in filter_ignorable_groups")
+                                        .is_empty();
+
+                subscriber_filter_met = view_loader.filter_ignorable_groups.get("subscriber")
+                                            .expect("'subscriber' key not found in filter_ignorable_groups")
+                                            .is_empty();
+
+                due_date_filter_met = view_loader.filter_ignorable_groups.get("dueDate")
                                         .expect("'dueDate' key not found in filter_ignorable_groups")
-                                        .len() == 0 { true } else { false };
+                                        .is_empty();
             }
 
             // "team"
@@ -478,7 +541,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .expect("'team' key not found in filter_ignorable_groups")
                             .iter()
             {
-                if team_filter_met == true { continue };
+                if team_filter_met { continue };
                 
                 match filter.filter_type {
                     FilterType::SelectedTeam => {
@@ -507,7 +570,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .expect("'state' key not found in filter_ignorable_groups")
                             .iter() 
             {
-                if state_filter_met == true { continue };
+                if state_filter_met { continue };
 
                 match filter.filter_type {
                     FilterType::SelectedState => {
@@ -533,7 +596,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .expect("'creator' key not found in filter_ignorable_groups")
                             .iter() 
             {
-                if creator_filter_met == true { continue };
+                if creator_filter_met { continue };
 
                 match filter.filter_type {
                     FilterType::SelectedCreator => {
@@ -559,7 +622,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .expect("'label' key not found in filter_ignorable_groups")
                             .iter()
             {
-                if label_filter_met == true { continue };
+                if label_filter_met { continue };
 
                 match filter.filter_type {
                     FilterType::SelectedLabel => {
@@ -570,14 +633,14 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .to_string());
 
                         if let Value::Array(ref label_list) = e["labels"]["nodes"] {
-                            if label_list.iter().any(|label_id| label_id["id"] == cmp_ref_id) == true {
+                            if label_list.iter().any(|label_id| label_id["id"] == cmp_ref_id) {
                                 label_filter_met = true;
                             }
                         }
                     },
                     FilterType::NoLabel => {
                         if let Value::Array(ref label_list) = e["labels"]["nodes"] {
-                            if label_list.len() == 0 {
+                            if label_list.is_empty() {
                                 label_filter_met = true;
                             }
                         }
@@ -594,7 +657,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .expect("'assignee' key not found in filter_ignorable_groups")
                             .iter() 
             {
-                if assignee_filter_met == true { continue };
+                if assignee_filter_met { continue };
 
                 match filter.filter_type {
                     FilterType::SelectedAssignee => {
@@ -625,7 +688,7 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             .expect("'project' key not found in filter_ignorable_groups")
                             .iter() 
             {
-                if project_filter_met == true { continue };
+                if project_filter_met { continue };
 
                 match filter.filter_type {
                     FilterType::SelectedProject => {
@@ -650,12 +713,77 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                 }
             }
 
+            // "priority"
+            for filter in view_loader.filter_ignorable_groups.get("priority")
+                            .expect("'priority' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if priority_filter_met { continue };
+
+                match filter.filter_type {
+                    FilterType::SelectedPriority => {
+                        let cmp_ref_id = Value::Number(
+                                            Number::from(filter.ref_id
+                                                .clone()
+                                                .expect("SelectedPriority Filter must have a ref_id")
+                                                .parse::<u64>()
+                                                .expect("SelectedPriority Filter ref_id must be parseable as u64")
+                                            )
+                                        );
+                        
+                        // debug!("Comparing SelectedPriority e['priority']: {:?} == cmp_ref_id: {:?}", e["priority"], cmp_ref_id);
+                    
+                        if e["priority"] == cmp_ref_id {
+                            debug!("Found SelectedPriority Filter Match");
+                            priority_filter_met = true;
+                        }
+                    },
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('priority')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('priority')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
+            // "subscriber"
+            for filter in view_loader.filter_ignorable_groups.get("subscriber")
+                            .expect("'subscriber' key not found in filter_ignorable_groups")
+                            .iter()
+            {
+                if subscriber_filter_met { 
+                    debug!("subscriber_filter_met == true, skipping");
+                    continue 
+                };
+
+                match filter.filter_type {
+                    FilterType::SelectedSubscriber => {
+                        let cmp_ref_id = Value::String(filter.ref_id
+                                            .clone()
+                                            .expect("'SelectedSubscriber Filter must have a ref_id'")
+                                            .to_string());
+
+
+                        if let Value::Array(ref subscriber_list) = e["subscribers"]["nodes"] {
+                            debug!("Comparing SelectedSubscriber cmp_ref_id: {:?} with subscriber_list: {:?}", cmp_ref_id, subscriber_list);
+                            if subscriber_list.iter().any(|subscriber_id| subscriber_id["id"] == cmp_ref_id) {
+                                subscriber_filter_met = true;
+                            }
+                        }
+                    },
+                    _ => { 
+                        error!("'filter_ignorable_groups.get('subscriber')' has invalid filter: {:?}", filter);
+                        panic!("'filter_ignorable_groups.get('subscriber')' has invalid filter: {:?}", filter);
+                    }
+                }
+            }
+
+
             // "dueDate"
             for filter in view_loader.filter_ignorable_groups.get("dueDate")
                             .expect("'dueDate' key not found in filter_ignorable_groups")
                             .iter() 
             {
-                if due_date_filter_met == true { continue };
+                if due_date_filter_met { continue };
 
                 debug!("filter_map_issues_by_loader: found dueDate filters to filter issues by");
 
@@ -711,13 +839,15 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
             }
 
 
-            if  team_filter_met == false ||
-                state_filter_met == false ||
-                creator_filter_met == false ||
-                label_filter_met == false ||
-                assignee_filter_met == false ||
-                project_filter_met == false ||
-                due_date_filter_met == false 
+            if  !team_filter_met ||
+                !state_filter_met ||
+                !creator_filter_met ||
+                !label_filter_met ||
+                !assignee_filter_met ||
+                !project_filter_met ||
+                !priority_filter_met ||
+                !subscriber_filter_met ||
+                !due_date_filter_met
             {
                 debug!("team_filter_met: {:?} state_filter_met: {:?} creator_filter_met: {:?} label_filter_met: {:?} assignee_filter_met: {:?} project_filter_met: {:?} due_date_filter_met: {:?}",
                             team_filter_met,
@@ -727,10 +857,10 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
                             assignee_filter_met,
                             project_filter_met,
                             due_date_filter_met);
-                None
+                false
             }
             else {
-                Some(e)
+                true
             }
         })
         .collect()
@@ -739,27 +869,18 @@ pub fn filter_map_issues_by_loader( issues: Vec<Value>,
 pub fn deduplicate_issue_list ( issues_to_filter: Vec<Value>, found_issue_list: &mut Vec<Value>, dedup_list: &mut Vec<Value> ) -> Vec<Value> {
     issues_to_filter
         .into_iter()
-        .filter_map(|e| {
-            if found_issue_list.len() < 1 && dedup_list.len() < 1 {
-                return Some(e);
+        .filter(|e| {
+            if found_issue_list.is_empty() && dedup_list.is_empty() {
+                return true;
             }
             // Check both found_issue_list and dedup_list for duplicates
             match found_issue_list.iter().any(|x| {
-                // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
                 x["id"] == e["id"]
             }) {
-                true => { return None },
+                true => { return false },
                 false => {  }
             };
-
-            match dedup_list.iter().any(|x| {
-                // debug!("dedup comparison: {:?} == {:?}", x["id"], e["id"]);
-                x["id"] == e["id"]
-            }) {
-                true => { None },
-                false => { Some(e) }
-            }
-
+            !dedup_list.iter().any(|x| { x["id"] == e["id"] })
         })
         .collect()
 }
@@ -783,7 +904,7 @@ pub async fn generic_issue_fetch (  view_loader: &mut ViewLoader,
     
     let mut selected_team_id: String = String::default();
 
-    if fetch_by_team == true {
+    if fetch_by_team {
         let selected_team_idx = view_loader.filter_ignorable_groups.get("team")
                                     .expect("'team' key not found in filter_ignorable_groups")
                                     .iter()
@@ -805,7 +926,7 @@ pub async fn generic_issue_fetch (  view_loader: &mut ViewLoader,
     loop {
 
         // If Indirect Query is exhausted
-        if view_loader.cursor.platform == Platform::Linear && view_loader.cursor.has_next_page == false {
+        if view_loader.cursor.platform == Platform::Linear && !view_loader.cursor.has_next_page {
             // No more Pages in Indirect Query remaining, return found_issues_list
             view_loader.exhausted = true; 
             debug!("Indirect Query - no more issues to query, returning found_issues_list");
@@ -858,7 +979,7 @@ pub async fn generic_issue_fetch (  view_loader: &mut ViewLoader,
             debug!("issues_to_filter.len() (dedup): {:?}", issues_to_filter.len());
 
             // Filter queried Issues by 
-            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(
+            let mut filtered_issue_list: Vec<Value> = filter_issues_by_loader(
                                             issues_to_filter,
                                             &team_tz_lookup,
                                             &tz_offset_lookup,
@@ -869,7 +990,7 @@ pub async fn generic_issue_fetch (  view_loader: &mut ViewLoader,
             debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
 
 
-            if filtered_issue_list.len() > 0 {
+            if !filtered_issue_list.is_empty() {
                 found_issue_list.append(&mut filtered_issue_list);
             }
 
@@ -940,14 +1061,14 @@ pub async fn direct_issue_fetch (   view_loader: &mut ViewLoader,
         //        
 
         // If current Direct Query is exhausted
-        if view_loader.cursor.platform == Platform::Linear && view_loader.cursor.has_next_page == false {
+        if view_loader.cursor.platform == Platform::Linear && !view_loader.cursor.has_next_page {
             // If more Direct Queries remaining, increment index and reset cursor
             if (query_list_idx+1) < view_loader.direct_filter_queryable.len() {
 
                 debug!("Current Direct Query exhausted, shifting to next Direct Query");
 
                 query_list_idx += 1;
-                view_loader.direct_filter_query_idx = Some(query_list_idx.clone());
+                view_loader.direct_filter_query_idx = Some(query_list_idx);
                 view_loader.cursor = GraphQLCursor::default();
             }
             // No more Direct Queries remaining, return found_issues_list
@@ -1070,7 +1191,7 @@ pub async fn direct_issue_fetch (   view_loader: &mut ViewLoader,
             debug!("issues_to_filter.len() (dedup): {:?}", issues_to_filter.len());
 
             // Filter queried Issues by 
-            let mut filtered_issue_list: Vec<Value> = filter_map_issues_by_loader(
+            let mut filtered_issue_list: Vec<Value> = filter_issues_by_loader(
                                             issues_to_filter,
                                             &team_tz_lookup,
                                             &tz_offset_lookup,
@@ -1081,7 +1202,7 @@ pub async fn direct_issue_fetch (   view_loader: &mut ViewLoader,
             debug!("filtered_issue_list.len(): {:?}", filtered_issue_list.len());
 
             
-            if filtered_issue_list.len() > 0 {
+            if !filtered_issue_list.is_empty() {
                 found_issue_list.append(&mut filtered_issue_list);
             }
 
@@ -1117,7 +1238,7 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
                                             view_loader_option: Option<ViewLoader>,
                                             team_tz_lookup: HashMap<String,String>,
                                             tz_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
-                                            issue_data: Arc<Mutex<Option<Value>>>,
+                                            issue_data: Arc<Mutex<Vec<Value>>>,
                                             linear_config: LinearConfig
                                         ) -> ( Vec<Value>, ViewLoader, u32 ) {
 
@@ -1134,24 +1255,11 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
     // Append currently found issues from 'issue_data' to 'dedup_list'
     {
         let issue_data_lock = issue_data.lock().unwrap();
-
-        if let Some(issue_list) = &*issue_data_lock {
-            match issue_list.as_array() {
-                Some(issue_vec) => {
-                    dedup_list.append(&mut issue_vec.clone());
-                },
-                None => {
-                    error!("ViewPanel.issue_table_data was Some but not a Value::Array");
-                    panic!("ViewPanel.issue_table_data was Some but not a Value::Array");
-                }
-            }
-        }
+        dedup_list.append(&mut issue_data_lock.clone());
     }
 
 
 
-
-    let mut query_list_idx: usize;
 
     let mut request_num: u32 = 0;
     let mut found_issue_list: Vec<Value> = Vec::new();
@@ -1172,190 +1280,3 @@ pub async fn optimized_view_issue_fetch (   view_obj: &Value,
 
     return (found_issue_list, view_loader, request_num);
 }
-
-
-
-/*
-// Accepts a custom view object: &Value
-// TODO: Certain filter resolvers may have to paginate in order to create accurate view and filter lists
-pub async fn get_issues_from_view( view_obj: &Value, linear_config: LinearConfig ) -> Option<Vec<Value>> {
-    // Determine which filter resolver methods to call based on available attributes,
-    // and perform an Intersect operation on returned issues to determine 
-
-    info!("View Resolver received view_obj: {:?}", view_obj);
-
-    let filters = view_obj["filters"].clone();
-
-    info!("ViewLoader: {:?}", create_loader_from_view(&filters));
-
-    if Value::Null == filters {
-        return None;
-    }
-
-    if let Value::Object(_) = filters {
-
-        let mut filter_component_results: Vec<Option<Vec<Value>>> = Vec::new();
-
-        // Handle 'state' filters
-        match filters["state"].as_array() {
-            Some(state_list) => {
-                filter_component_results.push(
-                    get_issues_by_state(state_list.clone(), linear_config.clone()).await
-                );
-            },
-            _ => {},
-        };
-
-        // Handle 'assignee' filters
-        match filters["assignee"].as_array() {
-            Some(assignee_list) => {
-                filter_component_results.push(
-                    get_issues_by_assignee(assignee_list.clone(), linear_config.clone()).await
-                );
-            }
-            _ => {},
-        }
-
-        // Handle 'creator' filters
-        match filters["creator"].as_array() {
-            Some(creator_list) => {
-                filter_component_results.push(
-                    get_issues_by_creator(creator_list.clone(), linear_config.clone()).await
-                );
-            },
-            _ => {},
-        }
-
-        // Handle 'labels' filters
-        match filters["labels"].as_array() {
-            Some(label_list) => {
-                filter_component_results.push(
-                    get_issues_by_label(label_list.clone(), linear_config.clone()).await
-                );
-            },
-            _ => {},
-        }
-        
-        // Final Merge operation:
-        //     let mut final_issue_list: Vec<Value> = Vec::new();
-        //     let mut issue_id_set: Set<String>
-        //     Remove 'None' reponses from filter_component_results
-        //     Iterate over all Some(Vec<Value>) responses in filter_component_results, for each:
-        //         If first list, add all issue ids to issue_id_set & for every issue id not already in issue_id_set, add issue to final issue list
-        //         Else:
-        //             Create array of issue ids 'unfound_issue_ids' from issue_id_set
-        //             iterate over current Vec<Value>
-        //                 if issue id not in issue_id_set, skip
-        //                 else remove issue id from 'unfound_issue_ids'
-        //             Remove all issue_ids remaining in 'unfound_issue_ids' from 'issue_id_set'
-        //             Remove all issues from 'final_issue_list' whose ids are in 'unfound_issue_ids'
-        //    Return final_issue_list
-
-        let mut final_issue_list: Vec<Value> = Vec::new();
-        let mut issue_id_set: HashSet<String> = HashSet::new();
-
-        let mut resolver_issue_values: Vec<Vec<Value>> = filter_component_results
-                                    .into_iter()
-                                    .filter_map(|e| {
-                                        // e: Option<Vec<Value>>
-                                        match e {
-                                            Some(_) => e,
-                                            None => None,
-                                        }
-                                    })
-                                    .collect();
-        debug!("resolver_issue_values: {:?}", resolver_issue_values);
-    
-        for (idx, value_list) in resolver_issue_values.iter().enumerate() {
-
-            // If first list, add all issue ids to issue_id_set 
-            //     for every issue id not already in issue_id_set, add issue to final issue list
-
-            if idx == 0 {
-                let mut current_issue_id: String;
-                for issue_obj in value_list.iter() {
-                    let mut not_already_in_set = false;
-
-                    match issue_obj["id"].as_str() {
-                        Some(id) => {
-                            debug!("Inserting Issue id ${:?} into issue_id_set", id);
-                            not_already_in_set = issue_id_set.insert(String::from(id));
-                        },
-                        None => {
-                            debug!("Skipping, no 'id' found - issue_obj: {:?}", issue_obj);
-                            continue;
-                        },
-                    }
-                    // Issue id not already in issue_id_set, add issue to final issue list
-                    if not_already_in_set == true {
-                        final_issue_list.push(issue_obj.clone());
-                    }
-                }
-            }
-
-            // Else:
-            //     Create array of issue ids 'unfound_issue_ids' from issue_id_set
-            //     iterate over current Vec<Value> 'value_list'
-            //         if issue id not in issue_id_set, skip
-            //         else remove issue id from 'unfound_issue_ids'
-            //     Remove all issue_ids remaining in 'unfound_issue_ids' from 'issue_id_set'
-            //     Remove all issues from 'final_issue_list' whose ids are in 'unfound_issue_ids'
-            else {
-                let mut unfound_issue_ids: HashSet<String> = issue_id_set.iter()
-                                                                        .cloned()
-                                                                        .collect();
-                // iterate over current Vec<Value> 'value_list'
-                for issue_obj in value_list.iter() {
-                    match issue_obj["id"].as_str() {
-                        Some(id) => {
-                            // if issue id not in issue_id_set, skip
-                            if !issue_id_set.contains(id) {
-                                continue;
-                            }
-                            // else remove issue id from 'unfound_issue_ids'
-                            else {
-                                unfound_issue_ids.remove(id);
-                            }
-                        },
-                        None => {continue;},
-                    }
-                }
-
-                // Remove all issue_ids remaining in 'unfound_issue_ids' from 'issue_id_set'
-                for issue_id in unfound_issue_ids.iter() {
-                    issue_id_set.remove(issue_id);
-                }
-
-                // Remove all issues from 'final_issue_list' whose ids are in 'unfound_issue_ids'
-                final_issue_list = final_issue_list.into_iter()
-                                                    .filter_map(|e| {
-                                                        match e["id"].as_str() {
-                                                            Some(id) => {
-                                                                if unfound_issue_ids.contains(id) {
-                                                                    None
-                                                                }
-                                                                else {
-                                                                    Some(e)
-                                                                }
-                                                            },
-                                                            None => {None},
-                                                        }
-                                                    })
-                                                    .collect();
-
-            }
-            debug!("Iter {:?}, issue_id_set: {:?}", idx, issue_id_set);
-            debug!("Iter {:?}, final_issue_list: {:?}", idx, final_issue_list);
-        }
-
-        info!("get_issues_from_view returning final_issue_list: {:?}", final_issue_list);
-        return Some(final_issue_list);
-    }
-    else {
-        panic!("view.filters was not an Object or Null")
-    }
-
-    return None;
-}
-
-*/
