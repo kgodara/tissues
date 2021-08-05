@@ -58,7 +58,7 @@ pub struct App<'a> {
 
     // Linear Dashboard Custom View List Display
     pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
-    // Linear Dashbaord Custom View List
+    // Linear Dashboard Custom View List
     pub linear_dashboard_view_list: Vec<Option<serde_json::Value>>,
     pub linear_dashboard_view_idx: Option<usize>,
     // Linear Dashboard 'DashboardViewPanel' components
@@ -167,9 +167,7 @@ impl<'a> App<'a> {
             Route::DashboardViewDisplay => {},
             Route::CustomViewSelect => {
                 // TODO: Clear any previous CustomViewSelect related values on self
-
                 self.dispatch_event("load_custom_views", tx);
-
             },
             Route::TeamSelect => {
 
