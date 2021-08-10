@@ -940,9 +940,11 @@ dependencies = [
 name = "rust-cli"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "colorsys",
  "dotenv",
+ "lazy_static",
  "log",
  "reqwest",
  "serde_json",

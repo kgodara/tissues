@@ -3,6 +3,7 @@
 {   "query": "query fetchCustomViews($firstNum: Int, $afterCursor: String) {
         customViews(first: $firstNum, after: $afterCursor) {
             nodes {
+                id
                 name
                 description
                 color

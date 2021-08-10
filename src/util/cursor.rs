@@ -1,5 +1,7 @@
 use crate::app::{ Platform };
 
+use serde_json::Value;
+
 #[derive(Debug, Clone)]
 pub struct GraphQLCursor {
     pub platform: Platform,
@@ -26,36 +28,21 @@ impl GraphQLCursor {
         }
     }
 
-    pub fn linear_cursor_from_page_info(page_info: serde_json::Value) -> Option<GraphQLCursor> {
+    pub fn linear_cursor_from_page_info(page_info: Value) -> Option<GraphQLCursor> {
 
         let mut return_option = None;
 
-        match page_info {
-            serde_json::Value::Object(page_object) => {
-                match &page_object["hasNextPage"] {
-                    serde_json::Value::Bool(page_bool) => {
-
-                        match &page_object["endCursor"] {
-                            serde_json::Value::String(cursor_str) => {
-                                
-                                return_option = Some(GraphQLCursor {
-                                    platform: Platform::Linear,
-                                    has_next_page: *page_bool,
-                                    end_cursor: cursor_str.clone(),
-                                });
-
-                            },
-                            _ => {},
-                        }
-
-                    },
-                    _ => {},
+        if let Value::Object(page_object) = page_info {
+            if let Value::Bool(page_bool) = &page_object["hasNextPage"] {
+                if let Value::String(cursor_str) = &page_object["endCursor"] {
+                    return_option = Some(GraphQLCursor {
+                        platform: Platform::Linear,
+                        has_next_page: *page_bool,
+                        end_cursor: cursor_str.clone(),
+                    });
                 }
-            },
-            _ => {},
+            }
         }
-
-        return return_option;
-            
+        return_option
     }
 }

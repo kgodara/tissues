@@ -1,18 +1,8 @@
 use tui::{
-    layout::{Constraint, Layout},
+    layout::{Constraint},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
-    Terminal,
 };
-
-use std::sync::{Arc, Mutex};
-use serde_json::json;
-
-// use colorsys::Color as CTColor;
-
-use crate::util::GraphQLCursor;
-use crate::linear::client::LinearClient;
-use crate::linear::LinearConfig;
 
 use crate::util::ui::style_color_from_hex_str;
 
@@ -25,7 +15,7 @@ pub struct DashboardViewDisplay {
 
 impl DashboardViewDisplay {
 
-    pub fn get_rendered_view_table(view_list: &Vec<Option<Value>>) -> Result<Table, &'static str> {
+    pub fn get_rendered_view_table(view_list: &[Option<Value>]) -> Result<Table, &'static str> {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
@@ -54,9 +44,9 @@ impl DashboardViewDisplay {
                                 .enumerate()
                                 .map(|(i,field)| match field {
 
-                                    serde_json::Value::String(x) => x.clone(),
-                                    serde_json::Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                    serde_json::Value::Null => {
+                                    Value::String(x) => x.clone(),
+                                    Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+                                    Value::Null => {
                                         // If 'team' is Null, the view is for all teams
                                         if i == 2 {
                                             String::from("All Teams")
@@ -95,7 +85,7 @@ impl DashboardViewDisplay {
                         let color = row["color"].clone();
 
                         let name = match name {
-                            serde_json::Value::String(x) => Some(x),
+                            Value::String(x) => Some(x),
                             _ => None,
                         };
 
@@ -103,13 +93,13 @@ impl DashboardViewDisplay {
 
                         match name {
                             Some(x) => { match style_color {
-                                Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
-                                None => return Cell::from(x),
+                                Some(y) => { Cell::from(x).style(Style::default().fg(y)) },
+                                None => Cell::from(x),
                             }},
-                            None => return Cell::from(String::default()),
+                            None => Cell::from(String::default()),
                         }
                     },
-                    None => {return Cell::from(String::from("Empty Slot"))}
+                    None => { Cell::from(String::from("Empty Slot"))}
                 }
             };
 
