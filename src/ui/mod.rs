@@ -290,7 +290,7 @@ where
   let mut remove_view_cmd_active = false;
 
   // If a View is not selected, no Commands allowed
-  if view_is_selected == true {
+  if view_is_selected {
     // A filled view slot is selected, allow Replace View and Remove View Commands
     if let Some(view) = selected_view {
       replace_view_cmd_active = true;

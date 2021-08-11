@@ -78,6 +78,8 @@ pub struct App<'a> {
 
     // Linear Dashboard Custom View List Display
     pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
+    pub dashboard_view_config_cmd_bar: components::command_bar::CommandBar,
+
     // Linear Dashboard Custom View List
     pub linear_dashboard_view_list: Vec<Option<Value>>,
     pub linear_dashboard_view_idx: Option<usize>,

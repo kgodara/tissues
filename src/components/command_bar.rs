@@ -1,41 +1,29 @@
 use tui::{
     layout::{Constraint},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, Cell, Row, List, ListItem},
 };
 
 use crate::util::ui::style_color_from_hex_str;
 
+use crate::util::colors;
+
+use crate::util::command_list::{ Command, DashboardCommand, ViewListCommand, CommandList, CommandValue};
+
 use serde_json::Value;
 
-struct CommandValue {
-    key_char: char,
-    label: str,
-}
-
-// Describe route-specific commands
-enum CommandBarType {
+#[derive(Debug)]
+pub enum CommandBarType {
     Dashboard,
-    ViewList
-}
-
-enum DashboardCommand {
-    RefreshPanel = CommandValue { key_char: 'r', label: "Refresh" },
-    ModifyWorkflowState = CommandValue { key_char: 'm', label: "Modify Workflow State" },
-}
-
-enum ViewListCommand {
-    RemoveView = CommandValue { key_char: 'r', label: "Remove View" },
-}
-
-enum Command {
-    Dashboard(DashboardCommand),
-    ViewList(ViewListCommand),
+    ViewList,
 }
 
 
-pub struct CommandBar {
+pub struct CommandBar<'a> {
     pub command_bar_type: CommandBarType,
+
+    command_list: CommandList<'a>,
     
     // Dashboard Command States
     refresh_panel_active: bool,
@@ -45,16 +33,25 @@ pub struct CommandBar {
     remove_view_active: bool,
 }
 
-impl CommandBar {
+impl<'a> CommandBar<'a> {
 
-    fn command_bar_with_type(cmd_bar_type: CommandBarType) -> CommandBar {
+    fn with_type(cmd_bar_type: CommandBarType) -> CommandBar<'a> {
         CommandBar {
-            command_bar_type: CommandBarType
+            command_bar_type: cmd_bar_type,
+
+            command_list: CommandList::default(),
+            
+            // Dashboard Command States
+            refresh_panel_active: false,
+            modify_workflow_state_active: false,
+
+            // View List Command States
+            remove_view_active: false,
         }
     }
 
     // Dashboard Command Setters
-    fn set_refresh_panel_active(&self, state: bool) {
+    fn set_refresh_panel_active(&mut self, state: bool) {
         match self.command_bar_type {
             CommandBarType::Dashboard => {
                 self.refresh_panel_active = state;
@@ -66,7 +63,7 @@ impl CommandBar {
         }
     }
 
-    fn set_modify_workflow_state_active(&self, state: bool) {
+    fn set_modify_workflow_state_active(&mut self, state: bool) {
         match self.command_bar_type {
             CommandBarType::Dashboard => {
                 self.modify_workflow_state_active = state;
@@ -80,7 +77,7 @@ impl CommandBar {
 
 
     // View List Command Setters
-    fn set_remove_view_active(&self, state: bool) {
+    fn set_remove_view_active(&mut self, state: bool) {
         match self.command_bar_type {
             CommandBarType::ViewList => {
                 self.remove_view_active = state;
@@ -92,4 +89,99 @@ impl CommandBar {
         }
     }
 
+    // Determnie if a Command should be styled as active or not
+    fn get_command_style(&self, cmd: &Command) -> Style {
+        match self.command_bar_type {
+            CommandBarType::Dashboard => {
+                match cmd {
+                    Command::Dashboard(cmd) => {
+                        match cmd {
+                            DashboardCommand::RefreshPanel => {
+                                if self.refresh_panel_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::REFRESH_PANEL_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::REFRESH_PANEL_CMD_INACTIVE)
+                                }
+                            },
+                            DashboardCommand::ModifyWorkflowState => {
+                                if self.modify_workflow_state_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_WORKFLOW_STATE_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_WORKFLOW_STATE_CMD_INACTIVE)
+                                }
+                            }
+                        }
+                    },
+                    _ => {
+                        error!("get_command_style - CommandBarType::Dashboard requires Command::Dashboard(), received: {:?}", cmd);
+                        panic!("get_command_style - CommandBarType::Dashboard requires Command::Dashboard(), received: {:?}", cmd);
+                    }
+                }
+            },
+            CommandBarType::ViewList => {
+                match cmd {
+                    Command::ViewList(cmd) => {
+                        match cmd {
+                            ViewListCommand::RemoveView => {
+                                if self.refresh_panel_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::REMOVE_VIEW_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::REMOVE_VIEW_CMD_INACTIVE)
+                                }
+                            }
+                        }
+                    },
+                    // Error
+                    _ => {
+                        error!("get_command_style - CommandBarType::ViewList requires Command::ViewList(), received: {:?}", cmd);
+                        panic!("get_command_style - CommandBarType::ViewList requires Command::ViewList(), received: {:?}", cmd);
+                    }
+                }
+            }
+        }
+    }
+
+
+    pub fn render(&self) -> Result<List, &'static str> {
+
+        // Determine which selection of commands this Command Bar is responsible for
+        let list_items: Vec<ListItem> = match self.command_bar_type {
+            CommandBarType::Dashboard => {
+                self.command_list.dashboard.iter()
+                    .enumerate()
+                    .map(|(i, e)| {
+                        let lines = vec![Spans::from(Span::styled(
+                            e.label,
+                            self.get_command_style(&e.cmd_type)
+                        ))];
+                        ListItem::new(lines).style(Style::default())
+                    })
+                    .collect()
+            },
+            CommandBarType::ViewList => {
+                self.command_list.view_list.iter()
+                    .enumerate()
+                    .map(|(i, e)| {
+                        let lines = vec![Spans::from(Span::styled(
+                            e.label,
+                            self.get_command_style(&e.cmd_type)
+                        ))];
+                        ListItem::new(lines).style(Style::default())
+                    })
+                    .collect()
+            }
+        };
+
+        // Create a List from all list items and highlight the currently selected one
+        let items = List::new(list_items)
+            .block(Block::default().borders(Borders::ALL).title("Commands"))
+            .highlight_style(
+                Style::default()
+                    .bg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol(">> ");
+        
+        Ok(items)
+    }
 }

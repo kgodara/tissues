@@ -19,6 +19,8 @@ mod dashboard;
 pub use dashboard::fetch_selected_view_panel_issue;
 pub use dashboard::fetch_selected_workflow_state;
 
+pub mod command_list;
+
 #[derive(Debug)]
 pub struct StatefulList<T> {
     pub state: ListState,
