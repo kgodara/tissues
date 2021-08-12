@@ -15,7 +15,7 @@ use crate::util::GraphQLCursor;
 use crate::linear::client::LinearClient;
 use crate::linear::LinearConfig;
 
-use crate::util::ui::{ TableStyle, style_color_from_hex_str };
+use crate::util::ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spans };
 
 
 
@@ -58,6 +58,8 @@ impl LinearCustomViewSelect {
 
 
     pub fn get_rendered_view_data(table_data: &[Value], table_style: TableStyle) -> Result<Table, &'static str> {
+
+        let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
@@ -136,45 +138,15 @@ impl LinearCustomViewSelect {
 
             cells.insert(0, generate_name_cell());
 
-            Row::new(cells).height(height as u16).bottom_margin(1)
+            Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });
 
 
-        // Determine if this table is selected and should be highlighted by
-        // Comparing (table_style.view_idx-1) == (table_style.selected_view_idx)
-        let highlight_table = match table_style.view_idx {
-            Some(view_idx) => {
-                if let Some(selected_view_idx) = table_style.selected_view_idx {
-                    view_idx == selected_view_idx
-                }
-                else { false }
-            },
-            None => {false}
-        };
-
         let table_block = Block::default()
                                     .borders(Borders::ALL)
-                                    .border_style(Style::default().fg(if highlight_table == true { Color::Yellow } else { Color::White }))
-                                    .title( match table_style.title_style {
-                                        Some(title_style) => {
-                
-                                            Spans::from(vec![   Span::styled(match table_style.view_idx {
-                                                                                Some(idx) => {
-                                                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
-                                                                                },
-                                                                                None => {String::default()}
-                                                                            },
-                                                                            Style::default()
-                                                                ),
-                                                                Span::styled(String::from("Select a Custom View"),
-                                                                    Style::default()
-                                                                        .add_modifier(Modifier::BOLD)
-                                                                        .fg(Color::White)
-                                                                )
-                                                            ])
-                                        },
-                                        None => { Spans::from(Span::styled("Table", Style::default())) }
-                                    });
+                                    .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
+                                    .title( gen_table_title_spans(table_style) );
+
 
         let t = Table::new(rows)
             .header(header)
@@ -188,7 +160,7 @@ impl LinearCustomViewSelect {
                 Constraint::Percentage(20),
             ]);
         
-        return Ok(t);
+        Ok(t)
 
     }
 }

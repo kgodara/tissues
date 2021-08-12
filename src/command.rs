@@ -28,8 +28,6 @@ pub enum Command {
 
     // Char Commands
     Quit,
-    Add,
-    Replace,
     Delete,
     SelectViewPanel(usize),
     SelectDashboardViewList,
@@ -65,14 +63,6 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
                 // Quit Command
                 "q" => {
                     Some(Command::Quit)
-                },
-                // Add Command
-                "a" => {
-                    Some(Command::Add)
-                },
-                // Replace Command
-                "r" => {
-                    Some(Command::Replace)
                 },
                 // Delete Command
                 "d" => {
@@ -286,7 +276,12 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
         // Change Route to ActionSelect
         Route::DashboardViewDisplay => {
-            app.change_route(Route::ActionSelect, &tx);
+            // If the Custom View Select component is selected, don't change route
+            if !app.linear_dashboard_view_list_selected {
+                exec_select_dashboard_view_list_cmd(app);
+            } else {
+                app.change_route(Route::ActionSelect, &tx);
+            }
         }
     }
 }
@@ -309,54 +304,63 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
                 }
             }
         },
-        // Add Custom View to app.linear_dashboard_view_list if a view is selected
-        Route::DashboardViewDisplay => if let Some(idx) = app.linear_selected_custom_view_idx {
-            // Add Custom View to app.linear_dashboard_view_list
-
-            // Custom View Select component is not selected, return
+        // Select Custom View Select
+        //     if already there: add Custom View to app.linear_dashboard_view_list if a view is selected
+        Route::DashboardViewDisplay => {
+            // Custom View Select component is not selected
             if app.linear_dashboard_view_list_selected {
-                return;
-            }
-
-            let custom_view_data_lock = app.linear_custom_view_select.view_table_data.lock().unwrap();
-
-            info!("Got Custom View Data");
-            let selected_view = custom_view_data_lock[idx].clone();
-
-            // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
-            // If no empty slots, do nothing
-
-            info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
-
-            /*
-            let slot_idx_option = app.linear_dashboard_view_list
-                                .iter()
-                                .position(|x| match x {
-                                    Some(_) => return true,
-                                    None => return false,
-                                });
-            */
-            let slot_idx_option = app.linear_dashboard_view_idx;
-            info!("slot_idx_option: {:?}", slot_idx_option);
-
-            if let Some(slot_idx) = slot_idx_option {
-                info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
-                app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
-
-                // Sort app.linear_dashboard_view_list so that all Some's are first
-                app.linear_dashboard_view_list = app.linear_dashboard_view_list
-                                                    .iter()
-                                                    .filter_map(|e| { e.as_ref().map(|_| e.clone()) })
-                                                    .collect();
-
-                while app.linear_dashboard_view_list.len() < 6 {
-                    app.linear_dashboard_view_list.push(None);
+                // Verify that a slot is selected
+                // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View
+                if app.linear_dashboard_view_idx.is_some() {
+                    exec_select_custom_view_select_cmd(app);
                 }
-            };
+            }
+            // Custom View Select component is selected and a view from it is selected
+            else if let Some(idx) = app.linear_selected_custom_view_idx  {
+                // Add Custom View to app.linear_dashboard_view_list, if view selected
 
-            drop(custom_view_data_lock);
-            // Change Route to Route::DashboardViewDisplay
-            app.change_route( Route::DashboardViewDisplay, &tx);
+                // Custom View Select component is selected
+                let custom_view_data_lock = app.linear_custom_view_select.view_table_data.lock().unwrap();
+
+                info!("Got Custom View Data");
+                let selected_view = custom_view_data_lock[idx].clone();
+
+                // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
+                // If no empty slots, do nothing
+
+                info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
+
+                /*
+                let slot_idx_option = app.linear_dashboard_view_list
+                                    .iter()
+                                    .position(|x| match x {
+                                        Some(_) => return true,
+                                        None => return false,
+                                    });
+                */
+                let slot_idx_option = app.linear_dashboard_view_idx;
+                info!("slot_idx_option: {:?}", slot_idx_option);
+
+                if let Some(slot_idx) = slot_idx_option {
+                    info!("Updated linear_dashboard_view_list[{:?}] with selected_view: {:?}", slot_idx, selected_view);
+                    app.linear_dashboard_view_list[slot_idx] = Some(selected_view);
+
+                    // Sort app.linear_dashboard_view_list so that all Some's are first
+                    app.linear_dashboard_view_list = app.linear_dashboard_view_list
+                                                        .iter()
+                                                        .filter_map(|e| { e.as_ref().map(|_| e.clone()) })
+                                                        .collect();
+
+                    while app.linear_dashboard_view_list.len() < 6 {
+                        app.linear_dashboard_view_list.push(None);
+                    }
+                };
+
+                drop(custom_view_data_lock);
+
+                // Reset Selection back to Dashboard View List
+                exec_select_dashboard_view_list_cmd(app);
+            }
         }
     }
 }

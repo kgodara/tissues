@@ -2,6 +2,10 @@ use tui::{
     style::{Color},
 };
 
+// Component Colors
+pub const CUSTOM_VIEW_SELECT_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u8);
+pub const DASHBOARD_VIEW_LIST_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u8);
+
 // View Panel Colors
 pub const SELECTED_COMPONENT_BORDER: Color = Color::Yellow;
 pub const API_REQ_NUM: Color = Color::Rgb(173u8, 252u8, 3u8);
@@ -18,8 +22,8 @@ pub const REPLACE_VIEW_CMD_ACTIVE: Color = Color::Rgb( 107u8, 83u8, 250u8 );
 pub const REPLACE_VIEW_CMD_INACTIVE: Color = Color::Rgb( 40u8, 7u8, 242u8 );
 
 // Red
-pub const REMOVE_VIEW_CMD_ACTIVE: Color = Color::Rgb( 184u8, 4u8, 4u8 );
-pub const REMOVE_VIEW_CMD_INACTIVE: Color = Color::Rgb( 138u8, 3u8, 3u8 );
+pub const DELETE_VIEW_CMD_ACTIVE: Color = Color::Rgb( 184u8, 4u8, 4u8 );
+pub const DELETE_VIEW_CMD_INACTIVE: Color = Color::Rgb( 138u8, 3u8, 3u8 );
 
 // Teal (25% darker for inactive) -- https://pinetools.com/darken-color
 pub const REFRESH_PANEL_CMD_ACTIVE: Color = Color::Rgb( 81u8, 193u8, 177u8 );

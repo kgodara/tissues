@@ -11,7 +11,7 @@ use serde_json::Value;
 
 // use colorsys::Color as CTColor;
 
-use crate::util::ui::{ TableStyle, style_color_from_hex_str };
+use crate::util::ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spans };
 use crate::util::colors::{ API_REQ_NUM };
 
 pub struct LinearIssueDisplay {
@@ -27,10 +27,10 @@ impl LinearIssueDisplay {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
-        let header_cells = ["Number", "Title", "State ('m' to modify)", "Description", "createdAt"]
+        let header_cells = ["Number", "Title", "State", "Description", "createdAt"]
             .iter()
             .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
-        
+
         let header = Row::new(header_cells)
             .style(normal_style)
             .height(1)
@@ -97,57 +97,10 @@ impl LinearIssueDisplay {
             Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });
 
-        // Determine if this table is selected and should be highlighted by
-        // Comparing (table_style.view_idx-1) == (table_style.selected_view_idx)
-        let highlight_table = match table_style.view_idx {
-            Some(view_idx) => {
-                if let Some(selected_view_idx) = table_style.selected_view_idx {
-                    // debug!("highlight_table: {:?} == {:?}", view_idx, selected_view_idx);
-                    view_idx == selected_view_idx
-                }
-                else { false }
-            },
-            None => {false}
-        };
-
-
         let table_block = Block::default()
                                     .borders(Borders::ALL)
-                                    .border_style(Style::default().fg(if highlight_table { Color::Yellow } else { Color::White }))
-                                    .title( match table_style.title_style {
-                                        Some(title_style) => {
-                
-                                            Spans::from(vec![   Span::styled(match table_style.view_idx {
-                                                                                Some(idx) => {
-                                                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
-                                                                                },
-                                                                                None => {String::default()}
-                                                                            },
-                                                                            Style::default()
-                                                                ),
-                                                                Span::styled(String::from(*title_style.0
-                                                                        .as_str()
-                                                                        .get_or_insert("Table")
-                                                                    ),
-                                                                    Style::default()
-                                                                        .add_modifier(Modifier::BOLD)
-                                                                        .fg(*style_color_from_hex_str(&title_style.1)
-                                                                                .get_or_insert(Color::White)
-                                                                        )
-                                                                ),
-                                                                Span::styled(match table_style.req_num {
-                                                                        Some(req_u16) => { vec![" - Req #: ", req_u16.to_string().as_str()].concat() },
-                                                                        None => { String::default() }
-                                                                    },
-                                                                    Style::default()
-                                                                        .add_modifier(Modifier::ITALIC)
-                                                                        .fg(API_REQ_NUM)
-                                                                )
-                                                            ])
-                                        },
-                                        None => { Spans::from(Span::styled("Table", Style::default())) }
-                                    });
-
+                                    .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
+                                    .title( gen_table_title_spans(table_style) );
 
         let t = Table::new(rows)
             .header(header)

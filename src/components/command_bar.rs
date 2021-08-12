@@ -35,7 +35,7 @@ pub struct CommandBar<'a> {
 
 impl<'a> CommandBar<'a> {
 
-    fn with_type(cmd_bar_type: CommandBarType) -> CommandBar<'a> {
+    pub fn with_type(cmd_bar_type: CommandBarType) -> CommandBar<'a> {
         CommandBar {
             command_bar_type: cmd_bar_type,
 
@@ -51,7 +51,7 @@ impl<'a> CommandBar<'a> {
     }
 
     // Dashboard Command Setters
-    fn set_refresh_panel_active(&mut self, state: bool) {
+    pub fn set_refresh_panel_active(&mut self, state: bool) {
         match self.command_bar_type {
             CommandBarType::Dashboard => {
                 self.refresh_panel_active = state;
@@ -63,7 +63,7 @@ impl<'a> CommandBar<'a> {
         }
     }
 
-    fn set_modify_workflow_state_active(&mut self, state: bool) {
+    pub fn set_modify_workflow_state_active(&mut self, state: bool) {
         match self.command_bar_type {
             CommandBarType::Dashboard => {
                 self.modify_workflow_state_active = state;
@@ -77,7 +77,7 @@ impl<'a> CommandBar<'a> {
 
 
     // View List Command Setters
-    fn set_remove_view_active(&mut self, state: bool) {
+    pub fn set_remove_view_active(&mut self, state: bool) {
         match self.command_bar_type {
             CommandBarType::ViewList => {
                 self.remove_view_active = state;
@@ -86,11 +86,11 @@ impl<'a> CommandBar<'a> {
                 error!("'set_remove_view_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
                 panic!("'set_remove_view_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
-        }
+        };
     }
 
     // Determnie if a Command should be styled as active or not
-    fn get_command_style(&self, cmd: &Command) -> Style {
+    pub fn get_command_style(&self, cmd: &Command) -> Style {
         match self.command_bar_type {
             CommandBarType::Dashboard => {
                 match cmd {
@@ -123,10 +123,10 @@ impl<'a> CommandBar<'a> {
                     Command::ViewList(cmd) => {
                         match cmd {
                             ViewListCommand::RemoveView => {
-                                if self.refresh_panel_active {
-                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::REMOVE_VIEW_CMD_ACTIVE)
+                                if self.remove_view_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::DELETE_VIEW_CMD_ACTIVE)
                                 } else {
-                                    Style::default().add_modifier(Modifier::DIM).fg(colors::REMOVE_VIEW_CMD_INACTIVE)
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::DELETE_VIEW_CMD_INACTIVE)
                                 }
                             }
                         }
@@ -143,6 +143,8 @@ impl<'a> CommandBar<'a> {
 
 
     pub fn render(&self) -> Result<List, &'static str> {
+
+        // debug!("CommandBar::render:: {:?}", remove_view_cmd_active);
 
         // Determine which selection of commands this Command Bar is responsible for
         let list_items: Vec<ListItem> = match self.command_bar_type {
@@ -163,7 +165,7 @@ impl<'a> CommandBar<'a> {
                     .enumerate()
                     .map(|(i, e)| {
                         let lines = vec![Spans::from(Span::styled(
-                            e.label,
+                            e.gen_label(),
                             self.get_command_style(&e.cmd_type)
                         ))];
                         ListItem::new(lines).style(Style::default())

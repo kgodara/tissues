@@ -1,21 +1,75 @@
 use tui::{
-    style::{Color},
+    style::{Color, Modifier, Style},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Span, Spans}
 };
+
+use crate::util::colors::{ API_REQ_NUM };
+
 use colorsys::{Rgb};
 
 use serde_json::Value;
 
 #[derive(Debug)]
 pub struct TableStyle {
+    // General (all tables)
     // ( name: Value::String, color_hex_str: Value::String || Value::Null )
     pub title_style: Option<(Value, Value)>,
-    pub view_idx: Option<u16>,
-    pub selected_view_idx: Option<u16>,
     pub row_bottom_margin: Option<u16>,
+
+    // View Panel Specific
+    pub view_idx: Option<u16>,
+
+    // TODO: Remove this field and pass instead as an arg to View Panel Render method
+    // pub selected_view_idx: Option<u16>,
+    pub highlight_table: bool,
+
+
     pub req_num: Option<u16>,
 }
 
+pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
+
+
+    match table_style.title_style {
+        Some(title_style) => {
+                            // Display Table's View index, if provided
+            Spans::from(vec![   Span::styled(match table_style.view_idx {
+                                                Some(idx) => {
+                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
+                                                },
+                                                None => {String::default()}
+                                            },
+                                            Style::default()
+                                ),
+                                // Display provided Label as Table Title
+                                Span::styled(String::from(*title_style.0
+                                        .as_str()
+                                        .get_or_insert("Table")
+                                    ),
+                                    Style::default()
+                                        .add_modifier(Modifier::BOLD)
+                                        .fg(*style_color_from_hex_str(&title_style.1)
+                                                .get_or_insert(Color::White)
+                                        )
+                                ),
+                                // If req # provided, display
+                                Span::styled(match table_style.req_num {
+                                        Some(req_u16) => { vec![" - Req #: ", req_u16.to_string().as_str()].concat() },
+                                        None => { String::default() }
+                                    },
+                                    Style::default()
+                                        .add_modifier(Modifier::ITALIC)
+                                        .fg(API_REQ_NUM)
+                                )
+                            ])
+        },
+        None => { Spans::from(Span::styled("Table", Style::default())) }
+    }
+}
+
+
+// Useful for modals
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -42,7 +96,7 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-pub fn style_color_from_hex_str(color: &serde_json::Value) -> Option<Color> {
+pub fn style_color_from_hex_str(color: &Value) -> Option<Color> {
 
     let hex_str;
 
@@ -59,10 +113,23 @@ pub fn style_color_from_hex_str(color: &serde_json::Value) -> Option<Color> {
     }
 
 
-    return Some(Color::Rgb(rgb_struct.red() as u8, rgb_struct.green() as u8, rgb_struct.blue() as u8));
+    Some(Color::Rgb(rgb_struct.red() as u8, rgb_struct.green() as u8, rgb_struct.blue() as u8))
 
 }
 
+pub fn hex_str_from_style_color(color: &Color) -> Option<String> {
+
+    match color {
+        Color::Rgb(r, g, b) => {
+            // TODO: Fix this temp workaround
+            let rgb = Rgb::new(*r as f64, *g as f64, *b as f64, None);
+            Some(rgb.to_hex_string())
+        },
+        _ => None
+    }
+}
+
+// View Panel Arrangements
 pub fn single_view_layout(idx: usize, r: Rect) -> Rect {
     if idx != 0 {
         panic!("idx must be 0 for single view layout, requested {:?}", idx);

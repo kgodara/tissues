@@ -29,6 +29,12 @@ pub struct CommandValue<'a> {
     pub inactive_color: Color,
 }
 
+impl<'a> CommandValue<'a> {
+    pub fn gen_label(&self) -> String {
+        format!("'{}': {}", self.key_char, self.label)
+    }
+}
+
 pub struct CommandList<'a> {
     pub dashboard: Vec<CommandValue<'a>>,
     pub view_list: Vec<CommandValue<'a>>,
@@ -54,11 +60,11 @@ impl Default for CommandList<'_> {
                 },
             ],
             view_list: vec![
-                CommandValue { key_char: 'r',
+                CommandValue { key_char: 'd',
                     cmd_type: Command::ViewList(ViewListCommand::RemoveView),
-                    label: "Remove View",
-                    active_color: colors::REMOVE_VIEW_CMD_ACTIVE,
-                    inactive_color: colors::REMOVE_VIEW_CMD_INACTIVE,
+                    label: "Delete View",
+                    active_color: colors::DELETE_VIEW_CMD_ACTIVE,
+                    inactive_color: colors::DELETE_VIEW_CMD_INACTIVE,
                 },
             ],
         }

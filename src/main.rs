@@ -243,12 +243,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::Quit => {
                             break;
                         },
+                        /*
                         Command::Add => {
                             exec_add_cmd(&mut app).await;
                         },
                         Command::Replace => {
                             exec_replace_cmd(&mut app).await;
                         },
+                        */
                         Command::Delete => {
                             exec_delete_cmd(&mut app).await;
                         },

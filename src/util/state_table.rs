@@ -1,5 +1,5 @@
 use tui::widgets::TableState;
-// A set of utilities for working with a ListState and an Iterator
+// A set of utilities for working with a TableState and an Iterator
 
 pub fn next<T>(state: &mut TableState, items: &Vec<T>) {
     let i = match state.selected() {

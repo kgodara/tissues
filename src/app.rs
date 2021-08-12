@@ -23,6 +23,8 @@ use std::collections::HashMap;
 use crate::util::fetch_selected_view_panel_issue;
 use crate::util::fetch_selected_workflow_state;
 
+use crate::components::{command_bar};
+
 use tui::{
     widgets::{ TableState },
 };
@@ -78,7 +80,7 @@ pub struct App<'a> {
 
     // Linear Dashboard Custom View List Display
     pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
-    pub dashboard_view_config_cmd_bar: components::command_bar::CommandBar,
+    pub dashboard_view_config_cmd_bar: components::command_bar::CommandBar<'a>,
 
     // Linear Dashboard Custom View List
     pub linear_dashboard_view_list: Vec<Option<Value>>,
@@ -92,6 +94,8 @@ pub struct App<'a> {
     pub linear_dashboard_view_panel_selected: Option<usize>,
     pub view_panel_issue_selected: Option<TableState>,
     pub view_panel_to_paginate: usize,
+
+    pub view_panel_cmd_bar: components::command_bar::CommandBar<'a>,
 
 
 
@@ -140,6 +144,9 @@ impl<'a> Default for App<'a> {
             linear_custom_view_cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
 
             dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
+            dashboard_view_config_cmd_bar: components::command_bar::CommandBar::with_type(command_bar::CommandBarType::ViewList),
+
+
             linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
             linear_dashboard_view_idx: None,
             linear_dashboard_view_list_selected: true,
@@ -149,11 +156,17 @@ impl<'a> Default for App<'a> {
             view_panel_issue_selected: None,
             view_panel_to_paginate: 0,
 
+            view_panel_cmd_bar: components::command_bar::CommandBar::with_type(command_bar::CommandBarType::Dashboard),
+
+
+            // Deprecated
+
             linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
             // Null
             linear_selected_team_idx: None,
  
             linear_issue_display: components::linear_issue_display::LinearIssueDisplay::default(),
+            
             linear_selected_issue_idx: None,
             linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
 

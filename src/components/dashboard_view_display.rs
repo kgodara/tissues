@@ -4,7 +4,7 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
-use crate::util::ui::style_color_from_hex_str;
+use crate::util::ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans};
 
 
 use serde_json::Value;
@@ -15,7 +15,9 @@ pub struct DashboardViewDisplay {
 
 impl DashboardViewDisplay {
 
-    pub fn get_rendered_view_table(view_list: &[Option<Value>]) -> Result<Table, &'static str> {
+    pub fn get_rendered_view_table(view_list: &[Option<Value>], table_style: TableStyle) -> Result<Table, &'static str> {
+
+        let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
@@ -37,7 +39,7 @@ impl DashboardViewDisplay {
             // info!("Table Row Raw: {:?}", row);
 
             let cell_fields: std::vec::Vec<std::string::String> = match row_option {
-            
+
                 Some(row) => {
                     vec![row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
                                 .iter()
@@ -105,13 +107,17 @@ impl DashboardViewDisplay {
 
             cells.insert(0, generate_name_cell());
 
-            Row::new(cells).height(height as u16).bottom_margin(1)
+            Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });
 
 
         let t = Table::new(rows)
             .header(header)
-            .block(Block::default().borders(Borders::ALL).title("Dashboard View Configuration"))
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
+                .title( gen_table_title_spans(table_style) )
+            )
             .highlight_style(selected_style)
             .highlight_symbol(">> ")
             .widths(&[
@@ -121,7 +127,7 @@ impl DashboardViewDisplay {
                 Constraint::Percentage(20),
             ]);
         
-        return Ok(t);
+        Ok(t)
 
     }
 }

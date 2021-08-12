@@ -31,11 +31,18 @@ impl DashboardViewPanel {
     }
 
     pub fn render<'a>(data: &'a [Value], filter: &Value, req_num: u32, view_idx: u16, selected_view_idx: &Option<u16>) -> Result<Table<'a>, &'static str> {
+        let highlight_table: bool = 
+            if let Some(selected_idx) = selected_view_idx {
+                *selected_idx == (view_idx+1)
+            } else {
+                false
+            };
+
         // Create TableStyle from filter
         let table_style = TableStyle { title_style: Some(( filter["name"].clone(), filter["color"].clone() )),
                                         row_bottom_margin: Some(0),
                                         view_idx: Some(view_idx+1),
-                                        selected_view_idx: *selected_view_idx,
+                                        highlight_table,
                                         req_num: Some(req_num as u16)
                                     };
 

@@ -23,7 +23,7 @@ use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplay
 use crate::util::colors;
 use crate::util::ui;
 
-use crate::util::ui::{ TableStyle, style_color_from_hex_str };
+use crate::util::ui::{ TableStyle, style_color_from_hex_str, hex_str_from_style_color };
 use crate::util::{ state_list, state_table };
 
 use crate::util::fetch_selected_view_panel_issue;
@@ -56,42 +56,16 @@ where
 {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(70), Constraint::Percentage(10)].as_ref())
         .split(f.size());
+    
+    // Render the View Panel Command Bar
+    
 
-    let items: Vec<ListItem> = app
-        .actions
-        .items
-        .iter()
-        .map(|i| {
-            let mut lines = vec![Spans::from(*i)];
-            /*
-            for _ in 0..i.1 {
-                lines.push(Spans::from(Span::styled(
-                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                    Style::default().add_modifier(Modifier::ITALIC),
-                )));
-            }
-            */
-            ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
-        })
-        .collect();
-
-    // Create a List from all list items and highlight the currently selected one
-    let items = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Action Select"))
-        .highlight_style(
-            Style::default()
-                .bg(Color::LightGreen)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
+    
+    // Iterate through the list of View Panels & render each to the appropriate position within layour
 
     let view_panel_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
-
-    // let view_panel_list = view_panel_handle.clone();
-
-
     let num_views = view_panel_handle.len();
 
     for (i, e) in view_panel_handle.iter().enumerate() {
@@ -130,21 +104,49 @@ where
         if let Ok(view_table) = view_table_result {
             match num_views {
                 0 => {},
-                1 => { f.render_stateful_widget(view_table, ui::single_view_layout(i, chunks[0]), &mut table_state); },
-                2 => { f.render_stateful_widget(view_table, ui::double_view_layout(i, chunks[0]), &mut table_state); },
-                3 => { f.render_stateful_widget(view_table, ui::three_view_layout(i, chunks[0]), &mut table_state); }
-                4 => { f.render_stateful_widget(view_table, ui::four_view_layout(i, chunks[0]), &mut table_state); },
-                5 => { f.render_stateful_widget(view_table, ui::five_view_layout(i, chunks[0]), &mut table_state) },
-                _ => { f.render_stateful_widget(view_table, ui::six_view_layout(i, chunks[0]), &mut table_state)},
+                1 => { f.render_stateful_widget(view_table, ui::single_view_layout(i, chunks[1]), &mut table_state); },
+                2 => { f.render_stateful_widget(view_table, ui::double_view_layout(i, chunks[1]), &mut table_state); },
+                3 => { f.render_stateful_widget(view_table, ui::three_view_layout(i, chunks[1]), &mut table_state); }
+                4 => { f.render_stateful_widget(view_table, ui::four_view_layout(i, chunks[1]), &mut table_state); },
+                5 => { f.render_stateful_widget(view_table, ui::five_view_layout(i, chunks[1]), &mut table_state) },
+                _ => { f.render_stateful_widget(view_table, ui::six_view_layout(i, chunks[1]), &mut table_state)},
             }
         }
     }
 
     drop(view_panel_handle);
-    // We can now render the item list
-    f.render_stateful_widget(items, chunks[1], &mut app.actions.state);
 
-    // debug!("draw_action_select - about to draw workflow states");
+
+    // Render the action list
+    let items: Vec<ListItem> = app
+      .actions
+      .items
+      .iter()
+      .map(|i| {
+          let mut lines = vec![Spans::from(*i)];
+          /*
+          for _ in 0..i.1 {
+              lines.push(Spans::from(Span::styled(
+                  "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+                  Style::default().add_modifier(Modifier::ITALIC),
+              )));
+          }
+          */
+          ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
+      })
+      .collect();
+
+    // Create a List from all list items and highlight the currently selected one
+    let items = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Action Select"))
+        .highlight_style(
+            Style::default()
+                .bg(Color::LightGreen)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
 
     // Draw Workflow State Selection 
     if app.linear_draw_workflow_state_select {
@@ -253,10 +255,20 @@ where
   B: Backend,
 {
 
-  let DASHBOARD_VIEW_CMD_LIST: Vec<&str> = vec![ "'a': Add View", "'r': Replace View", "'d': Remove View" ];
+  // Create TableStyle for Dashboard View List
+  let view_list_table_style = TableStyle { 
+    title_style: 
+      Some((
+        Value::String(String::from("Dashboard View Configuration")),
+        Value::String( hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
+    row_bottom_margin: Some(0),
+    view_idx: Some(1),
+    highlight_table: app.linear_dashboard_view_list_selected,
+    req_num: None
+  };
 
   let table;
-  let table_result = DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list);
+  let table_result = DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, view_list_table_style);
 
   match table_result {
     Ok(x) => { table = x },
@@ -285,61 +297,37 @@ where
   }
 
   // Determine which Commands are allowed based on state of selection
-  let mut add_view_cmd_active = false;
-  let mut replace_view_cmd_active = false;
+  // let mut add_view_cmd_active = false;
+  // let mut replace_view_cmd_active = false;
   let mut remove_view_cmd_active = false;
 
   // If a View is not selected, no Commands allowed
   if view_is_selected {
     // A filled view slot is selected, allow Replace View and Remove View Commands
     if let Some(view) = selected_view {
-      replace_view_cmd_active = true;
+      // replace_view_cmd_active = true;
       remove_view_cmd_active = true;
     }
+    /*
     // An empty view slot is selected, only Add View Command is allowed
     else {
-      add_view_cmd_active = true;
+      // add_view_cmd_active = true;
     }
+    */
   }
 
-  // Draw Command Bar with Command Color brightness based on active state
-  let list_items: Vec<ListItem> = DASHBOARD_VIEW_CMD_LIST
-    .iter()
-    .enumerate()
-    .map(|(i, e)| {
-        let lines = vec![Spans::from(Span::styled(
-          *e,
-          match *e {
-            "'a': Add View" => { if add_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::ADD_VIEW_CMD_ACTIVE) }
-                            else { Style::default().add_modifier(Modifier::DIM).fg(colors::ADD_VIEW_CMD_INACTIVE) } 
-                          },
+  debug!("remove_view_cmd_active: {:?}", remove_view_cmd_active);
+  app.dashboard_view_config_cmd_bar.set_remove_view_active(remove_view_cmd_active);
 
-            "'r': Replace View" => { if replace_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REPLACE_VIEW_CMD_ACTIVE) }
-                                else { Style::default().add_modifier(Modifier::DIM).fg(colors::REPLACE_VIEW_CMD_INACTIVE) } 
-                              },
+  let cmd_items;
+  let cmd_items_result = app.dashboard_view_config_cmd_bar.render();
 
-            "'d': Remove View" => { if remove_view_cmd_active == true { Style::default().add_modifier(Modifier::BOLD).fg(colors::REMOVE_VIEW_CMD_ACTIVE) }
-                              else { Style::default().add_modifier(Modifier::DIM).fg(colors::REMOVE_VIEW_CMD_INACTIVE) } 
-                            },
-            _ => {Style::default().add_modifier(Modifier::ITALIC)}
-          },
-        ))];
-        ListItem::new(lines).style(Style::default())
-    })
-    .collect();
+  match cmd_items_result {
+    Ok(x) => { cmd_items = x },
+    Err(x) => {return;},
+  }
 
-  // Create a List from all list items and highlight the currently selected one
-  let items = List::new(list_items)
-    .block(Block::default().borders(Borders::ALL).title("Commands"))
-    .highlight_style(
-        Style::default()
-            .bg(Color::LightGreen)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol(">> ");
-
-
-  f.render_widget(items, chunks[0]);
+  f.render_widget(cmd_items, chunks[0]);
 
   let bottom_row_chunks = Layout::default()
                           .direction(Direction::Horizontal)
@@ -358,16 +346,19 @@ where
   
   let view_data_handle = &app.linear_custom_view_select.view_table_data.lock().unwrap();
 
-  // Create TableStyle from filter
-  let table_style = TableStyle { 
-    title_style: None,
+  // Create TableStyle for Custom View Select
+  let custom_view_select_table_style = TableStyle { 
+    title_style: 
+      Some((
+        Value::String(String::from("Custom View Select")), 
+        Value::String( hex_str_from_style_color(&colors::CUSTOM_VIEW_SELECT_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
     row_bottom_margin: Some(0),
     view_idx: Some(2),
-    selected_view_idx: if !app.linear_dashboard_view_list_selected { Some(2) } else { Some(1) },
+    highlight_table: !app.linear_dashboard_view_list_selected,
     req_num: None
   };
 
-  let view_table_result = LinearCustomViewSelect::get_rendered_view_data(view_data_handle, table_style);
+  let view_table_result = LinearCustomViewSelect::get_rendered_view_data(view_data_handle, custom_view_select_table_style);
   match view_table_result {
     Ok(x) => { view_table = x },
     Err(x) => {return;},
