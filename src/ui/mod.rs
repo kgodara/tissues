@@ -28,6 +28,9 @@ use crate::util::{ state_list, state_table };
 
 use crate::util::fetch_selected_view_panel_issue;
 
+use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
+use crate::util::layout::{ widths_from_rect };
+
 
 use tui::{
   backend::Backend,
@@ -255,28 +258,6 @@ where
   B: Backend,
 {
 
-  // Create TableStyle for Dashboard View List
-  let view_list_table_style = TableStyle { 
-    title_style: 
-      Some((
-        Value::String(String::from("Dashboard View Configuration")),
-        Value::String( hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
-    row_bottom_margin: Some(0),
-    view_idx: Some(1),
-    highlight_table: app.linear_dashboard_view_list_selected,
-    req_num: None
-  };
-
-  let table;
-  let table_result = DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, view_list_table_style);
-
-  match table_result {
-    Ok(x) => { table = x },
-    Err(x) => {return;},
-  }
-
-  let mut table_state = app.dashboard_view_display.view_table_state.clone();
-
   // info!("table: {:?}", table);
 
 
@@ -339,6 +320,41 @@ where
                               .as_ref(),
                           )
                           .split(chunks[1]);
+
+
+
+  // Draw Dashboard View Display
+
+  // Create TableStyle for Dashboard View List
+  let view_list_table_style = TableStyle { 
+    title_style: 
+      Some((
+        Value::String(String::from("Dashboard View Configuration")),
+        Value::String( hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
+    row_bottom_margin: Some(0),
+    view_idx: Some(1),
+    highlight_table: app.linear_dashboard_view_list_selected,
+    req_num: None
+  };
+
+  let mut table: Table;
+  let table_result = DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, view_list_table_style, &bottom_row_chunks[0]);
+
+  match table_result {
+    Ok(x) => { table = x },
+    Err(x) => {return;},
+  }
+
+  let new_rect = Rect::new(bottom_row_chunks[0].x, bottom_row_chunks[0].y, bottom_row_chunks[0].width-2, bottom_row_chunks[0].height);
+
+  // let widths: Vec<Constraint> = widths_from_rect( &bottom_row_chunks[0], &*DASHBOARD_VIEW_CONFIG_COLUMNS);
+  let widths: Vec<Constraint> = widths_from_rect( &new_rect, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
+
+  table = table.widths(&widths);
+
+
+  let mut table_state = app.dashboard_view_display.view_table_state.clone();
+
 
   f.render_stateful_widget(table, bottom_row_chunks[0], &mut table_state);
 

@@ -1,10 +1,13 @@
 use tui::{
-    layout::{Constraint},
+    layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
 use crate::util::ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans};
+
+use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
+use crate::util::layout::{ widths_from_rect };
 
 
 use serde_json::Value;
@@ -15,16 +18,17 @@ pub struct DashboardViewDisplay {
 
 impl DashboardViewDisplay {
 
-    pub fn get_rendered_view_table(view_list: &[Option<Value>], table_style: TableStyle) -> Result<Table, &'static str> {
+    pub fn get_rendered_view_table<'a>(view_list: &'a [Option<Value>], table_style: TableStyle, bbox: &Rect) -> Result<Table<'a>, &'static str> {
 
         let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
-        let header_cells = ["Name", "Description", "Organization", "Team"]
+        let header_cells: Vec<Cell> = DASHBOARD_VIEW_CONFIG_COLUMNS
             .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
-        
+            .map(|h| Cell::from(&*h.label).style(Style::default().fg(Color::LightGreen)))
+            .collect();
+
         let header = Row::new(header_cells)
             .style(normal_style)
             .height(1)
@@ -111,6 +115,14 @@ impl DashboardViewDisplay {
         });
 
 
+        // Get widths based on TableColumns
+
+        // lazy_static! provides a struct which dereferences towards target struct, hence: '&*'
+        // https://github.com/rust-lang-nursery/lazy-static.rs/issues/119#issuecomment-419595818
+        // debug!("get_rendered_view_table - widths_from_rect(): {:?}", widths_from_rect(bbox, &*DASHBOARD_VIEW_CONFIG_COLUMNS));
+
+        // let widths: Vec<Constraint> = widths_from_rect(bbox, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
+
         let t = Table::new(rows)
             .header(header)
             .block(Block::default()
@@ -118,15 +130,18 @@ impl DashboardViewDisplay {
                 .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
                 .title( gen_table_title_spans(table_style) )
             )
-            .highlight_style(selected_style)
-            .highlight_symbol(">> ")
+            .highlight_style(selected_style);
+            // .highlight_symbol(">> ");
+            // .widths(&widths);
+            /*
             .widths(&[
                 Constraint::Percentage(10),
                 Constraint::Percentage(15),
                 Constraint::Percentage(25),
                 Constraint::Percentage(20),
             ]);
-        
+            */
+
         Ok(t)
 
     }

@@ -12,6 +12,7 @@ mod app;
 mod graphql;
 mod linear;
 mod ui;
+mod constants;
 mod util;
 mod errors;
 mod command;

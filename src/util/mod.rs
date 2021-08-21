@@ -21,6 +21,8 @@ pub use dashboard::fetch_selected_workflow_state;
 
 pub mod command_list;
 
+pub mod layout;
+
 #[derive(Debug)]
 pub struct StatefulList<T> {
     pub state: ListState,
