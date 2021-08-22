@@ -23,6 +23,8 @@ pub mod command_list;
 
 pub mod layout;
 
+pub mod str;
+
 #[derive(Debug)]
 pub struct StatefulList<T> {
     pub state: ListState,

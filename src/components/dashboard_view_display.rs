@@ -7,7 +7,7 @@ use tui::{
 use crate::util::ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans};
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
-use crate::util::layout::{ widths_from_rect };
+use crate::util::layout::{ format_str_with_wrap };
 
 
 use serde_json::Value;
@@ -18,7 +18,10 @@ pub struct DashboardViewDisplay {
 
 impl DashboardViewDisplay {
 
-    pub fn get_rendered_view_table<'a>(view_list: &'a [Option<Value>], table_style: TableStyle, bbox: &Rect) -> Result<Table<'a>, &'static str> {
+    pub fn get_rendered_view_table<'a>(view_list: &'a [Option<Value>],
+        widths: &Vec<Constraint>,
+        table_style: TableStyle,
+        bbox: &Rect) -> Result<Table<'a>, &'static str> {
 
         let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
@@ -40,12 +43,12 @@ impl DashboardViewDisplay {
 
         let rows = view_list.iter().enumerate().map(|(idx, row_option)| {
 
-            // info!("Table Row Raw: {:?}", row);
+            // Get the String representations of each cell field
 
-            let cell_fields: std::vec::Vec<std::string::String> = match row_option {
+            let cell_fields: Vec<String> = match row_option {
 
                 Some(row) => {
-                    vec![row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
+                    vec![row["name"].clone(), row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
                                 .iter()
                                 .enumerate()
                                 .map(|(i,field)| match field {
@@ -69,34 +72,52 @@ impl DashboardViewDisplay {
                 None => vec![String::default(), String::default(), String::default()],
             };
 
+            // Get the formatted Strings for each cell field
+            let cell_fields_formatted: Vec<String> = cell_fields.iter()
+                .enumerate()
+                .map(|(idx, cell_field)| {
+                    if let Constraint::Length(width_num) = widths[idx] {
+                        format_str_with_wrap(cell_field, width_num, DASHBOARD_VIEW_CONFIG_COLUMNS[idx].max_height)
+                    } else {
+                        error!("get_rendered_view_table - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                        panic!("get_rendered_view_table - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                    }
+                })
+                .collect();
 
+            debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
 
-            // info!("Cell Fields: {:?}", cell_fields);
-
-            let height = cell_fields
+            let height = cell_fields_formatted
                 .iter()
                 .map(|content| content.chars().filter(|c| *c == '\n').count())
                 .max()
                 .unwrap_or(0)
                 + 1;
 
-            // info!("Height: {:?}", height);
+            debug!("get_rendered_view_table - height: {:?}", height);
 
-            let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
+            let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
             let generate_name_cell = || {
                 match row_option {
                     Some(row) => {
-                        let name = row["name"].clone();
+                        let name: String = cell_fields_formatted[0].clone();
                         let color = row["color"].clone();
 
+                        /*
                         let name = match name {
                             Value::String(x) => Some(x),
                             _ => None,
                         };
+                        */
 
                         let style_color = style_color_from_hex_str(&color);
 
+                        match style_color {
+                            Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
+                            None => Cell::from(name),
+                        }
+                        /*
                         match name {
                             Some(x) => { match style_color {
                                 Some(y) => { Cell::from(x).style(Style::default().fg(y)) },
@@ -104,12 +125,15 @@ impl DashboardViewDisplay {
                             }},
                             None => Cell::from(String::default()),
                         }
+                        */
                     },
                     None => { Cell::from(String::from("Empty Slot"))}
                 }
             };
 
+            // Insert new "name" cell, and remove unformatted version
             cells.insert(0, generate_name_cell());
+            cells.remove(1);
 
             Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });

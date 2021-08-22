@@ -266,94 +266,95 @@ where
 {
 
 
-  let chunks = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
-    .split(f.size());
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+        .split(f.size());
 
-  // Draw Command Bar to display Applicable Commands
+    // Draw Command Bar to display Applicable Commands
 
-  // Get Selected Custom View from app.linear_dashboard_view_list using app.linear_dashboard_view_idx
-  let mut view_is_selected = false;
-  let mut selected_view: Option<Value> = None;
+    // Get Selected Custom View from app.linear_dashboard_view_list using app.linear_dashboard_view_idx
+    let mut view_is_selected = false;
+    let mut selected_view: Option<Value> = None;
 
-  if let Some(view_idx) = app.linear_dashboard_view_idx {
-    view_is_selected = true;
-    selected_view = app.linear_dashboard_view_list[view_idx].clone();
-  }
-
-  // Determine which Commands are allowed based on state of selection
-  let mut remove_view_cmd_active = false;
-
-  // If a View is not selected, no Commands allowed
-  if view_is_selected {
-    // A filled view slot is selected, allow Replace View and Remove View Commands
-    if selected_view.is_some() {
-      remove_view_cmd_active = true;
+    if let Some(view_idx) = app.linear_dashboard_view_idx {
+        view_is_selected = true;
+        selected_view = app.linear_dashboard_view_list[view_idx].clone();
     }
-  }
+
+    // Determine which Commands are allowed based on state of selection
+    let mut remove_view_cmd_active = false;
+
+    // If a View is not selected, no Commands allowed
+    if view_is_selected {
+        // A filled view slot is selected, allow Replace View and Remove View Commands
+        if selected_view.is_some() {
+            remove_view_cmd_active = true;
+        }
+    }
 
   // Update Command statuses
   debug!("remove_view_cmd_active: {:?}", remove_view_cmd_active);
   app.dashboard_view_config_cmd_bar.set_remove_view_active(remove_view_cmd_active);
 
-  // Render command bar
-  if let Ok(cmd_items) = app.dashboard_view_config_cmd_bar.render() {
-    f.render_widget(cmd_items, chunks[0]);
-  } else {
-    error!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
-    panic!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
-  }
+    // Render command bar
+    if let Ok(cmd_items) = app.dashboard_view_config_cmd_bar.render() {
+        f.render_widget(cmd_items, chunks[0]);
+    } else {
+        error!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
+        panic!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
+    }
 
 
-  // Get Rects for DashboardViewDisplay & CustomViewSelect
-  let bottom_row_chunks = Layout::default()
-                          .direction(Direction::Horizontal)
-                          .constraints(
-                              [
-                                  Constraint::Percentage(50),
-                                  Constraint::Percentage(50),
-                              ]
-                              .as_ref(),
-                          )
-                          .split(chunks[1]);
+    // Get Rects for DashboardViewDisplay & CustomViewSelect
+    let bottom_row_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(50),
+                Constraint::Percentage(50),
+            ]
+            .as_ref(),
+        )
+        .split(chunks[1]);
 
 
 
-  // Draw Dashboard View Display
+    // Draw Dashboard View Display
 
-  // Create TableStyle for Dashboard View List
-  let view_list_table_style = TableStyle { 
-    title_style: 
-      Some((
-        Value::String(String::from("Dashboard View Configuration")),
-        Value::String( hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
-    row_bottom_margin: Some(0),
-    view_idx: Some(1),
-    highlight_table: app.linear_dashboard_view_list_selected,
-    req_num: None
-  };
+    // Create TableStyle for Dashboard View List
+    let view_list_table_style = TableStyle { 
+        title_style: 
+        Some((
+            Value::String(String::from("Dashboard View Configuration")),
+            Value::String( hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
+        row_bottom_margin: Some(0),
+        view_idx: Some(1),
+        highlight_table: app.linear_dashboard_view_list_selected,
+        req_num: None
+    };
 
-  if let Ok(mut view_display_table) = 
-    DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, view_list_table_style, &bottom_row_chunks[0])
-  {
     // subtract 2 from width to account for single character table borders
     let view_display_content_rect = Rect::new(bottom_row_chunks[0].x, bottom_row_chunks[0].y, bottom_row_chunks[0].width-2, bottom_row_chunks[0].height);
 
     // let widths: Vec<Constraint> = widths_from_rect( &bottom_row_chunks[0], &*DASHBOARD_VIEW_CONFIG_COLUMNS);
     let widths: Vec<Constraint> = widths_from_rect( &view_display_content_rect, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
 
-    view_display_table = view_display_table.widths(&widths);
+    if let Ok(mut view_display_table) = 
+        DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, &widths, view_list_table_style, &bottom_row_chunks[0])
+    {
+
+        view_display_table = view_display_table.widths(&widths);
 
 
-    let mut table_state = app.dashboard_view_display.view_table_state.clone();
+        let mut table_state = app.dashboard_view_display.view_table_state.clone();
 
 
-    f.render_stateful_widget(view_display_table, bottom_row_chunks[0], &mut table_state);
-  } else {
-    error!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
-    panic!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
-  }
+        f.render_stateful_widget(view_display_table, bottom_row_chunks[0], &mut table_state);
+    } else {
+        error!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
+        panic!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
+    }
 
 
   // Draw Custom View Select
