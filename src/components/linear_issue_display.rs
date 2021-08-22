@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use crate::util::ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spans };
 use crate::util::colors::{ API_REQ_NUM };
+use crate::constants::table_columns::{ VIEW_PANEL_COLUMNS };
 
 pub struct LinearIssueDisplay {
     pub issue_table_data: Arc<Mutex<Option<serde_json::Value>>>,
@@ -27,9 +28,11 @@ impl LinearIssueDisplay {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
-        let header_cells = ["Number", "Title", "State", "Description", "createdAt"]
+
+        let header_cells: Vec<Cell> = VIEW_PANEL_COLUMNS
             .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
+            .map(|h| Cell::from(&*h.label).style(Style::default().fg(Color::LightGreen)))
+            .collect();
 
         let header = Row::new(header_cells)
             .style(normal_style)

@@ -131,16 +131,6 @@ impl DashboardViewDisplay {
                 .title( gen_table_title_spans(table_style) )
             )
             .highlight_style(selected_style);
-            // .highlight_symbol(">> ");
-            // .widths(&widths);
-            /*
-            .widths(&[
-                Constraint::Percentage(10),
-                Constraint::Percentage(15),
-                Constraint::Percentage(25),
-                Constraint::Percentage(20),
-            ]);
-            */
 
         Ok(t)
 

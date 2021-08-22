@@ -28,7 +28,7 @@ use crate::util::{ state_list, state_table };
 
 use crate::util::fetch_selected_view_panel_issue;
 
-use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
+use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS, VIEW_PANEL_COLUMNS };
 use crate::util::layout::{ widths_from_rect };
 
 
@@ -80,40 +80,47 @@ where
         let req_num_handle = e.request_num.lock().unwrap();
         let req_num: u32 = *req_num_handle;
         drop(req_num_handle);
-        
-        let view_table_result = DashboardViewPanel::render(&view_data_handle,
-                                                            &e.filter,
-                                                            req_num,
-                                                            i as u16,
-                                                            &selected_view_idx
-                                                            );
 
-        // Determine if this view panel is currently selected
-        let mut is_selected = false;
-        if let Some(selected_view_panel_idx) = app.linear_dashboard_view_panel_selected {
-            if selected_view_panel_idx == (i+1) {
-                is_selected = true;
+
+        if let Ok(mut view_panel_table) =
+            DashboardViewPanel::render(&view_data_handle, &e.filter, req_num, i as u16, &selected_view_idx )
+        {
+
+            // Determine if this view panel is currently selected
+            let mut is_selected = false;
+            if let Some(selected_view_panel_idx) = app.linear_dashboard_view_panel_selected {
+                if selected_view_panel_idx == (i+1) {
+                    is_selected = true;
+                }
             }
-        }
 
-        // Determine the correct TableState, depending on if this view is selected or not
-        let table_state_option = if is_selected { app.view_panel_issue_selected.clone() } else { None };
+            // Determine the correct TableState, depending on if this view is selected or not
+            let table_state_option = if is_selected { app.view_panel_issue_selected.clone() } else { None };
 
-        let mut table_state = match table_state_option {
-            Some(table_state_val) => { table_state_val },
-            None => { TableState::default() }
-        };
+            let mut table_state = match table_state_option {
+                Some(table_state_val) => { table_state_val },
+                None => { TableState::default() }
+            };
 
-        if let Ok(view_table) = view_table_result {
-            match num_views {
-                0 => {},
-                1 => { f.render_stateful_widget(view_table, ui::single_view_layout(i, chunks[1]), &mut table_state); },
-                2 => { f.render_stateful_widget(view_table, ui::double_view_layout(i, chunks[1]), &mut table_state); },
-                3 => { f.render_stateful_widget(view_table, ui::three_view_layout(i, chunks[1]), &mut table_state); }
-                4 => { f.render_stateful_widget(view_table, ui::four_view_layout(i, chunks[1]), &mut table_state); },
-                5 => { f.render_stateful_widget(view_table, ui::five_view_layout(i, chunks[1]), &mut table_state) },
-                _ => { f.render_stateful_widget(view_table, ui::six_view_layout(i, chunks[1]), &mut table_state)},
-            }
+            // if there is at least one view, up to a max of six views
+            let view_panel_rect = match num_views {
+                1 => { ui::single_view_layout(i, chunks[1]) },
+                2 => { ui::double_view_layout(i, chunks[1]) },
+                3 => { ui::three_view_layout(i, chunks[1]) },
+                4 => { ui::four_view_layout(i, chunks[1]) },
+                5 => { ui::five_view_layout(i, chunks[1]) },
+                6 => { ui::six_view_layout(i, chunks[1]) },
+                _ => {continue;},
+            };
+
+            // subtract 2 from width to account for single character table borders
+            let view_panel_content_rect = Rect::new(view_panel_rect.x, view_panel_rect.y, view_panel_rect.width-2, view_panel_rect.height);
+
+            let widths: Vec<Constraint> = widths_from_rect( &view_panel_content_rect, &*VIEW_PANEL_COLUMNS);
+
+            view_panel_table = view_panel_table.widths(&widths);
+
+            f.render_stateful_widget(view_panel_table, view_panel_rect, &mut table_state);
         }
     }
 
@@ -258,8 +265,6 @@ where
   B: Backend,
 {
 
-  // info!("table: {:?}", table);
-
 
   let chunks = Layout::default()
     .direction(Direction::Vertical)
@@ -278,38 +283,30 @@ where
   }
 
   // Determine which Commands are allowed based on state of selection
-  // let mut add_view_cmd_active = false;
-  // let mut replace_view_cmd_active = false;
   let mut remove_view_cmd_active = false;
 
   // If a View is not selected, no Commands allowed
   if view_is_selected {
     // A filled view slot is selected, allow Replace View and Remove View Commands
-    if let Some(view) = selected_view {
-      // replace_view_cmd_active = true;
+    if selected_view.is_some() {
       remove_view_cmd_active = true;
     }
-    /*
-    // An empty view slot is selected, only Add View Command is allowed
-    else {
-      // add_view_cmd_active = true;
-    }
-    */
   }
 
+  // Update Command statuses
   debug!("remove_view_cmd_active: {:?}", remove_view_cmd_active);
   app.dashboard_view_config_cmd_bar.set_remove_view_active(remove_view_cmd_active);
 
-  let cmd_items;
-  let cmd_items_result = app.dashboard_view_config_cmd_bar.render();
-
-  match cmd_items_result {
-    Ok(x) => { cmd_items = x },
-    Err(x) => {return;},
+  // Render command bar
+  if let Ok(cmd_items) = app.dashboard_view_config_cmd_bar.render() {
+    f.render_widget(cmd_items, chunks[0]);
+  } else {
+    error!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
+    panic!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
   }
 
-  f.render_widget(cmd_items, chunks[0]);
 
+  // Get Rects for DashboardViewDisplay & CustomViewSelect
   let bottom_row_chunks = Layout::default()
                           .direction(Direction::Horizontal)
                           .constraints(
@@ -337,28 +334,29 @@ where
     req_num: None
   };
 
-  let mut table: Table;
-  let table_result = DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, view_list_table_style, &bottom_row_chunks[0]);
+  if let Ok(mut view_display_table) = 
+    DashboardViewDisplay::get_rendered_view_table(&app.linear_dashboard_view_list, view_list_table_style, &bottom_row_chunks[0])
+  {
+    // subtract 2 from width to account for single character table borders
+    let view_display_content_rect = Rect::new(bottom_row_chunks[0].x, bottom_row_chunks[0].y, bottom_row_chunks[0].width-2, bottom_row_chunks[0].height);
 
-  match table_result {
-    Ok(x) => { table = x },
-    Err(x) => {return;},
+    // let widths: Vec<Constraint> = widths_from_rect( &bottom_row_chunks[0], &*DASHBOARD_VIEW_CONFIG_COLUMNS);
+    let widths: Vec<Constraint> = widths_from_rect( &view_display_content_rect, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
+
+    view_display_table = view_display_table.widths(&widths);
+
+
+    let mut table_state = app.dashboard_view_display.view_table_state.clone();
+
+
+    f.render_stateful_widget(view_display_table, bottom_row_chunks[0], &mut table_state);
+  } else {
+    error!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
+    panic!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
   }
 
-  let new_rect = Rect::new(bottom_row_chunks[0].x, bottom_row_chunks[0].y, bottom_row_chunks[0].width-2, bottom_row_chunks[0].height);
 
-  // let widths: Vec<Constraint> = widths_from_rect( &bottom_row_chunks[0], &*DASHBOARD_VIEW_CONFIG_COLUMNS);
-  let widths: Vec<Constraint> = widths_from_rect( &new_rect, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
-
-  table = table.widths(&widths);
-
-
-  let mut table_state = app.dashboard_view_display.view_table_state.clone();
-
-
-  f.render_stateful_widget(table, bottom_row_chunks[0], &mut table_state);
-
-  let view_table;
+  // Draw Custom View Select
   
   let view_data_handle = &app.linear_custom_view_select.view_table_data.lock().unwrap();
 
@@ -374,13 +372,24 @@ where
     req_num: None
   };
 
-  let view_table_result = LinearCustomViewSelect::get_rendered_view_data(view_data_handle, custom_view_select_table_style);
-  match view_table_result {
-    Ok(x) => { view_table = x },
-    Err(x) => {return;},
-  }
+  if let Ok(mut view_select_table) = LinearCustomViewSelect::get_rendered_view_data(view_data_handle, custom_view_select_table_style) {
+    // subtract 2 from width to account for single character table borders
+    let view_select_content_rect = Rect::new(bottom_row_chunks[1].x, bottom_row_chunks[1].y, bottom_row_chunks[1].width-2, bottom_row_chunks[1].height);
 
-  let mut custom_view_table_state;
+    // lazy_static! provides a struct which dereferences towards target struct, hence: '&*'
+    // https://github.com/rust-lang-nursery/lazy-static.rs/issues/119#issuecomment-419595818
+    let widths: Vec<Constraint> = widths_from_rect( &view_select_content_rect, &*CUSTOM_VIEW_SELECT_COLUMNS);
+
+    view_select_table = view_select_table.widths(&widths);
+
+    let mut custom_view_table_state = app.linear_custom_view_select.view_table_state.clone();
+
+    f.render_stateful_widget(view_select_table, bottom_row_chunks[1], &mut custom_view_table_state);
+
+  } else {
+    error!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
+    panic!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
+  }
 
   /*
   if None == app.linear_custom_view_select.view_table_state.selected() {
@@ -397,10 +406,7 @@ where
     }
   }
   */
-  custom_view_table_state = app.linear_custom_view_select.view_table_state.clone();
 
-  
-  f.render_stateful_widget(view_table, bottom_row_chunks[1], &mut custom_view_table_state);
 }
 
 

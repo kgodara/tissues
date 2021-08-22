@@ -17,7 +17,7 @@ use crate::linear::LinearConfig;
 
 use crate::util::ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spans };
 
-
+use crate::constants::table_columns::{ CUSTOM_VIEW_SELECT_COLUMNS };
 
 pub struct LinearCustomViewSelect {
     pub view_table_data: Arc<Mutex<Vec<Value>>>,
@@ -63,10 +63,12 @@ impl LinearCustomViewSelect {
 
         let selected_style = Style::default().add_modifier(Modifier::REVERSED);
         let normal_style = Style::default().bg(Color::DarkGray);
-        let header_cells = ["Name", "Description", "Organization", "Team"]
+        let header_cells: Vec<Cell> = CUSTOM_VIEW_SELECT_COLUMNS
             .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(Color::LightGreen)));
-        
+            .map(|h| Cell::from(&*h.label).style(Style::default().fg(Color::LightGreen)))
+            .collect();
+
+
         let header = Row::new(header_cells)
             .style(normal_style)
             .height(1)
@@ -152,7 +154,6 @@ impl LinearCustomViewSelect {
             .header(header)
             .block(table_block)
             .highlight_style(selected_style)
-            .highlight_symbol(">> ")
             .widths(&[
                 Constraint::Percentage(10),
                 Constraint::Percentage(15),
