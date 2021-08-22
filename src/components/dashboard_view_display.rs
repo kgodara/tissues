@@ -19,7 +19,7 @@ pub struct DashboardViewDisplay {
 impl DashboardViewDisplay {
 
     pub fn get_rendered_view_table<'a>(view_list: &'a [Option<Value>],
-        widths: &Vec<Constraint>,
+        widths: &[Constraint],
         table_style: TableStyle,
         bbox: &Rect) -> Result<Table<'a>, &'static str> {
 
@@ -104,28 +104,12 @@ impl DashboardViewDisplay {
                         let name: String = cell_fields_formatted[0].clone();
                         let color = row["color"].clone();
 
-                        /*
-                        let name = match name {
-                            Value::String(x) => Some(x),
-                            _ => None,
-                        };
-                        */
-
                         let style_color = style_color_from_hex_str(&color);
 
                         match style_color {
                             Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
                             None => Cell::from(name),
                         }
-                        /*
-                        match name {
-                            Some(x) => { match style_color {
-                                Some(y) => { Cell::from(x).style(Style::default().fg(y)) },
-                                None => Cell::from(x),
-                            }},
-                            None => Cell::from(String::default()),
-                        }
-                        */
                     },
                     None => { Cell::from(String::from("Empty Slot"))}
                 }

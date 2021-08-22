@@ -38,7 +38,7 @@ pub fn widths_from_rect(bbox: &Rect, columns: &[TableColumn]) -> Vec<Constraint>
     //         (enough space remains) && (new space > min-width)
     //     Return Vec<Constraint::Length>
 
-    debug!("widths_from_rect - bbox.width: {:?}", bbox.width);
+    // debug!("widths_from_rect - bbox.width: {:?}", bbox.width);
 
     // Get Rectangle width
     let mut remaining_units: u16 = bbox.width;
@@ -127,7 +127,7 @@ pub fn widths_from_rect(bbox: &Rect, columns: &[TableColumn]) -> Vec<Constraint>
         }
     }
 
-    debug!("widths_from_rect - claimed_units: {:?}", claimed_units);
+    // debug!("widths_from_rect - claimed_units: {:?}", claimed_units);
 
     claimed_units.iter()
     .map(|claimed| {
@@ -147,7 +147,7 @@ pub fn widths_from_rect(bbox: &Rect, columns: &[TableColumn]) -> Vec<Constraint>
 pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
 
     let wrapped_str = wrap(content, width as usize);
-    // debug!("format_str_with_wrap - wrapped_str: {:?}", wrapped_str);
+    // debug!("format_str_with_wrap - width, height, wrapped_str: {:?}, {:?}, {:?}", width, height, wrapped_str);
 
     let mut result: String = "".to_owned();
 
@@ -164,7 +164,7 @@ pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
         }
     }
 
-    debug!("format_str_with_wrap - ellipsis_added, final_line: {:?}, {:?}", ellipsis_added, final_line);
+    // debug!("format_str_with_wrap - ellipsis_added, final_line: {:?}, {:?}", ellipsis_added, final_line);
 
     for (idx, line) in wrapped_str.iter().enumerate() {
         // bound number of lines by height
@@ -181,6 +181,8 @@ pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
             result.push('\n');
         }
     }
+
+    // debug!("format_str_with_wrap - content, result: {:?}, {:?}", content, result);
 
     result
 }

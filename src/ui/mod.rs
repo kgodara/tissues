@@ -61,7 +61,7 @@ where
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(20), Constraint::Percentage(70), Constraint::Percentage(10)].as_ref())
         .split(f.size());
-    
+
     // Render the View Panel Command Bar
     
 
@@ -81,9 +81,25 @@ where
         let req_num: u32 = *req_num_handle;
         drop(req_num_handle);
 
+        // Get bounding-box for view panel
+        let view_panel_rect = match num_views {
+            1 => { ui::single_view_layout(i, chunks[1]) },
+            2 => { ui::double_view_layout(i, chunks[1]) },
+            3 => { ui::three_view_layout(i, chunks[1]) },
+            4 => { ui::four_view_layout(i, chunks[1]) },
+            5 => { ui::five_view_layout(i, chunks[1]) },
+            6 => { ui::six_view_layout(i, chunks[1]) },
+            _ => {continue;},
+        };
+
+        // subtract 2 from width to account for single character table borders
+        let view_panel_content_rect = Rect::new(view_panel_rect.x, view_panel_rect.y, view_panel_rect.width-2, view_panel_rect.height);
+
+        let widths: Vec<Constraint> = widths_from_rect( &view_panel_content_rect, &*VIEW_PANEL_COLUMNS);
+
 
         if let Ok(mut view_panel_table) =
-            DashboardViewPanel::render(&view_data_handle, &e.filter, req_num, i as u16, &selected_view_idx )
+            DashboardViewPanel::render(&view_data_handle, &e.filter, &widths, req_num, i as u16, &selected_view_idx )
         {
 
             // Determine if this view panel is currently selected
@@ -101,22 +117,6 @@ where
                 Some(table_state_val) => { table_state_val },
                 None => { TableState::default() }
             };
-
-            // if there is at least one view, up to a max of six views
-            let view_panel_rect = match num_views {
-                1 => { ui::single_view_layout(i, chunks[1]) },
-                2 => { ui::double_view_layout(i, chunks[1]) },
-                3 => { ui::three_view_layout(i, chunks[1]) },
-                4 => { ui::four_view_layout(i, chunks[1]) },
-                5 => { ui::five_view_layout(i, chunks[1]) },
-                6 => { ui::six_view_layout(i, chunks[1]) },
-                _ => {continue;},
-            };
-
-            // subtract 2 from width to account for single character table borders
-            let view_panel_content_rect = Rect::new(view_panel_rect.x, view_panel_rect.y, view_panel_rect.width-2, view_panel_rect.height);
-
-            let widths: Vec<Constraint> = widths_from_rect( &view_panel_content_rect, &*VIEW_PANEL_COLUMNS);
 
             view_panel_table = view_panel_table.widths(&widths);
 
@@ -293,9 +293,9 @@ where
         }
     }
 
-  // Update Command statuses
-  debug!("remove_view_cmd_active: {:?}", remove_view_cmd_active);
-  app.dashboard_view_config_cmd_bar.set_remove_view_active(remove_view_cmd_active);
+    // Update Command statuses
+    debug!("remove_view_cmd_active: {:?}", remove_view_cmd_active);
+    app.dashboard_view_config_cmd_bar.set_remove_view_active(remove_view_cmd_active);
 
     // Render command bar
     if let Ok(cmd_items) = app.dashboard_view_config_cmd_bar.render() {
@@ -357,23 +357,22 @@ where
     }
 
 
-  // Draw Custom View Select
+    // Draw Custom View Select
   
-  let view_data_handle = &app.linear_custom_view_select.view_table_data.lock().unwrap();
+    let view_data_handle = &app.linear_custom_view_select.view_table_data.lock().unwrap();
 
-  // Create TableStyle for Custom View Select
-  let custom_view_select_table_style = TableStyle { 
-    title_style: 
-      Some((
-        Value::String(String::from("Custom View Select")), 
-        Value::String( hex_str_from_style_color(&colors::CUSTOM_VIEW_SELECT_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
-    row_bottom_margin: Some(0),
-    view_idx: Some(2),
-    highlight_table: !app.linear_dashboard_view_list_selected,
-    req_num: None
-  };
+    // Create TableStyle for Custom View Select
+    let custom_view_select_table_style = TableStyle { 
+        title_style: 
+        Some((
+            Value::String(String::from("Custom View Select")), 
+            Value::String( hex_str_from_style_color(&colors::CUSTOM_VIEW_SELECT_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
+        row_bottom_margin: Some(0),
+        view_idx: Some(2),
+        highlight_table: !app.linear_dashboard_view_list_selected,
+        req_num: None
+    };
 
-  if let Ok(mut view_select_table) = LinearCustomViewSelect::get_rendered_view_data(view_data_handle, custom_view_select_table_style) {
     // subtract 2 from width to account for single character table borders
     let view_select_content_rect = Rect::new(bottom_row_chunks[1].x, bottom_row_chunks[1].y, bottom_row_chunks[1].width-2, bottom_row_chunks[1].height);
 
@@ -381,31 +380,34 @@ where
     // https://github.com/rust-lang-nursery/lazy-static.rs/issues/119#issuecomment-419595818
     let widths: Vec<Constraint> = widths_from_rect( &view_select_content_rect, &*CUSTOM_VIEW_SELECT_COLUMNS);
 
-    view_select_table = view_select_table.widths(&widths);
+    if let Ok(mut view_select_table) = LinearCustomViewSelect::get_rendered_view_data(view_data_handle,
+        &widths,
+        custom_view_select_table_style) 
+    {
+        view_select_table = view_select_table.widths(&widths);
 
-    let mut custom_view_table_state = app.linear_custom_view_select.view_table_state.clone();
+        let mut custom_view_table_state = app.linear_custom_view_select.view_table_state.clone();
 
-    f.render_stateful_widget(view_select_table, bottom_row_chunks[1], &mut custom_view_table_state);
-
-  } else {
-    error!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
-    panic!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
-  }
+        f.render_stateful_widget(view_select_table, bottom_row_chunks[1], &mut custom_view_table_state);
+    } else {
+        error!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
+        panic!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
+    }
 
   /*
-  if None == app.linear_custom_view_select.view_table_state.selected() {
-    let custom_view_select_handle = app.linear_custom_view_select.view_table_data.lock().unwrap();
+    if None == app.linear_custom_view_select.view_table_state.selected() {
+        let custom_view_select_handle = app.linear_custom_view_select.view_table_data.lock().unwrap();
 
-    if let Some(custom_view_data) = &*custom_view_select_handle {
-      if let Value::Array(custom_view_vec) = custom_view_data {
-          if custom_view_vec.len() > 0 {
-              let mut table_state = TableState::default();
-              state_table::next(&mut table_state, &custom_view_vec);
-              app.linear_custom_view_select.view_table_state = table_state.clone();
-          }
-      }
+        if let Some(custom_view_data) = &*custom_view_select_handle {
+        if let Value::Array(custom_view_vec) = custom_view_data {
+            if custom_view_vec.len() > 0 {
+                let mut table_state = TableState::default();
+                state_table::next(&mut table_state, &custom_view_vec);
+                app.linear_custom_view_select.view_table_state = table_state.clone();
+            }
+        }
+        }
     }
-  }
   */
 
 }

@@ -6,6 +6,7 @@ use crate::util::ui::{ TableStyle };
 use crate::linear::view_resolver::ViewLoader;
 
 use tui::{
+    layout::{ Constraint },
     widgets::{ Table },
 };
 
@@ -30,7 +31,12 @@ impl DashboardViewPanel {
         }
     }
 
-    pub fn render<'a>(data: &'a [Value], filter: &Value, req_num: u32, view_idx: u16, selected_view_idx: &Option<u16>) -> Result<Table<'a>, &'static str> {
+    pub fn render<'a>(data: &'a [Value],
+        filter: &Value,
+        widths: &Vec<Constraint>,
+        req_num: u32,
+        view_idx: u16,
+        selected_view_idx: &Option<u16>) -> Result<Table<'a>, &'static str> {
         let highlight_table: bool = 
             if let Some(selected_idx) = selected_view_idx {
                 *selected_idx == (view_idx+1)
@@ -46,7 +52,7 @@ impl DashboardViewPanel {
                                         req_num: Some(req_num as u16)
                                     };
 
-        LinearIssueDisplay::get_rendered_issue_data(data, table_style)
+        LinearIssueDisplay::get_rendered_issue_data(data, widths, table_style)
     }
 }
 

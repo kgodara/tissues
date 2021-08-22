@@ -19,6 +19,9 @@ use crate::util::ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spa
 
 use crate::constants::table_columns::{ CUSTOM_VIEW_SELECT_COLUMNS };
 
+use crate::util::layout::{ format_str_with_wrap };
+
+
 pub struct LinearCustomViewSelect {
     pub view_table_data: Arc<Mutex<Vec<Value>>>,
     pub view_table_state: TableState,
@@ -57,7 +60,9 @@ impl LinearCustomViewSelect {
     }
 
 
-    pub fn get_rendered_view_data(table_data: &[Value], table_style: TableStyle) -> Result<Table, &'static str> {
+    pub fn get_rendered_view_data<'a>(table_data: &[Value],
+        widths: &[Constraint],
+        table_style: TableStyle) -> Result<Table<'a>, &'static str> {
 
         let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
@@ -82,14 +87,14 @@ impl LinearCustomViewSelect {
 
             // info!("Table Row Raw: {:?}", row);
 
-            let cell_fields: std::vec::Vec<std::string::String> = vec![row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
+            let cell_fields: Vec<String> = vec![row["name"].clone(), row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
                                 .iter()
                                 .enumerate()
                                 .map(|(i,field)| match field {
 
-                                    serde_json::Value::String(x) => x.clone(),
-                                    serde_json::Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                    serde_json::Value::Null => {
+                                    Value::String(x) => x.clone(),
+                                    Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+                                    Value::Null => {
                                         // If 'team' is Null, the view is for all teams
                                         if i == 2 {
                                             String::from("All Teams")
@@ -103,11 +108,24 @@ impl LinearCustomViewSelect {
                                 })
                                 .collect();
 
-
+            // Get the formatted Strings for each cell field
+            let cell_fields_formatted: Vec<String> = cell_fields.iter()
+                .enumerate()
+                .map(|(idx, cell_field)| {
+                    if let Constraint::Length(width_num) = widths[idx] {
+                        format_str_with_wrap(cell_field, width_num, CUSTOM_VIEW_SELECT_COLUMNS[idx].max_height)
+                    } else {
+                        error!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                        panic!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                    }
+                })
+                .collect();
+            
+            debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
 
             // info!("Cell Fields: {:?}", cell_fields);
 
-            let height = cell_fields
+            let height = cell_fields_formatted
                 .iter()
                 .map(|content| content.chars().filter(|c| *c == '\n').count())
                 .max()
@@ -116,29 +134,24 @@ impl LinearCustomViewSelect {
 
             // info!("Height: {:?}", height);
 
-            let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
+            let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
             let generate_name_cell = || {
-                let name = row["name"].clone();
+                let name: String = cell_fields_formatted[0].clone();
                 let color = row["color"].clone();
-
-                let name = match name {
-                    serde_json::Value::String(x) => Some(x),
-                    _ => None,
-                };
 
                 let style_color = style_color_from_hex_str(&color);
 
-                match name {
-                    Some(x) => { match style_color {
-                        Some(y) => { Cell::from(x).style(Style::default().fg(y)) },
-                        None => Cell::from(x),
-                    }},
-                    None => Cell::from(String::default()),
+                match style_color {
+                    Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
+                    None => Cell::from(name),
                 }
             };
 
+            // Insert new "name" cell, and remove unformatted version
             cells.insert(0, generate_name_cell());
+            cells.remove(1);
+
 
             Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
         });

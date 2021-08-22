@@ -16,6 +16,7 @@ pub fn set_str_end_as_ellipsis(content: &str) -> Option<String> {
         .count();
 
     if grapheme_len < ELLIPSIS_LEN {
+        // debug!("set_str_end_as_ellipsis - content, result_str: {:?}, None", content);
         return None;
     }
 
@@ -31,7 +32,7 @@ pub fn set_str_end_as_ellipsis(content: &str) -> Option<String> {
         }
     }
 
-    debug!("set_str_end_as_ellipsis - content, result_str: {:?}, {:?}", content, result_str);
+    // debug!("set_str_end_as_ellipsis - content, result_str: {:?}, {:?}", content, result_str);
 
     Some(result_str)
 
