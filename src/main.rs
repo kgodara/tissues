@@ -216,15 +216,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     terminal.clear()?;
 
     let mut tick_idx = 0u64;
-    // loader_tick is a looping index for loader_state
-    let mut loader_tick = 0u16;
     let mut cmd_option: Option<Command>;
 
     loop {
 
         terminal.draw(|mut f| match app.route {
             Route::ActionSelect => {
-              ui::draw_action_select(&mut f, &mut app, &loader_tick);
+              ui::draw_action_select(&mut f, &mut app);
             },
             Route::DashboardViewDisplay => {
                 ui::draw_dashboard_view_display(&mut f, &mut app);
@@ -297,8 +295,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // info!("tick_idx: {}", tick_idx);
                 // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
                 
-                if loader_tick == (LOADER_STATE_MAX-1) { loader_tick = 0; }
-                else { loader_tick += 1; }
+                if app.loader_tick == (LOADER_STATE_MAX-1) { app.loader_tick = 0; }
+                else { app.loader_tick += 1; }
 
                 // avoid overflow
                 if tick_idx < 100 {

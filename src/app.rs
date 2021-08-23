@@ -67,6 +67,9 @@ pub struct App<'a> {
     // LinearClient
     pub linear_client: linear::client::LinearClient,
 
+    // loader_tick is a looping index for loader_state
+    pub loader_tick: u16,
+
     // TimeZone Manager
     pub tz_name_offset_map: Arc<Mutex<HashMap<String, f64>>>,
 
@@ -135,6 +138,8 @@ impl<'a> Default for App<'a> {
             cmd_str: String::new(),
 
             linear_client: linear::client::LinearClient::default(),
+
+            loader_tick: 0,
 
             tz_name_offset_map: Arc::new(Mutex::new(linear::parse_timezones_from_file())),
 
@@ -258,6 +263,12 @@ impl<'a> App<'a> {
 
                 let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
 
+                // Loading State
+                let view_select_loading_handle = self.linear_custom_view_select.loading.clone();
+                let mut view_select_loading_lock = view_select_loading_handle.lock().unwrap();
+                *view_select_loading_lock = true;
+                drop(view_select_loading_lock);
+
                 let view_cursor_handle = self.linear_custom_view_cursor.lock().unwrap();
                 let view_cursor: GraphQLCursor = view_cursor_handle.clone();
                 drop(view_cursor_handle);
@@ -279,6 +290,7 @@ impl<'a> App<'a> {
 
                     let mut view_data_lock = view_data_handle.lock().unwrap();
                     let mut view_cursor_data_lock = view_cursor_handle.lock().unwrap();
+                    let mut view_select_loading_lock = view_select_loading_handle.lock().unwrap();
 
                     let mut current_views = view_data_lock.clone();
 
@@ -287,6 +299,7 @@ impl<'a> App<'a> {
                         if let Some(new_views_vec) = y["views"].as_array_mut() {
                             current_views.append(new_views_vec);
                             *view_data_lock = current_views;
+                            *view_select_loading_lock = false;
                         }
 
                         match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {

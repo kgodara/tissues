@@ -43,7 +43,7 @@ impl LinearIssueDisplay {
 
         // info!("Header: {:?}", header);
 
-
+        let mut max_seen_row_size: usize = 0;
 
         let rows = table_data.iter().map(|row| {
 
@@ -82,12 +82,20 @@ impl LinearIssueDisplay {
 
             // info!("Cell Fields: {:?}", cell_fields);
 
-            let height = cell_fields_formatted
+
+            let mut current_row_height = cell_fields_formatted
                 .iter()
                 .map(|content| content.chars().filter(|c| *c == '\n').count())
                 .max()
                 .unwrap_or(0)
                 + 1;
+                
+            // Ensure that every row is as high as the largest table row
+            if current_row_height > max_seen_row_size {
+                max_seen_row_size = current_row_height;
+            } else {
+                current_row_height = max_seen_row_size;
+            }
 
             // info!("Height: {:?}", height);
 
@@ -110,7 +118,7 @@ impl LinearIssueDisplay {
             cells.insert(2, generate_state_cell());
             cells.remove(3);
 
-            Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
+            Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
         });
 
         let table_block = Block::default()

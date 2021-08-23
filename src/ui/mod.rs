@@ -50,7 +50,7 @@ pub const SMALL_TERMINAL_HEIGHT: u16 = 45;
 
 
 
-pub fn draw_action_select<B>(f: &mut Frame<B>, app: & mut App, loader_state: &u16)
+pub fn draw_action_select<B>(f: &mut Frame<B>, app: & mut App)
 where
   B: Backend,
 {
@@ -116,7 +116,7 @@ where
             highlight_table,
             req_num: Some(req_num as u16),
             loading: loading_state,
-            loader_state: loader_state.clone()
+            loader_state: app.loader_tick.clone()
         };
 
 
@@ -359,7 +359,7 @@ where
         highlight_table: app.linear_dashboard_view_list_selected,
         req_num: None,
         loading: false,
-        loader_state: 0,
+        loader_state: app.loader_tick.clone(),
     };
 
     // subtract 2 from width to account for single character table borders
@@ -389,6 +389,8 @@ where
   
     let view_data_handle = &app.linear_custom_view_select.view_table_data.lock().unwrap();
 
+    let custom_view_select_loading_lock = app.linear_custom_view_select.loading.lock().unwrap();
+
     // Create TableStyle for Custom View Select
     let custom_view_select_table_style = TableStyle { 
         title_style: 
@@ -399,9 +401,11 @@ where
         view_idx: Some(2),
         highlight_table: !app.linear_dashboard_view_list_selected,
         req_num: None,
-        loading: false,
-        loader_state: 0,
+        loading: *custom_view_select_loading_lock,
+        loader_state: app.loader_tick,
     };
+
+    drop(custom_view_select_loading_lock);
 
     // subtract 2 from width to account for single character table borders
     let view_select_content_rect = Rect::new(bottom_row_chunks[1].x, bottom_row_chunks[1].y, bottom_row_chunks[1].width-2, bottom_row_chunks[1].height);

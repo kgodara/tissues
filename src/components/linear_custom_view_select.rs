@@ -25,6 +25,7 @@ use crate::util::layout::{ format_str_with_wrap };
 pub struct LinearCustomViewSelect {
     pub view_table_data: Arc<Mutex<Vec<Value>>>,
     pub view_table_state: TableState,
+    pub loading: Arc<Mutex<bool>>,
 }
 
 
@@ -188,6 +189,7 @@ impl Default for LinearCustomViewSelect {
         LinearCustomViewSelect {
             view_table_data: Arc::new(Mutex::new(Vec::new())),
             view_table_state: TableState::default(),
+            loading: Arc::new(Mutex::new(false)),
         }
     }
 }
