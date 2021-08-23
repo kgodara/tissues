@@ -433,13 +433,22 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 {
                     let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
 
+                    // if handle.len() == 0:
+                    //     return; (either no custom views, or custom views being loaded)
+
                     // Check if at end of linear_custom_view_select.view_table_data
                     //  If true: Check if app.linear_custom_view_cursor.has_next_page = true
                     //      If true: dispatch event to load next page of linear issues
                     //          and merge with current linear_custom_view_select.view_table_data
 
+                    if handle.is_empty() {
+                        return;
+                    }
+
+                    // if called with len()=0, panics
                     let is_last_element = state_table::is_last_element(& app.linear_custom_view_select.view_table_state, handle);
                     let cursor_has_next_page;
+
                     {
                         let view_cursor_data_handle = app.linear_custom_view_cursor.lock().unwrap();
                         cursor_has_next_page = view_cursor_data_handle.has_next_page;
@@ -451,7 +460,6 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                     else {
                         state_table::next(&mut app.linear_custom_view_select.view_table_state, handle);
                         app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
-                        info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
                     }
                 }
     
@@ -501,9 +509,15 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             else {
                 let handle = &mut *app.linear_custom_view_select.view_table_data.lock().unwrap();
 
+                // if handle.is_empty():
+                //     return; (either no custom views, or custom views being loaded)
+                if handle.is_empty() {
+                    return;
+                }
+
+                // if called with len()=0, panics
                 state_table::previous(&mut app.linear_custom_view_select.view_table_state, handle);
                 app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
-                info!("app.linear_selected_custom_view_idx: {:?}", app.linear_selected_custom_view_idx);
             }
         }
     }

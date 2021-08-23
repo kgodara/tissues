@@ -47,21 +47,26 @@ pub fn with_previous<T>(state: &TableState, items: &Vec<T>) -> TableState {
     state
 }
 
-pub fn is_last_element<T>(state: &TableState, items: &Vec<T>) -> bool {
+pub fn is_last_element<T>(state: &TableState, items: &[T]) -> bool {
+    
+    debug!("state_table::is_last_element - {:?}, {:?}",state.selected(), items.len());
     let i = match state.selected() {
         Some(x) => {
+
+            // if items.len() is 0 this can cause overflow
             if x >= items.len() - 1 {
-                0 as i32
+                0i32
             } else {
                 (x + 1) as i32
             }
         }
-        None => -1 as i32,
+        None => -1i32,
     };
+
     if i == 0 {
         return true;
     }
-    return false;
+    false
 }
 
 pub fn previous<T>(state: &mut TableState, items: &Vec<T>) {
