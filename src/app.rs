@@ -5,23 +5,26 @@ use crate::network;
 
 use network::IOEvent as IOEvent;
 
-use util::StatefulList as StatefulList;
-use util::GraphQLCursor;
 
 use tokio::sync::oneshot;
 
 use std::sync::{Arc, Mutex};
 
-use crate::linear::LinearConfig;
-use crate::linear::view_resolver::ViewLoader;
+use crate::linear::{
+    LinearConfig,
+    view_resolver::ViewLoader
+};
 
 use serde_json::Value;
 
-use std::collections::HashSet;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 
-use crate::util::fetch_selected_view_panel_issue;
-use crate::util::fetch_selected_workflow_state;
+use crate::util::{
+    StatefulList as StatefulList,
+    GraphQLCursor,
+    dashboard::fetch_selected_view_panel_issue,
+    dashboard::fetch_selected_workflow_state,
+};
 
 use crate::components::{command_bar};
 
@@ -122,7 +125,7 @@ pub struct App<'a> {
     // Selected Linear Workflow State
     pub linear_selected_workflow_state_idx: Option<usize>,
     // Draw Workflow State Selection panel
-    pub  linear_draw_workflow_state_select: bool,
+    pub linear_draw_workflow_state_select: bool,
 
 
     // Available actions

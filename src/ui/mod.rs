@@ -23,7 +23,7 @@ use crate::util::{
     ui::{ TableStyle, style_color_from_hex_str, hex_str_from_style_color },
     state_list,
     state_table,
-    fetch_selected_view_panel_issue,
+    dashboard::{fetch_selected_view_panel_issue, fetch_selected_view_panel_idx},    
     layout::{ widths_from_rect },
 };
 
@@ -60,7 +60,41 @@ where
         .split(f.size());
 
     // Render the View Panel Command Bar
-    
+
+    // Determine which Commands are allowed based on state of selection
+    let mut modify_workflow_state_cmd_active = false;
+    let mut refresh_cmd_active = false;
+
+    // If a View Panel is selected & it is not loading, allow Refresh command
+    if let Some(selected_view_panel_idx) = fetch_selected_view_panel_idx(app) {
+        // Fetch selected ViewPanel
+        let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
+
+        if let Some(x) = view_panel_list_lock.get(selected_view_panel_idx-1) {
+            let view_panel_loading_lock = x.loading.lock().unwrap();
+            
+            refresh_cmd_active = !*view_panel_loading_lock;   
+            drop(view_panel_loading_lock);
+        }
+        drop(view_panel_list_lock);
+    }
+
+    // If a View Panel Issue is selected, allow ModifyWorkflowState command
+    if fetch_selected_view_panel_issue(app).is_some() {
+        modify_workflow_state_cmd_active = true;
+    }
+
+    // Update Command statuses
+    app.view_panel_cmd_bar.set_modify_workflow_state_active(modify_workflow_state_cmd_active);
+    app.view_panel_cmd_bar.set_refresh_panel_active(refresh_cmd_active);
+
+    // Render command bar
+    if let Ok(cmd_items) = app.view_panel_cmd_bar.render() {
+        f.render_widget(cmd_items, chunks[0]);
+    } else {
+        error!("draw_action_select - app.view_panel_cmd_bar.render() failed");
+        panic!("draw_action_select - app.view_panel_cmd_bar.render() failed");
+    }
 
     
     // Iterate through the list of View Panels & render each to the appropriate position within layour

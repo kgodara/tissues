@@ -3,6 +3,10 @@ use serde_json::Value;
 
 use crate::app::App;
 
+// Accepts:
+//     app
+// Returns:
+//     full JSON Issue object (as specified in GraphQL request), or None if a View Panel Issue is not selected
 pub fn fetch_selected_view_panel_issue(app: &App) -> Option<Value> {
     // Validate that a ViewPanel and issue are selected
     // using 'app.linear_dashboard_view_panel_selected' & 'app.view_panel_issue_selected'
@@ -54,6 +58,18 @@ pub fn fetch_selected_view_panel_issue(app: &App) -> Option<Value> {
 
 }
 
+// Accepts:
+//     app
+// Returns:
+//     Some(usize) is a ViewPanel is selected, None if a ViewPanel is not selected
+pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
+    app.linear_dashboard_view_panel_selected
+}
+
+// Accepts:
+//     app
+// Returns:
+//     full JSON state object (as specified in GraphQL request), or None if a workflow state is not selected
 pub fn fetch_selected_workflow_state(app: &App) -> Option<Value> {
     let workflow_state_data_handle = app.linear_workflow_select.workflow_states_data.lock().unwrap();
     let state_idx: usize;

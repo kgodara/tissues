@@ -15,9 +15,7 @@ mod query;
 pub use query::set_linear_after_cursor_from_opt;
 pub use query::verify_linear_api_key;
 
-mod dashboard;
-pub use dashboard::fetch_selected_view_panel_issue;
-pub use dashboard::fetch_selected_workflow_state;
+pub mod dashboard;
 
 pub mod command_list;
 pub mod layout;
