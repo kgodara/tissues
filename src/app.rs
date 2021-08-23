@@ -257,17 +257,27 @@ impl<'a> App<'a> {
             "load_custom_views" => {
                 // TODO: Clear any previous CustomViewSelect related values on self
 
+
+                let view_select_loading_handle = self.linear_custom_view_select.loading.clone();
+
+                let mut view_select_loading_lock = view_select_loading_handle.lock().unwrap();
+
+                // If already loading something, don't try again
+                if *view_select_loading_lock {
+                    return;
+                }
+
+                // Set Loading 'true' before fetch
+                *view_select_loading_lock = true;
+                drop(view_select_loading_lock);
+
+
                 let tx2 = tx.clone();
 
                 let linear_config = self.linear_client.config.clone();
 
                 let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
 
-                // Loading State
-                let view_select_loading_handle = self.linear_custom_view_select.loading.clone();
-                let mut view_select_loading_lock = view_select_loading_handle.lock().unwrap();
-                *view_select_loading_lock = true;
-                drop(view_select_loading_lock);
 
                 let view_cursor_handle = self.linear_custom_view_cursor.lock().unwrap();
                 let view_cursor: GraphQLCursor = view_cursor_handle.clone();
@@ -333,9 +343,10 @@ impl<'a> App<'a> {
                 for (i, filter_opt) in self.linear_dashboard_view_list.iter().enumerate() {
                     //  If a View Panel for the filter is present within self.linear_dashboard_view_panel_list
                     //  and self.linear_dashboard_view_panel_list[x].is_loading == false,
-                    //  then if the index doesn't match:
-                    //  clone the view panel and insert into the correct index within self.linear_dashboard_view_panel_list
-                    //  else: do not insert a new view panel
+                    //      if the index doesn't match:
+                    //          clone the view panel and insert into the correct index within self.linear_dashboard_view_panel_list
+                    //      else:
+                    //          do not insert a new view panel
 
                     if let Some(filter) = filter_opt {
                         // Create DashboardViewPanels for each filter
@@ -519,6 +530,18 @@ impl<'a> App<'a> {
 
                 let view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
 
+                let mut loading_init_lock = view_panel_list_handle[self.view_panel_to_paginate].loading.lock().unwrap();
+
+                // If already loading something, don't try again
+                if *loading_init_lock {
+                    return;
+                }
+
+                // Set ViewPanel loading state to true
+                *loading_init_lock = true;
+                drop(loading_init_lock);
+                
+
                 let config = self.linear_client.config.clone();
 
                 let view_panel_view_obj = view_panel_list_handle[self.view_panel_to_paginate].filter.clone();
@@ -530,10 +553,6 @@ impl<'a> App<'a> {
                 let loader_handle = view_panel_list_handle[self.view_panel_to_paginate].view_loader.clone();
                 let request_num_handle = view_panel_list_handle[self.view_panel_to_paginate].request_num.clone();
 
-                // Set ViewPanel loading state to true
-                let mut loading_init_lock = view_panel_list_handle[self.view_panel_to_paginate].loading.lock().unwrap();
-                *loading_init_lock = true;
-                drop(loading_init_lock);
 
                 let loading_handle = view_panel_list_handle[self.view_panel_to_paginate].loading.clone();
 
