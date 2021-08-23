@@ -2,35 +2,32 @@
 
 use std::fmt::Write;
 
-use std::boxed::{
-  Box
-};
-
 use crate::app;
 use crate::Route;
 use crate::util;
 
 use app::App as App;
 
-use crate::components::dashboard_view_display::DashboardViewDisplay;
-use crate::components::dashboard_view_panel::DashboardViewPanel;
+use crate::components::{ 
+    dashboard_view_display::DashboardViewDisplay,
+    dashboard_view_panel::DashboardViewPanel,
+    linear_custom_view_select::LinearCustomViewSelect,
+    linear_team_select::LinearTeamSelectState,
+    linear_issue_display::LinearIssueDisplay,
+    linear_workflow_state_display::LinearWorkflowStateDisplayState,
+};
 
-use crate::components::linear_custom_view_select::LinearCustomViewSelect;
-use crate::components::linear_team_select::LinearTeamSelectState;
-use crate::components::linear_issue_display::LinearIssueDisplay;
-use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
-
-use crate::util::colors;
-use crate::util::ui;
-
-use crate::util::ui::{ TableStyle, style_color_from_hex_str, hex_str_from_style_color };
-use crate::util::{ state_list, state_table };
-
-use crate::util::fetch_selected_view_panel_issue;
+use crate::util::{
+    colors,
+    ui,
+    ui::{ TableStyle, style_color_from_hex_str, hex_str_from_style_color },
+    state_list,
+    state_table,
+    fetch_selected_view_panel_issue,
+    layout::{ widths_from_rect },
+};
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS, VIEW_PANEL_COLUMNS };
-use crate::util::layout::{ widths_from_rect };
-
 
 use tui::{
   backend::Backend,

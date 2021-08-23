@@ -517,6 +517,13 @@ impl<'a> App<'a> {
                 let loader_handle = view_panel_list_handle[self.view_panel_to_paginate].view_loader.clone();
                 let request_num_handle = view_panel_list_handle[self.view_panel_to_paginate].request_num.clone();
 
+                // Set ViewPanel loading state to true
+                let mut loading_init_lock = view_panel_list_handle[self.view_panel_to_paginate].loading.lock().unwrap();
+                *loading_init_lock = true;
+                drop(loading_init_lock);
+
+                let loading_handle = view_panel_list_handle[self.view_panel_to_paginate].loading.clone();
+
                 let tz_id_name_lookup_dup = self.team_tz_map.lock()
                                                             .unwrap()
                                                             .clone();
@@ -549,6 +556,8 @@ impl<'a> App<'a> {
                     let mut loader = loader_handle.lock().unwrap();
                     let mut request_num_lock = request_num_handle.lock().unwrap();
 
+                    let mut loading_lock = loading_handle.lock().unwrap();
+
                     let mut current_view_issues = view_panel_data_lock.clone();
 
                     if let Some(mut x) = res {
@@ -557,6 +566,7 @@ impl<'a> App<'a> {
                         *view_panel_data_lock = current_view_issues.clone();
                         *loader = Some(x.1);
                         *request_num_lock += x.2;
+                        *loading_lock = false;
 
                     }
                     info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
