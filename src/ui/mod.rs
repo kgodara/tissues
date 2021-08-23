@@ -53,7 +53,7 @@ pub const SMALL_TERMINAL_HEIGHT: u16 = 45;
 
 
 
-pub fn draw_action_select<B>(f: &mut Frame<B>, app: & mut App)
+pub fn draw_action_select<B>(f: &mut Frame<B>, app: & mut App, loader_state: &u16)
 where
   B: Backend,
 {
@@ -98,8 +98,37 @@ where
         let widths: Vec<Constraint> = widths_from_rect( &view_panel_content_rect, &*VIEW_PANEL_COLUMNS);
 
 
+        // Create TableStyle for ViewPanel
+
+        let highlight_table: bool = 
+            if let Some(selected_idx) = selected_view_idx {
+                selected_idx == ((i as u16)+1)
+            } else {
+                false
+            };
+        
+        // Get 'loading' bool from ViewPanel
+        let loading_lock = e.loading.lock().unwrap();
+        let loading_state: bool = loading_lock.clone();
+        drop(loading_lock);
+
+
+        let table_style = TableStyle { title_style: Some(( e.filter["name"].clone(), e.filter["color"].clone() )),
+            row_bottom_margin: Some(0),
+            view_idx: Some((i as u16)+1),
+            highlight_table,
+            req_num: Some(req_num as u16),
+            loading: loading_state,
+            loader_state: loader_state.clone()
+        };
+
+
         if let Ok(mut view_panel_table) =
-            DashboardViewPanel::render(&view_data_handle, &e.filter, &widths, req_num, i as u16, &selected_view_idx )
+            DashboardViewPanel::render(&view_data_handle,
+                &e.filter,
+                &widths,
+                table_style
+            )
         {
 
             // Determine if this view panel is currently selected
@@ -331,7 +360,9 @@ where
         row_bottom_margin: Some(0),
         view_idx: Some(1),
         highlight_table: app.linear_dashboard_view_list_selected,
-        req_num: None
+        req_num: None,
+        loading: false,
+        loader_state: 0,
     };
 
     // subtract 2 from width to account for single character table borders
@@ -370,7 +401,9 @@ where
         row_bottom_margin: Some(0),
         view_idx: Some(2),
         highlight_table: !app.linear_dashboard_view_list_selected,
-        req_num: None
+        req_num: None,
+        loading: false,
+        loader_state: 0,
     };
 
     // subtract 2 from width to account for single character table borders

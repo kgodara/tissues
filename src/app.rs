@@ -39,6 +39,8 @@ pub struct ViewLoadBundle {
     pub table_data: Arc<Mutex<Vec<Value>>>,
     pub loader: Arc<Mutex<Option<ViewLoader>>>,
     pub request_num: Arc<Mutex<u32>>,
+    pub loading: Arc<Mutex<bool>>,
+
     pub tx: tokio::sync::mpsc::Sender<IOEvent>,
 }
 
@@ -379,31 +381,33 @@ impl<'a> App<'a> {
                 // Create 'view_load_bundles': Vec<ViewLoadBundle> from view_panel_list_handle
                 // Filter to only create ViewLoadBundles for ViewPanels where 
                 let view_load_bundles: Vec<ViewLoadBundle> = view_panel_list_handle
-                                                                    .iter()
-                                                                    .cloned()
-                                                                    .enumerate()
-                                                                    .filter_map(|(i, e)| {
-                                                                        if existing_panel_set.contains(&i) {
-                                                                            None
-                                                                        }
-                                                                        else {
-                                                                            Some(ViewLoadBundle {
-                                                                                            linear_config: self.linear_client.config.clone(),
+                    .iter()
+                    .cloned()
+                    .enumerate()
+                    .filter_map(|(i, e)| {
+                        if existing_panel_set.contains(&i) {
+                            None
+                        }
+                        else {
+                            Some(ViewLoadBundle {
+                                            linear_config: self.linear_client.config.clone(),
 
-                                                                                            tz_id_name_lookup: self.team_tz_map.lock()
-                                                                                                                                .unwrap()
-                                                                                                                                .clone(),
-                                                                                            tz_name_offset_lookup: self.tz_name_offset_map.clone(),
-                                                                                            
-                                                                                            item_filter: e.filter,
-                                                                                            table_data: e.issue_table_data.clone(),
-                                                                                            loader: e.view_loader.clone(),
-                                                                                            request_num: e.request_num.clone(),
-                                                                                            tx: tx.clone(),
-                                                                                        })
-                                                                        }
-                                                                    })
-                                                                    .collect();
+                                            tz_id_name_lookup: self.team_tz_map.lock()
+                                                                                .unwrap()
+                                                                                .clone(),
+                                            tz_name_offset_lookup: self.tz_name_offset_map.clone(),
+                                            
+                                            item_filter: e.filter,
+                                            table_data: e.issue_table_data.clone(),
+                                            loader: e.view_loader.clone(),
+                                            request_num: e.request_num.clone(),
+                                            loading: e.loading.clone(),
+
+                                            tx: tx.clone(),
+                                        })
+                        }
+                    })
+                    .collect();
 
 
 
@@ -445,6 +449,11 @@ impl<'a> App<'a> {
                         let loader = loader_handle.clone();
                         drop(loader_handle);
 
+                        // Set ViewPanel loading state to true
+                        let mut loading_init_lock = item.loading.lock().unwrap();
+                        *loading_init_lock = true;
+                        drop(loading_init_lock);
+
                         tokio::spawn(async move {
                             let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -466,11 +475,13 @@ impl<'a> App<'a> {
                             let mut view_panel_data_lock = item.table_data.lock().unwrap();
                             let mut loader_handle = item.loader.lock().unwrap();
                             let mut request_num_lock = item.request_num.lock().unwrap();
+                            let mut loading_lock = item.loading.lock().unwrap();
 
                             if let Some(x) = res {
                                 *view_panel_data_lock = x.0;
                                 *loader_handle = Some(x.1);
                                 *request_num_lock += x.2;
+                                *loading_lock = false;
                             }
                             info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })

@@ -39,6 +39,7 @@ use tui::{
 
 use util::{
     event::{Event, Events},
+    loader::{ LOADER_STATE_MAX },
 };
 
 #[macro_use] extern crate log;
@@ -215,13 +216,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     terminal.clear()?;
 
     let mut tick_idx = 0u64;
+    // loader_tick is a looping index for loader_state
+    let mut loader_tick = 0u16;
     let mut cmd_option: Option<Command>;
 
     loop {
 
         terminal.draw(|mut f| match app.route {
             Route::ActionSelect => {
-              ui::draw_action_select(&mut f, &mut app);
+              ui::draw_action_select(&mut f, &mut app, &loader_tick);
             },
             Route::DashboardViewDisplay => {
                 ui::draw_dashboard_view_display(&mut f, &mut app);
@@ -293,7 +296,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::Tick => {
                 // info!("tick_idx: {}", tick_idx);
                 // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
-                tick_idx += 1;
+                
+                if loader_tick == (LOADER_STATE_MAX-1) { loader_tick = 0; }
+                else { loader_tick += 1; }
+
+                // avoid overflow
+                if tick_idx < 100 {
+                    tick_idx += 1;
+                }
             },
         };
     }

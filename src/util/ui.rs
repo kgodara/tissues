@@ -6,6 +6,8 @@ use tui::{
 
 use crate::util::colors::{ API_REQ_NUM };
 
+use crate::util::loader::{ loader_from_state };
+
 use colorsys::{Rgb};
 
 use serde_json::Value;
@@ -20,10 +22,11 @@ pub struct TableStyle {
     // View Panel Specific
     pub view_idx: Option<u16>,
 
-    // TODO: Remove this field and pass instead as an arg to View Panel Render method
-    // pub selected_view_idx: Option<u16>,
     pub highlight_table: bool,
 
+    // Loading State Display Relagted
+    pub loading: bool,
+    pub loader_state: u16,
 
     pub req_num: Option<u16>,
 }
@@ -41,6 +44,11 @@ pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
                                                 None => {String::default()}
                                             },
                                             Style::default()
+                                ),
+                                // Display Table's Loading State
+                                Span::styled(
+                                    vec![loader_from_state(table_style.loading, table_style.loader_state).to_string().as_str(), " - "].concat(),
+                                    Style::default()
                                 ),
                                 // Display provided Label as Table Title
                                 Span::styled(String::from(*title_style.0
@@ -96,6 +104,8 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
+
+// Coloring
 pub fn style_color_from_hex_str(color: &Value) -> Option<Color> {
 
     let hex_str;

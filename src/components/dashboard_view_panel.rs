@@ -17,7 +17,7 @@ pub struct DashboardViewPanel {
     pub issue_table_data: Arc<Mutex<Vec<Value>>>,
     pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
     pub request_num: Arc<Mutex<u32>>,
-    pub is_loading: Arc<Mutex<bool>>,
+    pub loading: Arc<Mutex<bool>>,
 }
 
 impl DashboardViewPanel {
@@ -27,30 +27,15 @@ impl DashboardViewPanel {
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
             view_loader: Arc::new(Mutex::new(None)),
             request_num: Arc::new(Mutex::new(0)),
-            is_loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(Mutex::new(false)),
         }
     }
 
     pub fn render<'a>(data: &'a [Value],
         filter: &Value,
         widths: &Vec<Constraint>,
-        req_num: u32,
-        view_idx: u16,
-        selected_view_idx: &Option<u16>) -> Result<Table<'a>, &'static str> {
-        let highlight_table: bool = 
-            if let Some(selected_idx) = selected_view_idx {
-                *selected_idx == (view_idx+1)
-            } else {
-                false
-            };
-
-        // Create TableStyle from filter
-        let table_style = TableStyle { title_style: Some(( filter["name"].clone(), filter["color"].clone() )),
-                                        row_bottom_margin: Some(0),
-                                        view_idx: Some(view_idx+1),
-                                        highlight_table,
-                                        req_num: Some(req_num as u16)
-                                    };
+        table_style: TableStyle
+        ) -> Result<Table<'a>, &'static str> {
 
         LinearIssueDisplay::get_rendered_issue_data(data, widths, table_style)
     }
@@ -68,7 +53,7 @@ impl Default for DashboardViewPanel {
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
             view_loader: Arc::new(Mutex::new(None)),
             request_num: Arc::new(Mutex::new(0)),
-            is_loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(Mutex::new(false)),
         }
     }
 }
