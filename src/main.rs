@@ -245,14 +245,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::Quit => {
                             break;
                         },
-                        /*
-                        Command::Add => {
-                            exec_add_cmd(&mut app).await;
-                        },
-                        Command::Replace => {
-                            exec_replace_cmd(&mut app).await;
-                        },
-                        */
                         Command::Delete => {
                             exec_delete_cmd(&mut app).await;
                         },
@@ -294,7 +286,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::Tick => {
                 // info!("tick_idx: {}", tick_idx);
                 // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
-                
+
                 if app.loader_tick == (LOADER_STATE_MAX-1) { app.loader_tick = 0; }
                 else { app.loader_tick += 1; }
 

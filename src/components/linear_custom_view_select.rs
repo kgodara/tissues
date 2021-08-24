@@ -1,3 +1,4 @@
+use std::cmp::max;
 
 use tui::{
     layout::{Constraint},
@@ -11,15 +12,18 @@ use std::sync::{ Arc, Mutex };
 use serde_json::Value;
 use serde_json::json;
 
-use crate::util::GraphQLCursor;
-use crate::linear::client::LinearClient;
-use crate::linear::LinearConfig;
+use crate::linear::{
+    client::LinearClient,
+    LinearConfig
+};
 
-use crate::util::ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spans };
+use crate::util::{
+    ui::{ TableStyle, gen_table_title_spans },
+    table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
+    GraphQLCursor
+};
 
 use crate::constants::table_columns::{ CUSTOM_VIEW_SELECT_COLUMNS };
-
-use crate::util::layout::{ format_str_with_wrap };
 
 
 pub struct LinearCustomViewSelect {
@@ -87,80 +91,33 @@ impl LinearCustomViewSelect {
         let mut rows: Vec<Row> = table_data.iter()
             .map(|row| {
 
-                // info!("Table Row Raw: {:?}", row);
-
-                let cell_fields: Vec<String> = vec![row["name"].clone(), row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i,field)| match field {
-
-                                        Value::String(x) => x.clone(),
-                                        Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                        Value::Null => {
-                                            // If 'team' is Null, the view is for all teams
-                                            if i == 2 {
-                                                String::from("All Teams")
-                                            }
-                                            else {
-                                                String::default()
-                                            }
-                                        },
-
-                                        _ => { String::default() },
-                                    })
-                                    .collect();
+                let cell_fields: Vec<String> = values_to_str(
+                    &[row["name"].clone(),
+                        row["description"].clone(),
+                        row["organization"]["name"].clone(),
+                        row["team"]["key"].clone()
+                    ],
+                    &CUSTOM_VIEW_SELECT_COLUMNS
+                );
 
                 // Get the formatted Strings for each cell field
-                let cell_fields_formatted: Vec<String> = cell_fields.iter()
-                    .enumerate()
-                    .map(|(idx, cell_field)| {
-                        if let Constraint::Length(width_num) = widths[idx] {
-                            format_str_with_wrap(cell_field, width_num, CUSTOM_VIEW_SELECT_COLUMNS[idx].max_height)
-                        } else {
-                            error!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                            panic!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                        }
-                    })
-                    .collect();
+                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &CUSTOM_VIEW_SELECT_COLUMNS);
+
                 debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
 
-                let mut current_row_height = cell_fields_formatted
-                    .iter()
-                    .map(|content| content.chars().filter(|c| *c == '\n').count())
-                    .max()
-                    .unwrap_or(1);
-
-                debug!("get_rendered_view_data - current_row_height, max_seen_row_size: {:?}, {:?}", current_row_height, max_seen_row_size);
-
-                // Ensure that every row is as high as the largest table row
-                if current_row_height > max_seen_row_size {
-                    max_seen_row_size = current_row_height;
-                } else {
-                    current_row_height = max_seen_row_size;
-                }
-
-                // info!("Height: {:?}", height);
-
+                max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
+                
                 let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
-                let generate_name_cell = || {
-                    let name: String = cell_fields_formatted[0].clone();
-                    let color = row["color"].clone();
-
-                    let style_color = style_color_from_hex_str(&color);
-
-                    match style_color {
-                        Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
-                        None => Cell::from(name),
-                    }
-                };
+                let name: String = cell_fields_formatted[0].clone();
+                let color = row["color"].clone();
 
                 // Insert new "name" cell, and remove unformatted version
-                cells.insert(0, generate_name_cell());
+                cells.insert(0, colored_cell(name, color));
                 cells.remove(1);
 
-
-                Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
+                Row::new(cells)
+                    .bottom_margin(bottom_margin)
             })
             .collect();
 
@@ -173,21 +130,15 @@ impl LinearCustomViewSelect {
 
 
         let table_block = Block::default()
-                                    .borders(Borders::ALL)
-                                    .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
-                                    .title( gen_table_title_spans(table_style) );
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
+            .title( gen_table_title_spans(table_style) );
 
 
         let t = Table::new(rows)
             .header(header)
             .block(table_block)
-            .highlight_style(selected_style)
-            .widths(&[
-                Constraint::Percentage(10),
-                Constraint::Percentage(15),
-                Constraint::Percentage(25),
-                Constraint::Percentage(20),
-            ]);
+            .highlight_style(selected_style);
         
         Ok(t)
 

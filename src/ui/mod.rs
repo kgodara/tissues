@@ -13,7 +13,6 @@ use crate::components::{
     dashboard_view_panel::DashboardViewPanel,
     linear_custom_view_select::LinearCustomViewSelect,
     linear_team_select::LinearTeamSelectState,
-    linear_issue_display::LinearIssueDisplay,
     linear_workflow_state_display::LinearWorkflowStateDisplayState,
 };
 
@@ -156,7 +155,6 @@ where
 
         if let Ok(mut view_panel_table) =
             DashboardViewPanel::render(&view_data_handle,
-                &e.filter,
                 &widths,
                 table_style
             )

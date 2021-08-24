@@ -35,7 +35,6 @@ use crate::components::{
 
     // deprecated
     linear_workflow_state_display::LinearWorkflowStateDisplayState,
-    linear_issue_display::LinearIssueDisplay,
     linear_team_select::LinearTeamSelectState,
 };
 
@@ -124,13 +123,6 @@ pub struct App<'a> {
     // Selected Linear Team
     pub linear_selected_team_idx: Option<usize>,
 
-    // Linear Issue Display State
-    pub linear_issue_display: LinearIssueDisplay,
-    // Selected Linear Issue
-    pub linear_selected_issue_idx: Option<usize>,
-    // Linear Issue Display Cursor
-    pub linear_issue_cursor: Arc<Mutex<GraphQLCursor>>,
-
     // Linear Workflow Select State
     pub linear_workflow_select: LinearWorkflowStateDisplayState,
     // Selected Linear Workflow State
@@ -185,11 +177,6 @@ impl<'a> Default for App<'a> {
             linear_team_select: LinearTeamSelectState::default(),
             // Null
             linear_selected_team_idx: None,
- 
-            linear_issue_display: LinearIssueDisplay::default(),
-            
-            linear_selected_issue_idx: None,
-            linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
 
             
             linear_workflow_select: LinearWorkflowStateDisplayState::default(),
@@ -628,7 +615,7 @@ impl<'a> App<'a> {
                 let selected_issue_opt = fetch_selected_view_panel_issue(&self);
                 let selected_issue;
                 let selected_team;
-                
+
                 // Check that an Issue is selected, if not return
                 if let Some(x) = selected_issue_opt {
                     selected_issue = x;

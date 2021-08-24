@@ -22,6 +22,8 @@ pub mod layout;
 pub mod str;
 pub mod loader;
 
+pub mod table;
+
 
 
 // StatefulList with non-instance methods

@@ -287,11 +287,10 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 app.linear_workflow_select = LinearWorkflowStateDisplayState::default();
             }
 
-            // If a View Panel is selected, unselect it, reset app.linear_selected_issue_idx to None and
+            // If a View Panel is selected, unselect it, reset app.linear_dashboard_view_panel_selected to None and
             // select app.actions()
             else if app.linear_dashboard_view_panel_selected.is_some() {
                 app.linear_dashboard_view_panel_selected = None;
-                app.linear_selected_issue_idx = None;
                 app.actions.next();
             }
         },
