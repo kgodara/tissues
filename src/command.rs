@@ -186,7 +186,7 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
                         // debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
                         e.filter["id"] == filter_id
                     });
-                
+
                 if let Some(filter_view_panel_idx) = filter_view_panel_exists {
                     view_panel_list_lock.remove(filter_view_panel_idx);
                 }
@@ -255,6 +255,8 @@ pub fn exec_select_custom_view_select_cmd(app: &mut App) {
         let mut table_state = TableState::default();
         state_table::next(&mut table_state, &custom_view_select_handle);
 
+
+        app.linear_selected_custom_view_idx = table_state.selected();
         app.linear_custom_view_select.view_table_state = table_state;
     }
 }
