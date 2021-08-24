@@ -1,15 +1,20 @@
-use std::io;
-use std::sync::mpsc;
+use std::{
+    io,
+    thread,
+    time::Duration,
+    env
+};
+
 use std::sync::{
+    mpsc,
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use std::thread;
-use std::time::Duration;
-use std::env;
 
-use termion::event::Key;
-use termion::input::TermRead;
+use termion::{
+    event::Key,
+    input::TermRead,
+};
 
 pub enum Event<I> {
     Input(I),

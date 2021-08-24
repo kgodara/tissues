@@ -1,6 +1,6 @@
 use tui::{
     style::{Color, Modifier, Style},
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     text::{Span, Spans}
 };
 

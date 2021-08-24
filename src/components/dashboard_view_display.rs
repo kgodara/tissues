@@ -1,17 +1,21 @@
+
+use std::cmp::max;
+
+use serde_json::Value;
+
 use tui::{
-    layout::{Constraint, Rect},
+    layout::{Constraint},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
 use crate::util::{
-    ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans},
-    layout::{ format_str_with_wrap }
+    ui::{ TableStyle, gen_table_title_spans },
+    table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
 };
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
 
-use serde_json::Value;
 
 pub struct DashboardViewDisplay {
     pub view_table_state: TableState,
@@ -19,10 +23,10 @@ pub struct DashboardViewDisplay {
 
 impl DashboardViewDisplay {
 
-    pub fn get_rendered_view_table<'a>(view_list: &'a [Option<Value>],
+    pub fn render<'a>(view_list: &'a [Option<Value>],
         widths: &[Constraint],
         table_style: TableStyle,
-        bbox: &Rect) -> Result<Table<'a>, &'static str> {
+    ) -> Result<Table<'a>, &'static str> {
 
         let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
@@ -38,97 +42,54 @@ impl DashboardViewDisplay {
             .height(1)
             .bottom_margin(1);
 
-        // info!("Header: {:?}", header);
-
         let mut max_seen_row_size: usize = 0;
 
         let mut rows: Vec<Row> = view_list.iter()
-            .enumerate()
-            .map(|(idx, row_option)| {
+            .map(|row_option| {
 
-            // Get the String representations of each cell field
+                // Get the String representations of each cell field
 
-            let cell_fields: Vec<String> = match row_option {
-
-                Some(row) => {
-                    vec![row["name"].clone(), row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
-                                .iter()
-                                .enumerate()
-                                .map(|(i,field)| match field {
-
-                                    Value::String(x) => x.clone(),
-                                    Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                    Value::Null => {
-                                        // If 'team' is Null, the view is for all teams
-                                        if i == 2 {
-                                            String::from("All Teams")
-                                        }
-                                        else {
-                                            String::default()
-                                        }
-                                    },
-
-                                    _ => { String::default() },
-                                })
-                                .collect()
-                },
-                None => vec![String::default(), String::default(), String::default()],
-            };
-
-            // Get the formatted Strings for each cell field
-            let cell_fields_formatted: Vec<String> = cell_fields.iter()
-                .enumerate()
-                .map(|(idx, cell_field)| {
-                    if let Constraint::Length(width_num) = widths[idx] {
-                        format_str_with_wrap(cell_field, width_num, DASHBOARD_VIEW_CONFIG_COLUMNS[idx].max_height)
-                    } else {
-                        error!("get_rendered_view_table - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                        panic!("get_rendered_view_table - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                    }
-                })
-                .collect();
-
-            debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
-            
-            let mut current_row_height = cell_fields_formatted
-                .iter()
-                .map(|content| content.chars().filter(|c| *c == '\n').count())
-                .max()
-                .unwrap_or(1);
-
-            debug!("get_rendered_view_table - current_row_height, max_seen_row_size: {:?}, {:?}", current_row_height, max_seen_row_size);
-
-            // Ensure that every row is as high as the largest table row
-            if current_row_height > max_seen_row_size {
-                max_seen_row_size = current_row_height;
-            } else {
-                current_row_height = max_seen_row_size;
-            }
-
-            let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
-
-            let generate_name_cell = || {
-                match row_option {
+                let cell_fields: Vec<String> = match row_option {
                     Some(row) => {
-                        let name: String = cell_fields_formatted[0].clone();
-                        let color = row["color"].clone();
-
-                        let style_color = style_color_from_hex_str(&color);
-
-                        match style_color {
-                            Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
-                            None => Cell::from(name),
-                        }
+                        values_to_str(
+                            &[row["name"].clone(),
+                                row["description"].clone(),
+                                row["organization"]["name"].clone(),
+                                row["team"]["key"].clone()
+                            ],
+                            &DASHBOARD_VIEW_CONFIG_COLUMNS
+                        )
                     },
-                    None => { Cell::from(String::from("Empty Slot"))}
-                }
-            };
+                    None => vec![String::default(), String::default(), String::default()],
+                };
 
-            // Insert new "name" cell, and remove unformatted version
-            cells.insert(0, generate_name_cell());
-            cells.remove(1);
+                // Get the formatted Strings for each cell field
+                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &DASHBOARD_VIEW_CONFIG_COLUMNS);
 
-            Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
+                debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
+                
+                max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
+
+                let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
+
+                let generate_name_cell = || {
+                    match row_option {
+                        Some(row) => {
+                            let name: String = cell_fields_formatted[0].clone();
+                            let color = row["color"].clone();
+
+                            colored_cell(name, color)
+                        },
+                        None => { Cell::from(String::from("Empty Slot"))}
+                    }
+                };
+
+                // Insert new "name" cell, and remove unformatted version
+                cells.insert(0, generate_name_cell());
+                cells.remove(1);
+
+                Row::new(cells)
+                    .bottom_margin(bottom_margin)
             })
             .collect();
         // Set all row heights to max_seen_row_size

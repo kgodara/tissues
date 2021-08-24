@@ -51,8 +51,6 @@ use std::fs::File;
 
 use command::{ Command,
                 get_cmd,
-                exec_add_cmd,
-                exec_replace_cmd,
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
                 exec_select_dashboard_view_list_cmd,
@@ -129,14 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     info!("LoadViewIssues data: {:?}", issue_list);
 
                     let _ = resp.send(issue_list);
-                },
-                IOEvent::LoadLinearTeams { api_key, resp } => {
-                    let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
-                    info!("LoadLinearTeams data: {:?}", option_stateful);
-
-                    let _ = resp.send(option_stateful);
-
-                    // client.get(&key).await;
                 },
                 IOEvent::LoadWorkflowStates { linear_config, team, resp } => {
 
@@ -245,14 +235,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::Quit => {
                             break;
                         },
-                        /*
-                        Command::Add => {
-                            exec_add_cmd(&mut app).await;
-                        },
-                        Command::Replace => {
-                            exec_replace_cmd(&mut app).await;
-                        },
-                        */
                         Command::Delete => {
                             exec_delete_cmd(&mut app).await;
                         },
@@ -294,7 +276,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::Tick => {
                 // info!("tick_idx: {}", tick_idx);
                 // info!("Tick event - app.cmd_str: {:?}", app.cmd_str);
-                
+
                 if app.loader_tick == (LOADER_STATE_MAX-1) { app.loader_tick = 0; }
                 else { app.loader_tick += 1; }
 

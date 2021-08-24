@@ -35,8 +35,6 @@ use crate::components::{
 
     // deprecated
     linear_workflow_state_display::LinearWorkflowStateDisplayState,
-    linear_issue_display::LinearIssueDisplay,
-    linear_team_select::LinearTeamSelectState,
 };
 
 use tui::{
@@ -119,17 +117,6 @@ pub struct App<'a> {
 
 
     // DEPRECATED FIELDS (may be re-used)
-    // Linear Team Select State
-    pub linear_team_select: LinearTeamSelectState,
-    // Selected Linear Team
-    pub linear_selected_team_idx: Option<usize>,
-
-    // Linear Issue Display State
-    pub linear_issue_display: LinearIssueDisplay,
-    // Selected Linear Issue
-    pub linear_selected_issue_idx: Option<usize>,
-    // Linear Issue Display Cursor
-    pub linear_issue_cursor: Arc<Mutex<GraphQLCursor>>,
 
     // Linear Workflow Select State
     pub linear_workflow_select: LinearWorkflowStateDisplayState,
@@ -181,16 +168,6 @@ impl<'a> Default for App<'a> {
 
 
             // Deprecated
-
-            linear_team_select: LinearTeamSelectState::default(),
-            // Null
-            linear_selected_team_idx: None,
- 
-            linear_issue_display: LinearIssueDisplay::default(),
-            
-            linear_selected_issue_idx: None,
-            linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
-
             
             linear_workflow_select: LinearWorkflowStateDisplayState::default(),
             linear_selected_workflow_state_idx: None,
@@ -452,7 +429,7 @@ impl<'a> App<'a> {
                 drop(view_panel_list_handle);
 
 
-                let t1 = tokio::spawn(async move {
+                let _t1 = tokio::spawn(async move {
 
                     // Load all DashboardViewPanels
 
@@ -628,7 +605,7 @@ impl<'a> App<'a> {
                 let selected_issue_opt = fetch_selected_view_panel_issue(&self);
                 let selected_issue;
                 let selected_team;
-                
+
                 // Check that an Issue is selected, if not return
                 if let Some(x) = selected_issue_opt {
                     selected_issue = x;
@@ -711,7 +688,7 @@ impl<'a> App<'a> {
                 let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();
 
                 // Spawn task to issue command to update workflow state
-                let t3 = tokio::spawn( async move {
+                let _t3 = tokio::spawn( async move {
                     let (resp2_tx, resp2_rx) = oneshot::channel();
 
                     let cmd = IOEvent::UpdateIssueWorkflowState {   linear_config,
