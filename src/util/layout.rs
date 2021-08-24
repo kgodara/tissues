@@ -174,9 +174,9 @@ pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
 
         if idx == (height as usize)-1 && ellipsis_added {
             result.push_str(&final_line);
-        } else if idx == (height as usize)-1 {
+        } /*else if idx == (height as usize)-1 {
             result.push_str(line);
-        } else {
+        }*/ else {
             result.push_str(line);
             result.push('\n');
         }

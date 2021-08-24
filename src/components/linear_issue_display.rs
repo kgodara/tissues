@@ -45,81 +45,92 @@ impl LinearIssueDisplay {
 
         let mut max_seen_row_size: usize = 0;
 
-        let rows = table_data.iter().map(|row| {
+        let mut rows: Vec<Row> = table_data.iter()
+            .map(|row| {
 
-            // info!("Table Row Raw: {:?}", row);
+                // info!("Table Row Raw: {:?}", row);
 
-            let cell_fields: Vec<String> = vec![row["number"].clone(),
-                    row["title"].clone(),
-                    row["state"]["name"].clone(),
-                    row["description"].clone(),
-                    row["createdAt"].clone()
-                ]
-                .iter()
-                .map(|field| match field {
+                let cell_fields: Vec<String> = vec![row["number"].clone(),
+                        row["title"].clone(),
+                        row["state"]["name"].clone(),
+                        row["description"].clone(),
+                        row["createdAt"].clone()
+                    ]
+                    .iter()
+                    .map(|field| match field {
 
-                    Value::String(x) => x.clone(),
-                    Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                    Value::Null => String::default(),
-                    
-                    _ => { String::default() },
-                })
-                .collect();
+                        Value::String(x) => x.clone(),
+                        Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+                        Value::Null => String::default(),
+                        
+                        _ => { String::default() },
+                    })
+                    .collect();
 
-            // Get the formatted Strings for each cell field
-            let cell_fields_formatted: Vec<String> = cell_fields.iter()
-                .enumerate()
-                .map(|(idx, cell_field)| {
-                    if let Constraint::Length(width_num) = widths[idx] {
-                        format_str_with_wrap(cell_field, width_num, VIEW_PANEL_COLUMNS[idx].max_height)
-                    } else {
-                        error!("get_rendered_issue_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                        panic!("get_rendered_issue_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                    }
-                })
-                .collect();
-
-
-            // info!("Cell Fields: {:?}", cell_fields);
+                // Get the formatted Strings for each cell field
+                let cell_fields_formatted: Vec<String> = cell_fields.iter()
+                    .enumerate()
+                    .map(|(idx, cell_field)| {
+                        if let Constraint::Length(width_num) = widths[idx] {
+                            format_str_with_wrap(cell_field, width_num, VIEW_PANEL_COLUMNS[idx].max_height)
+                        } else {
+                            error!("get_rendered_issue_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                            panic!("get_rendered_issue_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                        }
+                    })
+                    .collect();
 
 
-            let mut current_row_height = cell_fields_formatted
-                .iter()
-                .map(|content| content.chars().filter(|c| *c == '\n').count())
-                .max()
-                .unwrap_or(0)
-                + 1;
+                // info!("Cell Fields: {:?}", cell_fields);
+
+
+                let mut current_row_height = cell_fields_formatted
+                    .iter()
+                    .map(|content| content.chars().filter(|c| *c == '\n').count())
+                    .max()
+                    .unwrap_or(1);
                 
-            // Ensure that every row is as high as the largest table row
-            if current_row_height > max_seen_row_size {
-                max_seen_row_size = current_row_height;
-            } else {
-                current_row_height = max_seen_row_size;
-            }
-
-            // info!("Height: {:?}", height);
-
-            let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
-
-            let generate_state_cell = || {
-                // let state_obj = row["state"].clone();
-                let name = cell_fields_formatted[2].clone();
-                let color = row["state"]["color"].clone();
-
-                let style_color = style_color_from_hex_str(&color);
-
-                match style_color {
-                    Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
-                    None => Cell::from(String::default()),
+                debug!("get_rendered_issue_data - current_row_height, max_seen_row_size: {:?}, {:?}", current_row_height, max_seen_row_size);
+                    
+                // Ensure that every row is as high as the largest table row
+                if current_row_height > max_seen_row_size {
+                    max_seen_row_size = current_row_height;
+                } else {
+                    current_row_height = max_seen_row_size;
                 }
-            };
 
-            // Insert new "state" cell, and remove unformatted version
-            cells.insert(2, generate_state_cell());
-            cells.remove(3);
+                // info!("Height: {:?}", height);
 
-            Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
-        });
+                let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
+
+                let generate_state_cell = || {
+                    // let state_obj = row["state"].clone();
+                    let name = cell_fields_formatted[2].clone();
+                    let color = row["state"]["color"].clone();
+
+                    let style_color = style_color_from_hex_str(&color);
+
+                    match style_color {
+                        Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
+                        None => Cell::from(String::default()),
+                    }
+                };
+
+                // Insert new "state" cell, and remove unformatted version
+                cells.insert(2, generate_state_cell());
+                cells.remove(3);
+
+                Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
+            })
+            .collect();
+
+        // Set all row heights to max_seen_row_size
+        rows = rows.into_iter()
+            .map(|row| {
+                row.height(max_seen_row_size as u16)
+            })
+            .collect();
+
 
         let table_block = Block::default()
                                     .borders(Borders::ALL)

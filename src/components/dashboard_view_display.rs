@@ -4,11 +4,12 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
-use crate::util::ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans};
+use crate::util::{
+    ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans},
+    layout::{ format_str_with_wrap }
+};
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
-use crate::util::layout::{ format_str_with_wrap };
-
 
 use serde_json::Value;
 
@@ -39,9 +40,11 @@ impl DashboardViewDisplay {
 
         // info!("Header: {:?}", header);
 
+        let mut max_seen_row_size: usize = 0;
 
-
-        let rows = view_list.iter().enumerate().map(|(idx, row_option)| {
+        let mut rows: Vec<Row> = view_list.iter()
+            .enumerate()
+            .map(|(idx, row_option)| {
 
             // Get the String representations of each cell field
 
@@ -86,15 +89,21 @@ impl DashboardViewDisplay {
                 .collect();
 
             debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
-
-            let height = cell_fields_formatted
+            
+            let mut current_row_height = cell_fields_formatted
                 .iter()
                 .map(|content| content.chars().filter(|c| *c == '\n').count())
                 .max()
-                .unwrap_or(0)
-                + 1;
+                .unwrap_or(1);
 
-            debug!("get_rendered_view_table - height: {:?}", height);
+            debug!("get_rendered_view_table - current_row_height, max_seen_row_size: {:?}, {:?}", current_row_height, max_seen_row_size);
+
+            // Ensure that every row is as high as the largest table row
+            if current_row_height > max_seen_row_size {
+                max_seen_row_size = current_row_height;
+            } else {
+                current_row_height = max_seen_row_size;
+            }
 
             let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
@@ -119,8 +128,15 @@ impl DashboardViewDisplay {
             cells.insert(0, generate_name_cell());
             cells.remove(1);
 
-            Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
-        });
+            Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
+            })
+            .collect();
+        // Set all row heights to max_seen_row_size
+        rows = rows.into_iter()
+        .map(|row| {
+            row.height(max_seen_row_size as u16)
+        })
+        .collect();
 
 
         // Get widths based on TableColumns

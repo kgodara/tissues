@@ -82,80 +82,94 @@ impl LinearCustomViewSelect {
 
         // info!("Header: {:?}", header);
 
+        let mut max_seen_row_size: usize = 0;
 
+        let mut rows: Vec<Row> = table_data.iter()
+            .map(|row| {
 
-        let rows = table_data.iter().map(|row| {
+                // info!("Table Row Raw: {:?}", row);
 
-            // info!("Table Row Raw: {:?}", row);
+                let cell_fields: Vec<String> = vec![row["name"].clone(), row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i,field)| match field {
 
-            let cell_fields: Vec<String> = vec![row["name"].clone(), row["description"].clone(), row["organization"]["name"].clone(), row["team"]["key"].clone()]
-                                .iter()
-                                .enumerate()
-                                .map(|(i,field)| match field {
+                                        Value::String(x) => x.clone(),
+                                        Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+                                        Value::Null => {
+                                            // If 'team' is Null, the view is for all teams
+                                            if i == 2 {
+                                                String::from("All Teams")
+                                            }
+                                            else {
+                                                String::default()
+                                            }
+                                        },
 
-                                    Value::String(x) => x.clone(),
-                                    Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                    Value::Null => {
-                                        // If 'team' is Null, the view is for all teams
-                                        if i == 2 {
-                                            String::from("All Teams")
-                                        }
-                                        else {
-                                            String::default()
-                                        }
-                                    },
+                                        _ => { String::default() },
+                                    })
+                                    .collect();
 
-                                    _ => { String::default() },
-                                })
-                                .collect();
+                // Get the formatted Strings for each cell field
+                let cell_fields_formatted: Vec<String> = cell_fields.iter()
+                    .enumerate()
+                    .map(|(idx, cell_field)| {
+                        if let Constraint::Length(width_num) = widths[idx] {
+                            format_str_with_wrap(cell_field, width_num, CUSTOM_VIEW_SELECT_COLUMNS[idx].max_height)
+                        } else {
+                            error!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                            panic!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                        }
+                    })
+                    .collect();
+                debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
 
-            // Get the formatted Strings for each cell field
-            let cell_fields_formatted: Vec<String> = cell_fields.iter()
-                .enumerate()
-                .map(|(idx, cell_field)| {
-                    if let Constraint::Length(width_num) = widths[idx] {
-                        format_str_with_wrap(cell_field, width_num, CUSTOM_VIEW_SELECT_COLUMNS[idx].max_height)
-                    } else {
-                        error!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                        panic!("get_rendered_view_data - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                    }
-                })
-                .collect();
-            
-            debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
+                let mut current_row_height = cell_fields_formatted
+                    .iter()
+                    .map(|content| content.chars().filter(|c| *c == '\n').count())
+                    .max()
+                    .unwrap_or(1);
 
-            // info!("Cell Fields: {:?}", cell_fields);
+                debug!("get_rendered_view_data - current_row_height, max_seen_row_size: {:?}, {:?}", current_row_height, max_seen_row_size);
 
-            let height = cell_fields_formatted
-                .iter()
-                .map(|content| content.chars().filter(|c| *c == '\n').count())
-                .max()
-                .unwrap_or(0)
-                + 1;
-
-            // info!("Height: {:?}", height);
-
-            let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
-
-            let generate_name_cell = || {
-                let name: String = cell_fields_formatted[0].clone();
-                let color = row["color"].clone();
-
-                let style_color = style_color_from_hex_str(&color);
-
-                match style_color {
-                    Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
-                    None => Cell::from(name),
+                // Ensure that every row is as high as the largest table row
+                if current_row_height > max_seen_row_size {
+                    max_seen_row_size = current_row_height;
+                } else {
+                    current_row_height = max_seen_row_size;
                 }
-            };
 
-            // Insert new "name" cell, and remove unformatted version
-            cells.insert(0, generate_name_cell());
-            cells.remove(1);
+                // info!("Height: {:?}", height);
+
+                let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
+
+                let generate_name_cell = || {
+                    let name: String = cell_fields_formatted[0].clone();
+                    let color = row["color"].clone();
+
+                    let style_color = style_color_from_hex_str(&color);
+
+                    match style_color {
+                        Some(y) => { Cell::from(name).style(Style::default().fg(y)) },
+                        None => Cell::from(name),
+                    }
+                };
+
+                // Insert new "name" cell, and remove unformatted version
+                cells.insert(0, generate_name_cell());
+                cells.remove(1);
 
 
-            Row::new(cells).height(height as u16).bottom_margin(bottom_margin)
-        });
+                Row::new(cells).height(current_row_height as u16).bottom_margin(bottom_margin)
+            })
+            .collect();
+
+        // Set all row heights to max_seen_row_size
+        rows = rows.into_iter()
+            .map(|row| {
+                row.height(max_seen_row_size as u16)
+            })
+            .collect();
 
 
         let table_block = Block::default()
