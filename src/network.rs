@@ -44,10 +44,6 @@ pub enum IOEvent {
         workflow_state_id: String,
         resp: Responder<Value>,
     },
-    LoadLinearTeams {
-        api_key: Option<String>,
-        resp: Responder<Value>
-    },
 }
 
 type Responder<T> = oneshot::Sender<Option<T>>;

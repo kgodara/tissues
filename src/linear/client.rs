@@ -4,21 +4,25 @@ use super::config::LinearConfig;
 
 
 // Custom View Resolver Queries
-use super::query::fetch_custom_views;
-use super::query::fetch_team_timezones as exec_fetch_team_timezones;
 
-use super::query::fetch_all_issues as exec_fetch_all_issues;
-use super::query::fetch_issues_by_team as exec_fetch_issues_by_team;
-use super::query::fetch_issues_by_workflow_state as exec_fetch_issues_by_workflow_state;
-use super::query::fetch_issues_by_assignee as exec_fetch_issues_by_assignee;
-use super::query::fetch_issues_by_label as exec_fetch_issues_by_label;
-use super::query::fetch_issues_by_creator as exec_fetch_issues_by_creator;
-use super::query::fetch_issues_by_project as exec_fetch_issues_by_project;
+use super::query::{
+    exec_fetch_custom_views,
+    exec_fetch_team_timezones,
 
-// Non Custom View Resolver Queries
-use super::query::get_teams as exec_get_teams;
-use super::query::get_workflow_states_by_team as exec_get_workflow_states_by_team;
-use super::query::update_issue_workflow_state as exec_update_issue_workflow_state;
+    exec_fetch_all_issues,
+    exec_fetch_issues_by_team,
+    exec_fetch_issues_by_workflow_state,
+    exec_fetch_issues_by_assignee,
+    exec_fetch_issues_by_label,
+    exec_fetch_issues_by_creator,
+    exec_fetch_issues_by_project,
+
+    // Non Custom View Resolver Queries
+    exec_get_teams,
+    exec_get_workflow_states_by_team,
+    exec_update_issue_workflow_state,
+};
+
 
 use std::result::Result;
 
@@ -58,7 +62,7 @@ impl LinearClient {
 
         let linear_api_key = verify_linear_api_key(&linear_config)?;
 
-        let query_response = fetch_custom_views(&linear_api_key, linear_cursor, linear_config.custom_view_page_size).await?;
+        let query_response = exec_fetch_custom_views(&linear_api_key, linear_cursor, linear_config.custom_view_page_size).await?;
 
         let view_nodes = &query_response["data"]["customViews"]["nodes"];
         let cursor_info = &query_response["data"]["customViews"]["pageInfo"];

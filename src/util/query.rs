@@ -1,15 +1,17 @@
 use serde_json::Value;
+
 use crate::util::GraphQLCursor;
 use crate::app::Platform;
 
-use crate::linear::LinearConfig;
-
-use crate::errors::{
-    GraphQLRequestError
+use crate::linear::{
+    LinearConfig,
+    error::LinearClientError,
 };
 
-use crate::linear::error::LinearClientError;
-use crate::errors::ConfigError;
+use crate::errors::{
+    GraphQLRequestError,
+    ConfigError
+};
 
 pub fn set_linear_after_cursor_from_opt(variables: &mut Value, cursor_opt: Option<GraphQLCursor>) -> Result<(), GraphQLRequestError> {
 

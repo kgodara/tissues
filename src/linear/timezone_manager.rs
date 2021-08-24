@@ -6,15 +6,17 @@ use chrono::{DateTime, Utc, FixedOffset, TimeZone,
             Datelike, Timelike, Duration };
 
 // use crate::errors::TimeZoneParseError;
-use crate::linear::LinearConfig;
-use crate::linear::client::LinearClient;
+
+use crate::linear::{
+    LinearConfig,
+    client::LinearClient,
+    error::LinearClientError,
+    view_resolver::FilterType,
+};
 
 use crate::app::Platform;
 
 use crate::util::GraphQLCursor;
-use crate::linear::error::LinearClientError;
-
-use crate::linear::view_resolver::FilterType;
 
 
 const TIMEZONE_JSON_PATH: &str = "data/timezones.json";

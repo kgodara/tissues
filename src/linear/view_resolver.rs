@@ -1,8 +1,10 @@
 
 
-use crate::linear::LinearConfig;
-use crate::linear::client::LinearClient;
-use crate::linear::get_issue_due_date_category;
+use crate::linear::{
+    LinearConfig,
+    get_issue_due_date_category,
+    client::LinearClient,
+};
 
 use crate::app::Platform;
 

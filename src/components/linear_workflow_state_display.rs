@@ -1,21 +1,18 @@
 use tui::{
-    backend::TermionBackend,
-    layout::{Constraint, Layout},
+    layout::{Constraint},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, List, Table, TableState, ListState},
-    Terminal,
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
 use serde_json::{ Value, Map };
 
 use std::sync::{Arc, Mutex};
 
-use colorsys::{Rgb};
-// use colorsys::Color as CTColor;
 
-
-use crate::linear::client::LinearClient;
-use crate::linear::LinearConfig;
+use crate::linear::{
+    client::LinearClient,
+    LinearConfig
+};
 
 use crate::util::ui::style_color_from_hex_str;
 
@@ -51,7 +48,6 @@ impl LinearWorkflowStateDisplayState {
           Err(y) => {
                         return None;
                     },
-          _ => {}
         }
 
         if workflow_states == serde_json::Value::Null {
@@ -82,59 +78,61 @@ impl LinearWorkflowStateDisplayState {
             .height(1)
             .bottom_margin(1);
 
-        let rows = table_data.iter().enumerate().map(|(idx, row)| {
+        let rows = table_data.iter()
+            .enumerate()
+            .map(|(idx, row)| {
 
-            let cell_fields: std::vec::Vec<std::string::String> = vec![row["type"].clone(), row["description"].clone()]
-                                .iter()
-                                .map(|field| match field {
+                let cell_fields: Vec<String> = vec![row["type"].clone(), row["description"].clone()]
+                                    .iter()
+                                    .map(|field| match field {
 
-                                    serde_json::Value::String(x) => x.clone(),
-                                    serde_json::Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-                                    serde_json::Value::Null => String::default(),
-                                    
-                                    _ => { String::default() },
-                                })
-                                .collect();
+                                        Value::String(x) => x.clone(),
+                                        Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+                                        Value::Null => String::default(),
+                                        
+                                        _ => { String::default() },
+                                    })
+                                    .collect();
 
 
 
-            // info!("Cell Fields: {:?}", cell_fields);
+                // info!("Cell Fields: {:?}", cell_fields);
 
-            let height = cell_fields
-                .iter()
-                .map(|content| content.chars().filter(|c| *c == '\n').count())
-                .max()
-                .unwrap_or(0)
-                + 1;
+                let height = cell_fields
+                    .iter()
+                    .map(|content| content.chars().filter(|c| *c == '\n').count())
+                    .max()
+                    .unwrap_or(0)
+                    + 1;
 
-            // info!("Height: {:?}", height);
+                // info!("Height: {:?}", height);
 
-            let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
+                let mut cells: Vec<Cell> = cell_fields.iter().map(|c| Cell::from(c.clone())).collect();
 
-            let generate_name_cell = || {
-                // let state_obj = row["state"].clone();
-                let name = row["name"].clone();
-                let color = row["color"].clone();
+                let generate_name_cell = || {
+                    // let state_obj = row["state"].clone();
+                    let name = row["name"].clone();
+                    let color = row["color"].clone();
 
-                let name = match name {
-                    serde_json::Value::String(x) => Some(x),
-                    _ => None,
+                    let name = match name {
+                        serde_json::Value::String(x) => Some(x),
+                        _ => None,
+                    };
+
+                    let style_color = style_color_from_hex_str(&color);
+
+                    match name {
+                        Some(x) => { match style_color {
+                            Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
+                            None => return Cell::from(String::default()),
+                        }},
+                        None => return Cell::from(String::default()),
+                    }
                 };
 
-                let style_color = style_color_from_hex_str(&color);
+                cells.insert(0, generate_name_cell());
 
-                match name {
-                    Some(x) => { match style_color {
-                        Some(y) => { return Cell::from(x).style(Style::default().fg(y)) },
-                        None => return Cell::from(String::default()),
-                    }},
-                    None => return Cell::from(String::default()),
-                }
-            };
-
-            cells.insert(0, generate_name_cell());
-
-            Row::new(cells).height(height as u16).bottom_margin(1)
+                Row::new(cells).height(height as u16).bottom_margin(1)
         });
 
 
@@ -149,7 +147,7 @@ impl LinearWorkflowStateDisplayState {
                 Constraint::Percentage(25),
             ]);
         
-        return Ok(t);
+        Ok(t)
 
     }
 

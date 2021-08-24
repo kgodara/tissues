@@ -1,17 +1,13 @@
 use tui::{
-    layout::{Constraint},
     style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
-    widgets::{Block, Borders, Cell, Row, List, ListItem},
+    text::{Span, Spans},
+    widgets::{Block, Borders, List, ListItem},
 };
 
-use crate::util::ui::style_color_from_hex_str;
-
-use crate::util::colors;
-
-use crate::util::command_list::{ Command, DashboardCommand, ViewListCommand, CommandList, CommandValue};
-
-use serde_json::Value;
+use crate::util::{
+    colors,
+    command_list::{ Command, DashboardCommand, ViewListCommand, CommandList }
+};
 
 #[derive(Debug)]
 pub enum CommandBarType {
@@ -150,10 +146,9 @@ impl<'a> CommandBar<'a> {
         let list_items: Vec<ListItem> = match self.command_bar_type {
             CommandBarType::Dashboard => {
                 self.command_list.dashboard.iter()
-                    .enumerate()
-                    .map(|(i, e)| {
+                    .map(|e| {
                         let lines = vec![Spans::from(Span::styled(
-                            e.label,
+                            e.gen_label(),
                             self.get_command_style(&e.cmd_type)
                         ))];
                         ListItem::new(lines).style(Style::default())
@@ -162,8 +157,7 @@ impl<'a> CommandBar<'a> {
             },
             CommandBarType::ViewList => {
                 self.command_list.view_list.iter()
-                    .enumerate()
-                    .map(|(i, e)| {
+                    .map(|e| {
                         let lines = vec![Spans::from(Span::styled(
                             e.gen_label(),
                             self.get_command_style(&e.cmd_type)

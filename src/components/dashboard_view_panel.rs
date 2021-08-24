@@ -8,14 +8,13 @@ use serde_json::Value;
 use tui::{
     layout::{ Constraint },
     style::{Color, Modifier, Style},
-    text::{Span, Spans },
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    widgets::{Block, Borders, Cell, Row, Table},
 };
 
 use crate::linear::view_resolver::ViewLoader;
 
 use crate::util::{
-    ui::{ TableStyle, style_color_from_hex_str, gen_table_title_spans },
+    ui::{ TableStyle, gen_table_title_spans },
     table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
 };
 

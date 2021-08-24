@@ -51,8 +51,6 @@ use std::fs::File;
 
 use command::{ Command,
                 get_cmd,
-                exec_add_cmd,
-                exec_replace_cmd,
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
                 exec_select_dashboard_view_list_cmd,
@@ -129,14 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     info!("LoadViewIssues data: {:?}", issue_list);
 
                     let _ = resp.send(issue_list);
-                },
-                IOEvent::LoadLinearTeams { api_key, resp } => {
-                    let option_stateful = components::linear_team_select::LinearTeamSelectState::load_teams(api_key).await;
-                    info!("LoadLinearTeams data: {:?}", option_stateful);
-
-                    let _ = resp.send(option_stateful);
-
-                    // client.get(&key).await;
                 },
                 IOEvent::LoadWorkflowStates { linear_config, team, resp } => {
 

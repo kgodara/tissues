@@ -3,14 +3,12 @@ use std::cmp::max;
 use tui::{
     layout::{Constraint},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
 use std::sync::{ Arc, Mutex };
 
-use serde_json::Value;
-use serde_json::json;
+use serde_json::{ Value, json};
 
 use crate::linear::{
     client::LinearClient,
@@ -65,7 +63,7 @@ impl LinearCustomViewSelect {
     }
 
 
-    pub fn get_rendered_view_data<'a>(table_data: &[Value],
+    pub fn render<'a>(table_data: &[Value],
         widths: &[Constraint],
         table_style: TableStyle) -> Result<Table<'a>, &'static str> {
 

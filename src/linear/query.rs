@@ -14,9 +14,10 @@ use serde_json::{
 
 use std::result::Result;
 
-use crate::util::GraphQLCursor;
-
-use crate::util::set_linear_after_cursor_from_opt;
+use crate::util::{
+    GraphQLCursor,
+    set_linear_after_cursor_from_opt
+};
 
 const LINEAR_GET_VIEWER_PATH: &str = "queries/linear/get_viewer.graphql";
 const LINEAR_FETCH_CUSTOM_VIEWS_PATH: &str = "queries/linear/fetch_custom_views.graphql";
@@ -38,7 +39,8 @@ const LINEAR_UPDATE_ISSUE_WORKFLOW_STATE: &str = "queries/linear/update_issue_wo
 
 type QueryResult = Result<Value, GraphQLRequestError>;
 
-pub async fn get_viewer(api_key: &str) -> QueryResult {
+
+pub async fn exec_get_viewer(api_key: &str) -> QueryResult {
 
 
     let query;
@@ -70,7 +72,7 @@ pub async fn get_viewer(api_key: &str) -> QueryResult {
 
 }
 
-pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
     let mut query;
     query = parse_graphql_from_file(&LINEAR_FETCH_CUSTOM_VIEWS_PATH)?;
 
@@ -97,7 +99,7 @@ pub async fn fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCurso
 
 }
 
-pub async fn fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCursor>, team_tz_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCursor>, team_tz_page_size: u32) -> QueryResult {
     let mut query;
     query = parse_graphql_from_file(&LINEAR_FETCH_TEAM_TIME_ZONES_PATH)?;
 
@@ -126,7 +128,7 @@ pub async fn fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCurs
 
 // Custom View Resolver Queries
 
-pub async fn fetch_all_issues(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_all_issues(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ALL_ISSUES_PATH)?;
@@ -151,7 +153,7 @@ pub async fn fetch_all_issues(api_key: &str, issue_cursor: Option<GraphQLCursor>
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_TEAM_PATH)?;
@@ -182,7 +184,7 @@ pub async fn fetch_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCur
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_workflow_state(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_issues_by_workflow_state(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH)?;
@@ -212,7 +214,7 @@ pub async fn fetch_issues_by_workflow_state(api_key: &str, issue_cursor: Option<
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_assignee(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_issues_by_assignee(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH)?;
@@ -237,7 +239,7 @@ pub async fn fetch_issues_by_assignee(api_key: &str, issue_cursor: Option<GraphQ
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_label(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_issues_by_label(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_LABEL_PATH)?;
@@ -262,7 +264,7 @@ pub async fn fetch_issues_by_label(api_key: &str, issue_cursor: Option<GraphQLCu
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_creator(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_issues_by_creator(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_CREATOR_PATH)?;
@@ -287,7 +289,7 @@ pub async fn fetch_issues_by_creator(api_key: &str, issue_cursor: Option<GraphQL
     Ok(resp)
 }
 
-pub async fn fetch_issues_by_project(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+pub async fn exec_fetch_issues_by_project(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_PROJECT)?;
@@ -314,22 +316,11 @@ pub async fn fetch_issues_by_project(api_key: &str, issue_cursor: Option<GraphQL
 }
 
 
-pub async fn get_teams(api_key: &str) -> QueryResult {
+pub async fn exec_get_teams(api_key: &str) -> QueryResult {
 
 
     let query;
     query = parse_graphql_from_file(&LINEAR_GET_TEAMS_PATH)?;
-
-
-    /*
-    // Requires the `json` feature enabled.
-    let resp: Value = ureq::post("https://api.linear.app/graphql")
-                            .set("Content-Type", "application/json")
-                            .set("Authorization", api_key)
-                            .send_json(query)?
-                            .into_json()?;
-                            /*.into_string()?;*/
-    */
 
     let client = reqwest::Client::new();
 
@@ -349,7 +340,7 @@ pub async fn get_teams(api_key: &str) -> QueryResult {
 
 // Non Custom View Resolver Queries
 
-pub async fn get_workflow_states_by_team(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+pub async fn exec_get_workflow_states_by_team(api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query;
 
@@ -371,7 +362,7 @@ pub async fn get_workflow_states_by_team(api_key: &str, variables: Map<String, V
     Ok(resp)
 }
 
-pub async fn update_issue_workflow_state(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+pub async fn exec_update_issue_workflow_state(api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query;
     query = parse_graphql_from_file(&LINEAR_UPDATE_ISSUE_WORKFLOW_STATE)?;

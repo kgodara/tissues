@@ -3,11 +3,9 @@ use termion::{event::Key,};
 
 use crate::app::{App, Platform, Route};
 use crate::network::IOEvent;
-use crate::util::{ state_list, state_table };
+use crate::util::{ state_table };
 
 use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
-
-use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc::Sender;
 
@@ -114,49 +112,6 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
         },
 
         _ => { None }
-    }
-}
-
-pub async fn exec_add_cmd(app: &mut App<'_>) {
-
-    info!("Executing 'add' command");
-
-    if Route::DashboardViewDisplay == app.route {
-        // Verify that an empty slot is selected
-        // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
-        let selected_view: Option<Value>;
-        
-        if let Some(view_idx) = app.linear_dashboard_view_idx {
-
-            selected_view = app.linear_dashboard_view_list[view_idx].clone();
-
-            // An empty view slot is selected
-            if selected_view.is_none() {
-                // app.change_route(Route::CustomViewSelect, &tx);
-                exec_select_custom_view_select_cmd(app);
-            }
-
-        }
-    }
-}
-
-pub async fn exec_replace_cmd(app: &mut App<'_>) {
-    info!("Executing 'replace' command");
-    
-    // User is attempting to replace a Custom View with a new Custom View on the Dashboard
-    if Route::DashboardViewDisplay == app.route {
-        // Verify that a populated slot is selected
-        // if so, switch to the CustomViewSelect Route to allow for selection of a Custom View to add
-        let selected_view: Option<Value>;
-        if let Some(view_idx) = app.linear_dashboard_view_idx {
-            selected_view = app.linear_dashboard_view_list[view_idx].clone();
-
-            // A populated view slot is selected
-            if selected_view.is_some() {
-                // app.change_route(Route::CustomViewSelect, &tx);
-                exec_select_custom_view_select_cmd(app);
-            }
-        }
     }
 }
 

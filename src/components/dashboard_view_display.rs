@@ -4,13 +4,13 @@ use std::cmp::max;
 use serde_json::Value;
 
 use tui::{
-    layout::{Constraint, Rect},
+    layout::{Constraint},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
 use crate::util::{
-    ui::{style_color_from_hex_str, TableStyle, gen_table_title_spans},
+    ui::{ TableStyle, gen_table_title_spans },
     table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
 };
 
@@ -23,10 +23,10 @@ pub struct DashboardViewDisplay {
 
 impl DashboardViewDisplay {
 
-    pub fn get_rendered_view_table<'a>(view_list: &'a [Option<Value>],
+    pub fn render<'a>(view_list: &'a [Option<Value>],
         widths: &[Constraint],
         table_style: TableStyle,
-        bbox: &Rect) -> Result<Table<'a>, &'static str> {
+    ) -> Result<Table<'a>, &'static str> {
 
         let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
