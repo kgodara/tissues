@@ -171,17 +171,38 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
         if let Some(view_idx) = app.linear_dashboard_view_idx {
             selected_view = app.linear_dashboard_view_list[view_idx].clone();
 
+            // TODO: This also needs to remove the ViewPanel
             // A populated view slot is selected
-            if selected_view.is_some() {
+            if let Some(view) = selected_view {
+
+                // Remove relevant ViewPanel from app.linear_dashboard_view_panel_list
+                let view_panel_list_handle = app.linear_dashboard_view_panel_list.clone();
+                let mut view_panel_list_lock = view_panel_list_handle.lock().unwrap();
+
+                let filter_id = view["id"].clone();
+                let filter_view_panel_exists = view_panel_list_lock
+                    .iter()
+                    .position(|e| { 
+                        // debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
+                        e.filter["id"] == filter_id
+                    });
+                
+                if let Some(filter_view_panel_idx) = filter_view_panel_exists {
+                    view_panel_list_lock.remove(filter_view_panel_idx);
+                }
+
+                // Remove relevant view/filter JSON object
                 app.linear_dashboard_view_list[view_idx] = None;
 
                 // Sort app.linear_dashboard_view_list so that all Some's are first
+                // e.g. ["View 1", "Empty Slot", "View 2", ...] -> [ "View 1", "View 2", "Empty Slot" ]
                 app.linear_dashboard_view_list = app.linear_dashboard_view_list
                 .iter()
                 .filter_map(|e| {
                     e.as_ref().map(|_| e.clone())
                 })
                 .collect();
+
                 while app.linear_dashboard_view_list.len() < 6 {
                     app.linear_dashboard_view_list.push(None);
                 }

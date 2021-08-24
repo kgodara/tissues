@@ -1,6 +1,5 @@
 use crate::util;
 use crate::linear;
-use crate::components;
 use crate::network;
 
 use network::IOEvent as IOEvent;
@@ -26,7 +25,19 @@ use crate::util::{
     dashboard::fetch_selected_workflow_state,
 };
 
-use crate::components::{command_bar};
+use crate::components::{
+    command_bar::{ CommandBar, CommandBarType },
+
+    linear_custom_view_select::LinearCustomViewSelect,
+
+    dashboard_view_display::DashboardViewDisplay,
+    dashboard_view_panel::DashboardViewPanel,
+
+    // deprecated
+    linear_workflow_state_display::LinearWorkflowStateDisplayState,
+    linear_issue_display::LinearIssueDisplay,
+    linear_team_select::LinearTeamSelectState,
+};
 
 use tui::{
     widgets::{ TableState },
@@ -80,15 +91,15 @@ pub struct App<'a> {
     pub team_tz_load_done: Arc<Mutex<bool>>,
 
     // Linear Custom View Select
-    pub linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect,
+    pub linear_custom_view_select: LinearCustomViewSelect,
     // Selected Custom View
     pub linear_selected_custom_view_idx: Option<usize>,
     // Linear Custom View Cursor
     pub linear_custom_view_cursor: Arc<Mutex<GraphQLCursor>>,
 
     // Linear Dashboard Custom View List Display
-    pub dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay,
-    pub dashboard_view_config_cmd_bar: components::command_bar::CommandBar<'a>,
+    pub dashboard_view_display: DashboardViewDisplay,
+    pub dashboard_view_config_cmd_bar: CommandBar<'a>,
 
     // Linear Dashboard Custom View List
     pub linear_dashboard_view_list: Vec<Option<Value>>,
@@ -98,30 +109,30 @@ pub struct App<'a> {
     // Linear Dashboard View Panel Display
 
     // Linear Dashboard 'DashboardViewPanel' components
-    pub linear_dashboard_view_panel_list: Arc<Mutex<Vec<components::dashboard_view_panel::DashboardViewPanel>>>,
+    pub linear_dashboard_view_panel_list: Arc<Mutex<Vec<DashboardViewPanel>>>,
     pub linear_dashboard_view_panel_selected: Option<usize>,
     pub view_panel_issue_selected: Option<TableState>,
     pub view_panel_to_paginate: usize,
 
-    pub view_panel_cmd_bar: components::command_bar::CommandBar<'a>,
+    pub view_panel_cmd_bar: CommandBar<'a>,
 
 
 
     // DEPRECATED FIELDS (may be re-used)
     // Linear Team Select State
-    pub linear_team_select: components::linear_team_select::LinearTeamSelectState,
+    pub linear_team_select: LinearTeamSelectState,
     // Selected Linear Team
     pub linear_selected_team_idx: Option<usize>,
 
     // Linear Issue Display State
-    pub linear_issue_display: components::linear_issue_display::LinearIssueDisplay,
+    pub linear_issue_display: LinearIssueDisplay,
     // Selected Linear Issue
     pub linear_selected_issue_idx: Option<usize>,
     // Linear Issue Display Cursor
     pub linear_issue_cursor: Arc<Mutex<GraphQLCursor>>,
 
     // Linear Workflow Select State
-    pub linear_workflow_select: components::linear_workflow_state_display::LinearWorkflowStateDisplayState,
+    pub linear_workflow_select: LinearWorkflowStateDisplayState,
     // Selected Linear Workflow State
     pub linear_selected_workflow_state_idx: Option<usize>,
     // Draw Workflow State Selection panel
@@ -149,12 +160,12 @@ impl<'a> Default for App<'a> {
             team_tz_map: Arc::new(Mutex::new(HashMap::new())),
             team_tz_load_done: Arc::new(Mutex::new(false)),
 
-            linear_custom_view_select: components::linear_custom_view_select::LinearCustomViewSelect::default(),
+            linear_custom_view_select: LinearCustomViewSelect::default(),
             linear_selected_custom_view_idx: None,
             linear_custom_view_cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
 
-            dashboard_view_display: components::dashboard_view_display::DashboardViewDisplay::default(),
-            dashboard_view_config_cmd_bar: components::command_bar::CommandBar::with_type(command_bar::CommandBarType::ViewList),
+            dashboard_view_display: DashboardViewDisplay::default(),
+            dashboard_view_config_cmd_bar: CommandBar::with_type(CommandBarType::ViewList),
 
 
             linear_dashboard_view_list: vec![ None, None, None, None, None, None ],
@@ -166,22 +177,22 @@ impl<'a> Default for App<'a> {
             view_panel_issue_selected: None,
             view_panel_to_paginate: 0,
 
-            view_panel_cmd_bar: components::command_bar::CommandBar::with_type(command_bar::CommandBarType::Dashboard),
+            view_panel_cmd_bar: CommandBar::with_type(CommandBarType::Dashboard),
 
 
             // Deprecated
 
-            linear_team_select: components::linear_team_select::LinearTeamSelectState::default(),
+            linear_team_select: LinearTeamSelectState::default(),
             // Null
             linear_selected_team_idx: None,
  
-            linear_issue_display: components::linear_issue_display::LinearIssueDisplay::default(),
+            linear_issue_display: LinearIssueDisplay::default(),
             
             linear_selected_issue_idx: None,
             linear_issue_cursor: Arc::new(Mutex::new(util::GraphQLCursor::platform_cursor(Platform::Linear))),
 
             
-            linear_workflow_select: components::linear_workflow_state_display::LinearWorkflowStateDisplayState::default(),
+            linear_workflow_select: LinearWorkflowStateDisplayState::default(),
             linear_selected_workflow_state_idx: None,
 
             linear_draw_workflow_state_select: false,
@@ -241,7 +252,7 @@ impl<'a> App<'a> {
                 */
 
                 // TODO: Clear any previous CustomViewSelect related values on self
-                self.linear_custom_view_select = components::linear_custom_view_select::LinearCustomViewSelect::default();
+                self.linear_custom_view_select = LinearCustomViewSelect::default();
                 self.linear_selected_custom_view_idx = None;
                 self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
 
@@ -340,8 +351,7 @@ impl<'a> App<'a> {
 
                 let mut existing_panel_set = HashSet::new();
 
-                info!("Attempting to load Dashboard Views");
-
+                debug!("dispatch_event::load_dashboard_views - self.linear_dashboard_view_list: {:?}", self.linear_dashboard_view_list);
 
                 for (i, filter_opt) in self.linear_dashboard_view_list.iter().enumerate() {
                     //  If a View Panel for the filter is present within self.linear_dashboard_view_panel_list
@@ -382,6 +392,7 @@ impl<'a> App<'a> {
                                     }
                                 }
 
+                                // TODO: Why is this not in an else?
                                 // if the index does match, then a ViewPanel already exists for this filter, skip
                                 existing_panel_set.insert(i);
 
@@ -389,14 +400,14 @@ impl<'a> App<'a> {
                             // Need to create a new View Panel
                             None => {
                                 debug!("Attempting to use insert for i: {:?}", i);
-                                // view_panel_list_handle.insert(i, components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
-                                // let got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                // view_panel_list_handle.insert(i, DashboardViewPanel::with_filter(filter.clone()));
+                                // let got = std::mem::replace(&mut view_panel_list_handle[i], DashboardViewPanel::with_filter(filter.clone()));
 
                                 if i < view_panel_list_handle.len() {
-                                    let _got = std::mem::replace(&mut view_panel_list_handle[i], components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                    let _got = std::mem::replace(&mut view_panel_list_handle[i], DashboardViewPanel::with_filter(filter.clone()));
                                 }
                                 else {
-                                    view_panel_list_handle.insert(i, components::dashboard_view_panel::DashboardViewPanel::with_filter(filter.clone()));
+                                    view_panel_list_handle.insert(i, DashboardViewPanel::with_filter(filter.clone()));
                                 }
                             }
                         };
