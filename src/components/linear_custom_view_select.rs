@@ -101,7 +101,7 @@ impl LinearCustomViewSelect {
                 // Get the formatted Strings for each cell field
                 let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &CUSTOM_VIEW_SELECT_COLUMNS);
 
-                debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
+                // debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
 
                 max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
                 

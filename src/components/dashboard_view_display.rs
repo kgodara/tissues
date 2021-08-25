@@ -66,7 +66,7 @@ impl DashboardViewDisplay {
                 // Get the formatted Strings for each cell field
                 let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &DASHBOARD_VIEW_CONFIG_COLUMNS);
 
-                debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
+                // debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
                 
                 max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
 

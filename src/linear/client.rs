@@ -11,6 +11,7 @@ use super::query::{
 
     exec_fetch_all_issues,
     exec_fetch_issues_by_team,
+    exec_fetch_issues_by_content,
     exec_fetch_issues_by_workflow_state,
     exec_fetch_issues_by_assignee,
     exec_fetch_issues_by_label,
@@ -152,6 +153,27 @@ impl LinearClient {
 
 
         Ok( json!( { "issue_nodes": issue_nodes.clone(), "cursor_info": cursor_info.clone() } ))
+    }
+
+    pub async fn get_issues_by_content( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
+        info!("Calling exec_fetch_issues_by_content - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        let page_size: u32;
+        if use_view_panel_config {
+            page_size = linear_config.issue_page_size;
+        }
+        else {
+            page_size = linear_config.view_panel_page_size;
+        }
+
+        let query_response = exec_fetch_issues_by_content(&linear_api_key, linear_cursor, variables, page_size).await?;
+
+        let issue_nodes = &query_response["data"]["issueSearch"]["nodes"];
+        let cursor_info = &query_response["data"]["issueSearch"]["pageInfo"];
+
+        Ok( json!( { "issue_nodes": issue_nodes, "cursor_info": cursor_info } ))
     }
 
 

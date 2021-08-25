@@ -32,6 +32,9 @@ pub enum FilterType {
     SelectedTeam,
     AllTeams,
 
+    // Only one Content filter per view
+    Content,
+
     SelectedState,
     SelectedCreator,
     SelectedLabel,
@@ -80,6 +83,10 @@ pub struct ViewLoader {
 lazy_static! {
     static ref IGNORABLE_FILTER_MAP: HashMap<FilterType, Vec<FilterType>> = {
         let mut m: HashMap<FilterType, Vec<FilterType>> = HashMap::new();
+
+        // Only one Content filter per view
+        m.insert(FilterType::Content, vec![]);
+
         m.insert(FilterType::SelectedState, vec![ FilterType::SelectedState ]);
         m.insert(FilterType::SelectedCreator, vec![ FilterType::SelectedCreator ]);
         
@@ -111,18 +118,23 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     let load_strat: ViewLoadStrategy;
 
     let mut direct_filter_list: Vec<Filter> = Vec::new();
+
+
     let mut direct_filter_queryable_list: Vec<Filter> = Vec::new();
     let mut direct_filter_list_idx: Option<usize> = None;
 
     let mut indirect_filter_list: Vec<Filter> = Vec::new();
 
     // This will represent the grouped filters by FilterType,
-    // key observation is that within the same vec, only one FilterType needs to match any given issue
+    // within the same vec, only one FilterType needs to match any given issue
     let mut filter_type_groups: HashMap<String, Vec<Filter>> = HashMap::new();
 
     // init filter groups
 
     /*
+
+        Content
+
         SelectedState,
         SelectedCreator,
         SelectedLabel,
@@ -143,6 +155,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     */
 
     filter_type_groups.insert(String::from("team"), Vec::new());
+    filter_type_groups.insert(String::from("searchableContent"), Vec::new());
     filter_type_groups.insert(String::from("state"), Vec::new());
     filter_type_groups.insert(String::from("creator"), Vec::new());
     filter_type_groups.insert(String::from("label"), Vec::new());
@@ -152,6 +165,9 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     filter_type_groups.insert(String::from("subscriber"), Vec::new());
     filter_type_groups.insert(String::from("dueDate"), Vec::new());
 
+
+    let mut content_filter_found: bool = false;
+    let mut found_content_filter: Option<Filter> = None;
 
     if let Value::Object(_) = filters {
 
@@ -195,6 +211,30 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
                         panic!("create_loader_from_view did not find 'ref' field for 'state' filter object");
                     },
                 }
+            }
+        };
+
+        // ASSUMPTION: Only One Content Filter per view
+        // Don't add 'searchableContent' filter to direct_filter_list (will insert in position 0 at end of method) & 
+        // add to 'filter_type_groups.get("searchableContent")' & 
+        // set content_filter_found = true
+        if let Some(content_list) = filters["searchableContent"].as_array() {
+            match &content_list[0]["ref"] {
+                Value::String(content_ref) => {
+
+                    // direct_filter_list.push( Filter { filter_type: FilterType::Content, ref_id: Some(content_ref.to_string()) });
+
+                    if let Some(x) = filter_type_groups.get_mut("searchableContent") {
+                        x.push( Filter { filter_type: FilterType::Content, ref_id: Some(content_ref.to_string()) } );
+                    }
+
+                    content_filter_found = true;
+                    found_content_filter = Some(Filter { filter_type: FilterType::Content, ref_id: Some(content_ref.to_string()) });
+                },
+                _ => {
+                    error!("create_loader_from_view did not find 'ref' field for 'searchableContent' filter object");
+                    panic!("create_loader_from_view did not find 'ref' field for 'searchableContent' filter object");
+                },
             }
         };
 
@@ -412,7 +452,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
 
 
     // Set Strategy for ViewLoader: if direct_filter_list.len() > 0 { DirectQueryPaginate } else { GenericIssuePaginate }
-    if !direct_filter_list.is_empty() {
+    if !direct_filter_list.is_empty() || content_filter_found {
         load_strat = ViewLoadStrategy::DirectQueryPaginate;
     }
     else {
@@ -422,8 +462,22 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     // If using DirectQueryPaginate Strategy:
     //     set direct_filter_queryable_list to all Filters in direct_filter_list where
     //        direct_filter_list[x].filter_type == direct_filter_list[0].filter_type
+
+    // If FilterType::Content is present in the direct_filter_list, only that filter should be added to direct_filter_queryable_list
+    // ^^ This should be handled above by only having content filters in the direct_filter_list, if found
     if load_strat == ViewLoadStrategy::DirectQueryPaginate {
         direct_filter_list_idx = Some(0);
+
+        // If a Content Filter is in the view, make sure that is what is queried
+        if content_filter_found {
+            if let Some(x) = found_content_filter {
+                direct_filter_list.insert(0, x);
+            }
+        }
+
+        // Pick a list of Direct Filters, all of the same type as the first Filter
+        //     in direct_filter_list to be queried on when loading this view
+
         direct_filter_queryable_list = direct_filter_list
                                         .clone()
                                         .into_iter()
@@ -442,7 +496,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
     
         direct_filter_queryable: direct_filter_queryable_list,
         direct_filter_query_idx: direct_filter_list_idx,
-    
+
         indirect_filters: indirect_filter_list,
 
         exhausted: false,
@@ -477,6 +531,7 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             // Filter groups (one filter success validates entire group):
             /*
                 filter_type_groups.insert(String::from("team"), Vec::new());
+                filter_type_groups.insert(String::from("searchableContent"), Vec::new());
                 filter_type_groups.insert(String::from("state"), Vec::new());
                 filter_type_groups.insert(String::from("creator"), Vec::new());
                 filter_type_groups.insert(String::from("label"), Vec::new());
@@ -487,6 +542,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             */
 
             let mut team_filter_met;
+            // DON'T manually filter by content filter, if there is a content filter, it will be directly queried
+            // let mut content_filter_met;
             let mut state_filter_met;
             let mut creator_filter_met;
             let mut label_filter_met;
@@ -501,7 +558,7 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
 
             // set filter group bools to true if no filters in group
             {
-                team_filter_met= view_loader.filter_ignorable_groups.get("team")
+                team_filter_met = view_loader.filter_ignorable_groups.get("team")
                                         .expect("'team' key not found in filter_ignorable_groups")
                                         .is_empty();
 
@@ -539,6 +596,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             }
 
             // "team"
+            // Iterate through all SelectedTeam and AllTeams filters,
+            // if any match e["team"]["id"] set team_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("team")
                             .expect("'team' key not found in filter_ignorable_groups")
                             .iter()
@@ -568,6 +627,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             }
 
             // "state"
+            // Iterate through all SelectedState filters,
+            // if any match e["state"]["id"] set state_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("state")
                             .expect("'state' key not found in filter_ignorable_groups")
                             .iter() 
@@ -594,6 +655,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             }
 
             // "creator"
+            // Iterate through all SelectedCreator filters,
+            // if any match e["creator"]["id"] set creator_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("creator")
                             .expect("'creator' key not found in filter_ignorable_groups")
                             .iter() 
@@ -620,6 +683,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
 
 
             // "label"
+            // Iterate through all SelectedLabel & NoLabel filters,
+            // if any are found in e["labels"]["nodes"], set label_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("label")
                             .expect("'label' key not found in filter_ignorable_groups")
                             .iter()
@@ -655,6 +720,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             }
 
             // "assignee"
+            // Iterate through all SelectedAssignee & NoAssignee filters,
+            // if any match e["assignee"]["id"], set assignee_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("assignee")
                             .expect("'assignee' key not found in filter_ignorable_groups")
                             .iter() 
@@ -686,6 +753,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
 
 
             // "project"
+            // Iterate through all SelectedProject & NoProject filters,
+            // if any match e["project"]["id"], set project_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("project")
                             .expect("'project' key not found in filter_ignorable_groups")
                             .iter() 
@@ -716,6 +785,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             }
 
             // "priority"
+            // Iterate through all SelectedPriority filters,
+            // if any match e["priority"], set priority_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("priority")
                             .expect("'priority' key not found in filter_ignorable_groups")
                             .iter()
@@ -732,9 +803,9 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
                                                 .expect("SelectedPriority Filter ref_id must be parseable as u64")
                                             )
                                         );
-                        
+
                         // debug!("Comparing SelectedPriority e['priority']: {:?} == cmp_ref_id: {:?}", e["priority"], cmp_ref_id);
-                    
+
                         if e["priority"] == cmp_ref_id {
                             debug!("Found SelectedPriority Filter Match");
                             priority_filter_met = true;
@@ -748,6 +819,8 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
             }
 
             // "subscriber"
+            // Iterate through all SelectedSubscriber filters,
+            // if any are found in e["subscribers"]["nodes"], set subscriber_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("subscriber")
                             .expect("'subscriber' key not found in filter_ignorable_groups")
                             .iter()
@@ -781,6 +854,9 @@ pub fn filter_issues_by_loader( issues: Vec<Value>,
 
 
             // "dueDate"
+            // Iterate through all DueToday, Overdue, HasDueDate, DueSoon, NoDueDate filters,
+            // get_issue_due_date() determines the current issue's correct DueDate Filter,
+            // which is then compared against the current filter, if match found set due_date_filter_met = true
             for filter in view_loader.filter_ignorable_groups.get("dueDate")
                             .expect("'dueDate' key not found in filter_ignorable_groups")
                             .iter() 
@@ -1089,6 +1165,19 @@ pub async fn direct_issue_fetch (   view_loader: &mut ViewLoader,
 
         // Fetch Issues from the current Direct Filter using the current cursor
         match &current_direct_filter.filter_type {
+            FilterType::Content => {
+                if let Some(ref_id) = &current_direct_filter.ref_id {
+                    let mut variables: Map<String, Value> = Map::new();
+                    variables.insert(String::from("ref"), Value::String(ref_id.clone()));
+
+                    query_result = LinearClient::get_issues_by_content(linear_config.clone(), Some(view_loader.cursor.clone()), variables, true).await;
+
+                }
+                else {
+                    error!("Content Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                    panic!("Content Filter cannot have 'None' for 'ref_id' - Filter: {:?}", current_direct_filter);
+                }
+            },
             FilterType::SelectedState => {
                 if let Some(ref_id) = &current_direct_filter.ref_id {
                     let mut variables: Map<String, Value> = Map::new();

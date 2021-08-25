@@ -25,6 +25,7 @@ const LINEAR_FETCH_TEAM_TIME_ZONES_PATH: &str = "queries/linear/fetch_team_timez
 
 const LINEAR_FETCH_ALL_ISSUES_PATH: &str = "queries/linear/issues/fetch_all_issues.graphql";
 const LINEAR_FETCH_ISSUES_BY_TEAM_PATH: &str = "queries/linear/issues/fetch_issues_by_team.graphql";
+const LINEAR_FETCH_ISSUES_BY_CONTENT_PATH: &str = "queries/linear/issues/fetch_issues_by_content.gql";
 const LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH: &str = "queries/linear/issues/fetch_issues_by_workflow_state.graphql";
 const LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH: &str = "queries/linear/issues/fetch_issues_by_assignee.graphql";
 const LINEAR_FETCH_ISSUES_BY_LABEL_PATH: &str = "queries/linear/issues/fetch_issues_by_label.graphql";
@@ -169,6 +170,38 @@ pub async fn exec_fetch_issues_by_team(api_key: &str, issue_cursor: Option<Graph
 
 
     info!("fetch_issues_by_team variables: {:?}", query["variables"]);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+}
+
+pub async fn exec_fetch_issues_by_content(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+    let mut query;
+
+    query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_CONTENT_PATH)?;
+
+    // query["variables"] = Value::Object(variables);
+
+
+    query["variables"] = Value::Object(variables);
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+
+    // Set "afterCursor" query variable
+    set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
+
+
+    info!("exec_fetch_issues_by_content variables: {:?}", query["variables"]);
 
     let client = reqwest::Client::new();
 

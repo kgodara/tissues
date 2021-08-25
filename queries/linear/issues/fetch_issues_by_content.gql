@@ -1,0 +1,46 @@
+{   "query": "query fetchIssuesByContent($firstNum: Int, $afterCursor: String, $ref: String!) {
+        issueSearch(first: $firstNum, after: $afterCursor, query: $ref) {
+            nodes {
+                id
+                createdAt
+                number
+                dueDate
+                title
+                description
+                priority
+                estimate
+                team {
+                    id
+                }
+                state {
+                    id
+                    name
+                    type
+                    description
+                    color
+                }
+                creator {
+                    id
+                }
+                assignee {
+                    id
+                }
+                labels {
+                    nodes {
+                        id
+                    }
+                }
+                project {
+                    id
+                }
+            }
+            pageInfo {
+                hasPreviousPage
+                hasNextPage
+                startCursor
+                endCursor
+            }
+        }
+    }",
+    "operationName": "fetchIssuesByContent"
+}
