@@ -33,8 +33,10 @@ pub enum Command {
     SelectDashboardViewList,
     SelectCustomViewSelect,
 
+    OpenIssueOpInterface(IssueModificationOp),
 
-    OpenLinearWorkflowStateSelection,
+    // OpenLinearWorkflowStateSelection,
+    // OpenLinearAssigneeSelection,
 
 }
 
@@ -69,8 +71,11 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
                     Some(Command::Delete)
                 },
                 // Modify Command
-                "m" => {
-                    Some(Command::OpenLinearWorkflowStateSelection)
+                "w" => {
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyWorkflowState))
+                },
+                "a" => {
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyAssignee))
                 },
 
                 // View Panel Selection Shortcuts
@@ -218,20 +223,31 @@ pub fn exec_select_custom_view_select_cmd(app: &mut App) {
 }
 
 
-pub fn exec_open_linear_workflow_state_selection_cmd(app: &mut App, tx: &Sender<IOEvent>) {
-    
-    // Create pop-up on top of issue display component
+// Issue Modification Commands
+
+pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, tx: &Sender<IOEvent>) {
     if Route::ActionSelect == app.route {
 
-        // Dispatch event to load workflow states for team of selected issue
-        app.dispatch_event("load_workflows", tx);
-
-        // Enable drawing of workflow state selection pop-up
-        app.linear_issue_op_interface.current_op = IssueModificationOp::ModifyWorkflowState;
+        // Enable drawing of issue op interface
+        app.linear_issue_op_interface.current_op = op;
         app.modifying_issue = true;
-        // app.set_draw_issue_state_select(Platform::Linear, true);
+
+        match op {
+            IssueModificationOp::ModifyWorkflowState => {
+                // Dispatch event to load workflow states for team of selected issue
+                app.dispatch_event("load_workflows", tx);
+            },
+            IssueModificationOp::ModifyAssignee => {
+                // Dispatch event to load team members for team of selected issue
+                app.dispatch_event("load_team_members", tx);
+            },
+            _ => {panic!("Not ready")}
+        }
+
     }
 }
+
+
 
 pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
@@ -273,8 +289,11 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
             if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update() {
                 match app.linear_issue_op_interface.current_op {
                     IssueModificationOp::ModifyWorkflowState => {
-                        app.dispatch_event("update_issue_workflow_state", &tx);
+                        app.dispatch_event("update_issue", &tx);
                     },
+                    IssueModificationOp::ModifyAssignee => {
+                        app.dispatch_event("update_issue", &tx);
+                    }
                     _ => {panic!("Not ready")}
                 }
                 app.modifying_issue = false;
@@ -360,10 +379,10 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 
                 let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
                 let data_lock = data_handle.lock().unwrap();
-                let mut data_state = app.linear_issue_op_interface.table_state_from_op();
+                let mut data_state = &mut app.linear_issue_op_interface.data_state;
 
                 state_table::next(&mut data_state, &*data_lock);
-                app.linear_issue_op_interface.selected_workflow_state_idx = app.linear_issue_op_interface.table_state_from_op().selected();
+                app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
             }
             // If a ViewPanel is selected, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
@@ -469,10 +488,10 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                 
                 let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
                 let data_lock = data_handle.lock().unwrap();
-                let mut data_state = app.linear_issue_op_interface.table_state_from_op();
+                let mut data_state = &mut app.linear_issue_op_interface.data_state;
 
                 state_table::previous(&mut data_state, &*data_lock);
-                app.linear_issue_op_interface.selected_workflow_state_idx = app.linear_issue_op_interface.table_state_from_op().selected();
+                app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
             }
             // If a ViewPanel is selected and no issue modal open, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {

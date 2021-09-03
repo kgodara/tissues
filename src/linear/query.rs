@@ -34,9 +34,14 @@ const LINEAR_FETCH_ISSUES_BY_PROJECT: &str = "queries/linear/issues/fetch_issues
 
 
 const LINEAR_GET_TEAMS_PATH: &str = "queries/linear/get_teams.graphql";
+
 const LINEAR_FETCH_ISSUES_BY_TEAM_PATH_OLD: &str = "queries/linear/fetch_issues_by_team.graphql";
+
 const LINEAR_GET_WORKFLOW_STATES_BY_TEAM: &str = "queries/linear/get_workflow_states_by_team.graphql";
-const LINEAR_UPDATE_ISSUE_WORKFLOW_STATE: &str = "queries/linear/update_issue_workflow_state.graphql";
+const LINEAR_GET_USERS_BY_TEAM: &str = "queries/linear/get_users_by_team.graphql";
+
+const LINEAR_UPDATE_ISSUE_WORKFLOW_STATE: &str = "queries/linear/issue_modifications/update_issue_workflow_state.graphql";
+const LINEAR_UPDATE_ISSUE_ASSIGNEE: &str = "queries/linear/issue_modifications/update_issue_assignee.graphql";
 
 type QueryResult = Result<Value, GraphQLRequestError>;
 
@@ -379,7 +384,28 @@ pub async fn exec_get_workflow_states_by_team(api_key: &str, variables: Map<Stri
 
     query = parse_graphql_from_file(&LINEAR_GET_WORKFLOW_STATES_BY_TEAM)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    query["variables"] = Value::Object(variables);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+}
+
+pub async fn exec_get_users_by_team(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+    let mut query;
+
+    query = parse_graphql_from_file(&LINEAR_GET_USERS_BY_TEAM)?;
+
+    query["variables"] = Value::Object(variables);
 
     let client = reqwest::Client::new();
 
@@ -400,9 +426,33 @@ pub async fn exec_update_issue_workflow_state(api_key: &str, variables: Map<Stri
     let mut query;
     query = parse_graphql_from_file(&LINEAR_UPDATE_ISSUE_WORKFLOW_STATE)?;
 
-    query["variables"] = serde_json::Value::Object(variables);
+    query["variables"] = Value::Object(variables);
 
     info!("update_issue_workflow_state query: {:?}", query);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+
+}
+
+pub async fn exec_update_issue_assignee(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+
+    let mut query;
+    query = parse_graphql_from_file(&LINEAR_UPDATE_ISSUE_ASSIGNEE)?;
+
+    query["variables"] = Value::Object(variables);
+
+    info!("update_issue_assignee query: {:?}", query);
 
     let client = reqwest::Client::new();
 

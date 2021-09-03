@@ -20,8 +20,12 @@ use super::query::{
 
     // Non Custom View Resolver Queries
     exec_get_teams,
+
     exec_get_workflow_states_by_team,
+    exec_get_users_by_team,
+    
     exec_update_issue_workflow_state,
+    exec_update_issue_assignee,
 };
 
 
@@ -303,6 +307,7 @@ impl LinearClient {
 
     // View Resolver Query Section End -------
 
+    // Issue Modification Queries
     pub async fn get_workflow_states_by_team(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
 
         info!("Calling exec_get_workflow_states_by_team - variables: {:?}", variables);
@@ -314,6 +319,17 @@ impl LinearClient {
         let workflow_state_nodes = &query_response["data"]["team"]["states"]["nodes"];
 
         Ok(workflow_state_nodes.clone())
+    }
+    pub async fn get_users_by_team(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
+        info!("Calling exec_get_users_by_team - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        let query_response = exec_get_users_by_team(&linear_api_key, variables).await?;
+
+        let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
+
+        Ok(user_nodes.clone())
     }
 
     // Note: This operation does not return a different response even if trying to set the Issue's workflow state to its current workflow state
@@ -348,6 +364,22 @@ impl LinearClient {
         Ok( json!( { "issue_response": issue_node, "success": success } ) )
 
     }
+
+    // Note: This operation does not return a different response even if trying to set the Issue's workflow state to its current workflow state
+    pub async fn update_issue_assignee(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
+
+        info!("Calling update_issue_workflow_state - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        let query_response = exec_update_issue_assignee(&linear_api_key, variables).await?;
+
+        let issue_node = &query_response["data"]["issueUpdate"]["issue"];
+        let success = &query_response["data"]["issueUpdate"]["success"];
+
+        Ok( json!( { "issue_response": issue_node, "success": success } ) )
+    }
+
 
 
 

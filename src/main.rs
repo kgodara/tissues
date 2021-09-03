@@ -24,6 +24,8 @@ use crate::components::{
     linear_issue_op_interface::LinearIssueOpInterface,
 };
 
+use crate::linear::client::LinearClient;
+
 use app::Route as Route;
 
 use serde_json::Value;
@@ -59,7 +61,7 @@ use command::{ Command,
                 exec_select_view_panel_cmd,
                 exec_select_dashboard_view_list_cmd,
                 exec_select_custom_view_select_cmd,
-                exec_open_linear_workflow_state_selection_cmd,
+                exec_open_issue_op_interface_cmd,
                 exec_move_back_cmd,
                 exec_confirm_cmd,
                 exec_scroll_down_cmd,
@@ -139,20 +141,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(option_stateful);
                 },
+                IOEvent::LoadTeamMembers { linear_config, team, resp } => {
+                    let option_stateful = LinearIssueOpInterface::load_users_by_team(linear_config, &team).await;
+                    info!("LoadTeamMembers data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful);
+                },
+
                 IOEvent::UpdateIssueWorkflowState { linear_config, issue_id, workflow_state_id, resp } => {
 
                     let mut issue_update_variables = serde_json::Map::new();
 
                     issue_update_variables.insert(String::from("issueId"), Value::String(issue_id));
-                    issue_update_variables.insert(String::from("stateId"), Value::String(workflow_state_id));
+                    issue_update_variables.insert(String::from("ref"), Value::String(workflow_state_id));
 
-                    let option_stateful = linear::client::LinearClient::update_issue_workflow_state(linear_config, issue_update_variables).await;
+                    let option_stateful = LinearClient::update_issue_workflow_state(linear_config, issue_update_variables).await;
 
                     info!("UpdateIssueWorkflowState data: {:?}", option_stateful);
 
 
                     let _ = resp.send(option_stateful.ok());
-                }
+                },
+
+                IOEvent::UpdateIssueAssignee { linear_config, issue_id, assignee_id, resp } => {
+
+                    let mut issue_update_variables = serde_json::Map::new();
+
+                    issue_update_variables.insert(String::from("issueId"), Value::String(issue_id));
+                    issue_update_variables.insert(String::from("ref"), Value::String(assignee_id));
+
+                    let option_stateful = LinearClient::update_issue_assignee(linear_config, issue_update_variables).await;
+
+                    info!("UpdateIssueAssignee data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful.ok());
+                },
             }
         }
     });
@@ -250,8 +273,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::SelectCustomViewSelect => {
                             exec_select_custom_view_select_cmd(&mut app);
                         },
-                        Command::OpenLinearWorkflowStateSelection => {
-                            exec_open_linear_workflow_state_selection_cmd(&mut app, &tx);
+                        Command::OpenIssueOpInterface(x) => {
+                            exec_open_issue_op_interface_cmd(&mut app, x, &tx);
                         },
                         Command::MoveBack => {
                             exec_move_back_cmd(&mut app, &tx);

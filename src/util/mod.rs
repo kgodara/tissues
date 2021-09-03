@@ -17,7 +17,6 @@ pub use query::verify_linear_api_key;
 
 pub mod dashboard;
 
-pub mod command_list;
 pub mod layout;
 pub mod str;
 pub mod loader;

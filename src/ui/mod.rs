@@ -243,26 +243,21 @@ where
             loader_state: app.loader_tick
         };
 
-        let mut issue_op_table = match app.linear_issue_op_interface.current_op {
-            IssueModificationOp::ModifyWorkflowState => {
-                let workflow_states_handle = app.linear_issue_op_interface.workflow_states_data.lock().unwrap();
-                let cloned_states_vec: Vec<Value> = workflow_states_handle.clone();
-                drop(workflow_states_handle);
+        let data_handle = app.linear_issue_op_interface.table_data_from_op();
+        let data_lock = data_handle.lock().unwrap();
 
-                LinearIssueOpInterface::render(app.linear_issue_op_interface.current_op,
-                        &cloned_states_vec,
-                        &issue_op_widths,
-                        issue_op_table_style
-                    )
-                    .to_owned()
-                    .unwrap()
-            },
-            _ => {
-                panic!("Not ready");
-            }
-        };
+        let cloned_data_vec: Vec<Value> = data_lock.clone();
+        drop(data_lock);
 
-        let mut table_state = app.linear_issue_op_interface.table_state().clone();
+        let mut issue_op_table = LinearIssueOpInterface::render(app.linear_issue_op_interface.current_op,
+                &cloned_data_vec,
+                &issue_op_widths,
+                issue_op_table_style
+            )
+            .to_owned()
+            .unwrap();
+
+        let mut table_state = app.linear_issue_op_interface.data_state.clone();
 
         issue_op_table = issue_op_table.widths(&issue_op_widths);
 
@@ -271,76 +266,6 @@ where
     }
 }
 
-    /*
-    // Draw Workflow State Selection 
-    if app.linear_draw_workflow_state_select {
-
-        let mut table;
-        let table_result;
-        let workflow_states_handle = app.linear_workflow_select.workflow_states_data.lock().unwrap();
-
-        let area = util::ui::centered_rect(40, 80, f.size());
-
-        let workflow_chunks = Layout::default()
-                                .direction(Direction::Vertical)
-                                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
-                                .split(area);
-
-
-        f.render_widget(Clear, area); //this clears out the background
-
-        let workflow_widths: Vec<Constraint> = widths_from_rect( &workflow_chunks[0], &*WORKFLOW_STATE_SELECT_COLUMNS);
-
-        let table_style = TableStyle {
-            title_style: Some(( Value::String("Select New Workflow State".to_string()),
-                Value::String(hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")))
-            )),
-            row_bottom_margin: Some(0),
-            view_idx: None,
-            highlight_table: true,
-            req_num: None,
-            loading: false,
-            loader_state: app.loader_tick
-        };
-
-        let cloned_states_vec: Vec<Value> = workflow_states_handle.clone();
-        table_result = LinearWorkflowStateDisplayState::render(&cloned_states_vec,
-                &workflow_widths,
-                table_style)
-            .to_owned();
-
-        drop(workflow_states_handle);
-
-        match table_result {
-            Ok(x) => { table = x },
-            Err(_) => {return;},
-        }
-
-        let mut table_state = app.linear_workflow_select.workflow_states_state.clone();
-
-        table = table.widths(&workflow_widths);
-
-        // Render workflow state selection table in lower chunk
-        f.render_stateful_widget(table, workflow_chunks[1], &mut table_state);
-
-        let selected_issue_opt = fetch_selected_view_panel_issue(&app);
-        let selected_issue;
-
-
-        // Check that an Issue is selected, if not:
-        // don't render workflow pop-up and set linear_draw_workflow_state_select = false
-        if let Some(x) = selected_issue_opt {
-            selected_issue = x;
-        }
-        else {
-            error!("Workflow States Component cannot render without an Issue selected");
-            app.linear_draw_workflow_state_select = false;
-            return;
-        }
-
-        f.render_widget(colored_title_from_issue(selected_issue), workflow_chunks[0]);
-    }
-    */
 
 pub fn draw_dashboard_view_display<B>(f: &mut Frame<B>, app: &mut App)
 where

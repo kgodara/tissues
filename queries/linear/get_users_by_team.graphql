@@ -1,0 +1,17 @@
+{   "query": "query fetchUsersByTeam($firstNum: Int, $afterCursor: String, $ref: String!) {
+        team(id: $ref) {
+            members(first: $firstNum, after: $afterCursor) {
+                nodes {
+                    id
+                    name
+                    displayName
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+            }
+        }
+    }",
+    "operationName": "fetchUsersByTeam"
+}

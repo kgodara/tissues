@@ -4,9 +4,8 @@ use tui::{
     widgets::{Block, Borders, List, ListItem},
 };
 
-use crate::constants::colors;
-
-use crate::util::{
+use crate::constants::{
+    colors,
     command_list::{ Command, DashboardCommand, ViewListCommand, CommandList }
 };
 
@@ -25,6 +24,7 @@ pub struct CommandBar<'a> {
     // Dashboard Command States
     refresh_panel_active: bool,
     modify_workflow_state_active: bool,
+    modify_assignee_active: bool,
 
     // View List Command States
     remove_view_active: bool,
@@ -41,6 +41,7 @@ impl<'a> CommandBar<'a> {
             // Dashboard Command States
             refresh_panel_active: false,
             modify_workflow_state_active: false,
+            modify_assignee_active: false,
 
             // View List Command States
             remove_view_active: false,
@@ -72,6 +73,18 @@ impl<'a> CommandBar<'a> {
         }
     }
 
+    pub fn set_modify_assignee_active(&mut self, state: bool) {
+        match self.command_bar_type {
+            CommandBarType::Dashboard => {
+                self.modify_assignee_active = state;
+            },
+            _ => {
+                error!("'set_modify_assignee_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                panic!("'set_modify_assignee_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+            },
+        }
+    }
+
 
     // View List Command Setters
     pub fn set_remove_view_active(&mut self, state: bool) {
@@ -86,7 +99,7 @@ impl<'a> CommandBar<'a> {
         };
     }
 
-    // Determnie if a Command should be styled as active or not
+    // Determine if a Command should be styled as active or not
     pub fn get_command_style(&self, cmd: &Command) -> Style {
         match self.command_bar_type {
             CommandBarType::Dashboard => {
@@ -105,6 +118,13 @@ impl<'a> CommandBar<'a> {
                                     Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_WORKFLOW_STATE_CMD_ACTIVE)
                                 } else {
                                     Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_WORKFLOW_STATE_CMD_INACTIVE)
+                                }
+                            },
+                            DashboardCommand::ModifyAssignee => {
+                                if self.modify_workflow_state_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_ASSIGNEE_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_ASSIGNEE_CMD_INACTIVE)
                                 }
                             }
                         }

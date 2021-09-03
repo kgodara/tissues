@@ -33,17 +33,31 @@ pub enum IOEvent {
         view_loader: Option<ViewLoader>,
         resp: oneshot::Sender<(Vec<Value>, ViewLoader, u32)>,
     },
+
     LoadWorkflowStates {
         linear_config: LinearConfig,
         team: Value,
         resp: Responder<Value>,
     },
+    LoadTeamMembers {
+        linear_config: LinearConfig,
+        team: Value,
+        resp: Responder<Value>,
+    },
+
     UpdateIssueWorkflowState {
         linear_config: LinearConfig,
         issue_id: String,
         workflow_state_id: String,
         resp: Responder<Value>,
     },
+    UpdateIssueAssignee {
+        linear_config: LinearConfig,
+        issue_id: String,
+        assignee_id: String,
+        resp: Responder<Value>,
+    }
+
 }
 
 type Responder<T> = oneshot::Sender<Option<T>>;

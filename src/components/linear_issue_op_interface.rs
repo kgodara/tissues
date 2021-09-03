@@ -29,22 +29,23 @@ use crate::util::{
 use crate::constants::{
     IssueModificationOp,
     colors,
-    table_columns::{ TableColumn, WORKFLOW_STATE_SELECT_COLUMNS }
+    table_columns::{ TableColumn, WORKFLOW_STATE_SELECT_COLUMNS, ASSIGNEE_SELECT_COLUMNS }
 };
 
 pub struct LinearIssueOpInterface {
 
     pub current_op: IssueModificationOp,
+    pub selected_idx: Option<usize>,
+    pub data_state: TableState,
 
     pub workflow_states_data: Arc<Mutex<Vec<Value>>>,
-    pub workflow_states_state: TableState,
-    pub selected_workflow_state_idx: Option<usize>,
+    pub users_data: Arc<Mutex<Vec<Value>>>,
 }
 
 
 impl LinearIssueOpInterface {
 
-    // loading functions
+    // loading functions section start
     pub async fn load_workflow_states_by_team(linear_config: LinearConfig, team: &Value) -> Option<Value> {
 
         let team_id;
@@ -54,8 +55,6 @@ impl LinearIssueOpInterface {
         else {
             return None;
         }
-
-        info!("Loading workflow states");
 
         let mut variables: Map<String, Value> = Map::new();
         variables.insert(String::from("ref"), Value::String(String::from(team_id)));
@@ -83,19 +82,48 @@ impl LinearIssueOpInterface {
         }
     }
 
-    pub fn table_data_from_op(&mut self) -> Arc<Mutex<Vec<Value>>> {
+    pub async fn load_users_by_team(linear_config: LinearConfig, team: &Value) -> Option<Value> {
+        let team_id;
+        if let Some(x) = team.as_str() {
+            team_id = x;
+        }
+        else {
+            return None;
+        }
+
+        let mut variables: Map<String, Value> = Map::new();
+        variables.insert(String::from("ref"), Value::String(String::from(team_id)));
+
+        let users_result = LinearClient::get_users_by_team(linear_config, variables).await;
+
+        let mut users: Value = Value::Null;
+
+        match users_result {
+            Ok(x) => { users = x; }
+            Err(y) => { return None; },
+        }
+
+        if users == Value::Null {
+            return Some(Value::Array(vec![]));
+        }
+
+        match users {
+            Value::Array(_) => {
+                info!("Populating LinearIssueOpInterface::users_data with: {:?}", users);
+                return Some(users);
+            },
+            _ => {return None;},
+        }
+    }
+    // loading functions section end
+
+    pub fn table_data_from_op(&self) -> Arc<Mutex<Vec<Value>>> {
         match self.current_op {
             IssueModificationOp::ModifyWorkflowState => {
                 self.workflow_states_data.clone()
-            }
-            _ => {panic!("Not ready")}
-        }
-    }
-
-    pub fn table_state_from_op(&mut self) -> &mut TableState {
-        match self.current_op {
-            IssueModificationOp::ModifyWorkflowState => {
-                &mut self.workflow_states_state
+            },
+            IssueModificationOp::ModifyAssignee => {
+                self.users_data.clone()
             }
             _ => {panic!("Not ready")}
         }
@@ -104,7 +132,10 @@ impl LinearIssueOpInterface {
     pub fn is_valid_selection_for_update(&self) -> bool {
         match self.current_op {
             IssueModificationOp::ModifyWorkflowState => {
-                self.selected_workflow_state_idx.is_some()
+                self.selected_idx.is_some()
+            },
+            IssueModificationOp::ModifyAssignee => {
+                self.selected_idx.is_some()
             },
             _ => {panic!("not ready")}
         }
@@ -113,6 +144,10 @@ impl LinearIssueOpInterface {
     pub fn reset_op(&mut self) {
         match self.current_op {
             IssueModificationOp::ModifyWorkflowState => {
+                self.selected_idx = None;
+            },
+            IssueModificationOp::ModifyAssignee => {
+                self.selected_idx = None;
             },
             _ => {panic!("Not ready")}
         }
@@ -120,9 +155,10 @@ impl LinearIssueOpInterface {
 
     // render helper functions
     fn cell_fields_from_row(op: IssueModificationOp, widths: &[Constraint], row: &Value) -> Vec<String> {
+        let cell_fields: Vec<String>;
         match op {
             IssueModificationOp::ModifyWorkflowState => {
-                let cell_fields: Vec<String> = values_to_str(
+                cell_fields = values_to_str(
                     &[
                         row["name"].clone(),
                         row["type"].clone(),
@@ -133,6 +169,17 @@ impl LinearIssueOpInterface {
 
                 // Get the formatted Strings for each cell field
                 format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS)
+            },
+            IssueModificationOp::ModifyAssignee => {
+                cell_fields = values_to_str(
+                    &[
+                        row["name"].clone(),
+                        row["displayName"].clone(),
+                    ],
+                    &ASSIGNEE_SELECT_COLUMNS
+                );
+
+                format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS)
             },
             _ => {
                 panic!("Not ready yet");
@@ -145,6 +192,9 @@ impl LinearIssueOpInterface {
             IssueModificationOp::ModifyWorkflowState => {
                 widths_from_rect(bbox, &WORKFLOW_STATE_SELECT_COLUMNS)
             },
+            IssueModificationOp::ModifyAssignee => {
+                widths_from_rect(bbox, &ASSIGNEE_SELECT_COLUMNS)
+            }
             _ => {panic!("Not ready")}
         }
     }
@@ -153,19 +203,13 @@ impl LinearIssueOpInterface {
         match op {
             IssueModificationOp::ModifyWorkflowState => {
                 "Select New Workflow State".to_string()
-            }
+            },
+            IssueModificationOp::ModifyAssignee => {
+                "Select New Assignee".to_string()
+            },
             _ => {
                 panic!("Not ready");
             }
-        }
-    }
-
-    pub fn table_state(&self) -> TableState {
-        match self.current_op {
-            IssueModificationOp::ModifyWorkflowState => {
-                self.workflow_states_state.clone()
-            },
-            _ => {panic!("Not ready");}
         }
     }
 
@@ -181,7 +225,11 @@ impl LinearIssueOpInterface {
         let normal_style = Style::default().bg(Color::DarkGray);
 
 
-        let header_cells: Vec<Cell> = WORKFLOW_STATE_SELECT_COLUMNS
+        let header_cells: Vec<Cell> = match op {
+                IssueModificationOp::ModifyWorkflowState => { &*WORKFLOW_STATE_SELECT_COLUMNS },
+                IssueModificationOp::ModifyAssignee => { &*ASSIGNEE_SELECT_COLUMNS },
+                _ => { panic!("Not ready") }
+            }
             .iter()
             .map(|h| Cell::from(&*h.label).style(Style::default().fg(Color::LightGreen)))
             .collect();
@@ -196,25 +244,9 @@ impl LinearIssueOpInterface {
         let mut rows: Vec<Row> = table_data.iter()
             .map(|row| {
 
-                /*
-                let cell_fields: Vec<String> = values_to_str(
-                    &[
-                        row["name"].clone(),
-                        row["type"].clone(),
-                        row["description"].clone()
-                    ],
-                    &WORKFLOW_STATE_SELECT_COLUMNS
-                );
-
-                // Get the formatted Strings for each cell field
-                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS);
-                */
-
                 let cell_fields_formatted = LinearIssueOpInterface::cell_fields_from_row(op, widths, row);
 
                 max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
-
-                // let mut cells = LinearIssueOpInterface::cells_from_cell_fields(op, &cell_fields_formatted, row);
 
                 let mut cells: Vec<Cell> = cell_fields_formatted
                     .iter()
@@ -231,6 +263,9 @@ impl LinearIssueOpInterface {
                         // Insert new "name" cell, and remove unformatted version
                         cells.insert(0, colored_cell(name, color));
                         cells.remove(1);
+                    },
+                    IssueModificationOp::ModifyAssignee => {
+                        // No colored cell for users
                     },
                     _ => {
                         panic!("Not ready yet");
@@ -271,10 +306,11 @@ impl Default for LinearIssueOpInterface {
     fn default() -> LinearIssueOpInterface {
         LinearIssueOpInterface {
             current_op: IssueModificationOp::ModifyWorkflowState,
+            selected_idx: None,
+            data_state: TableState::default(),
 
             workflow_states_data: Arc::new(Mutex::new(vec![])),
-            workflow_states_state: TableState::default(),
-            selected_workflow_state_idx: None,
+            users_data: Arc::new(Mutex::new(vec![])),
         }
     }
 }

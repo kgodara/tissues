@@ -8,6 +8,7 @@ use crate::constants::colors;
 pub enum DashboardCommand {
     RefreshPanel,
     ModifyWorkflowState,
+    ModifyAssignee,
 }
 
 #[derive(Debug, Clone)]
@@ -45,18 +46,24 @@ pub struct CommandList<'a> {
 impl Default for CommandList<'_> {
     fn default() -> CommandList<'static> {
         CommandList {
-            dashboard: vec![ 
+            dashboard: vec![
                 CommandValue { key_char: 'r',
                     cmd_type: Command::Dashboard(DashboardCommand::RefreshPanel),
                     label: "Refresh",
                     active_color: colors::REFRESH_PANEL_CMD_ACTIVE,
                     inactive_color: colors::REFRESH_PANEL_CMD_INACTIVE
                 },
-                CommandValue { key_char: 'm',
+                CommandValue { key_char: 'w',
                     cmd_type: Command::Dashboard(DashboardCommand::ModifyWorkflowState),
                     label: "Modify Workflow State",
                     active_color: colors::MODIFY_WORKFLOW_STATE_CMD_ACTIVE,
                     inactive_color: colors::MODIFY_WORKFLOW_STATE_CMD_INACTIVE
+                },
+                CommandValue { key_char: 'a',
+                    cmd_type: Command::Dashboard(DashboardCommand::ModifyAssignee),
+                    label: "Modify Assignee",
+                    active_color: colors::MODIFY_ASSIGNEE_CMD_ACTIVE,
+                    inactive_color: colors::MODIFY_ASSIGNEE_CMD_INACTIVE,
                 },
             ],
             view_list: vec![

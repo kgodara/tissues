@@ -35,6 +35,13 @@ lazy_static! {
         ]
     };
 
+    pub static ref ASSIGNEE_SELECT_COLUMNS: Vec<TableColumn<'static>> = {
+        vec![
+            TableColumn { label: "Name", null_fallback: "", min_width: 4, max_height: 2, priority: 2 },
+            TableColumn { label: "Display Name", null_fallback: "", min_width: 12, max_height: 2, priority: 2 },
+        ]
+    };
+
     // Issue Modification Columns End
 
     pub static ref DASHBOARD_VIEW_CONFIG_COLUMNS: Vec<TableColumn<'static>> = {

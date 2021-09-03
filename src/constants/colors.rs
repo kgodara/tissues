@@ -35,3 +35,6 @@ pub const REFRESH_PANEL_CMD_INACTIVE: Color = Color::Rgb( 53u8, 151u8, 137u8 );
 pub const MODIFY_WORKFLOW_STATE_CMD_ACTIVE: Color = Color::Rgb( 252u8, 132u8, 4u8 );
 pub const MODIFY_WORKFLOW_STATE_CMD_INACTIVE: Color = Color::Rgb( 189u8, 99u8, 2u8 );
 
+// Red (25% darker for inactive) -- https://pinetools.com/darken-color
+pub const MODIFY_ASSIGNEE_CMD_ACTIVE: Color = Color::Rgb( 184u8, 4u8, 4u8 );
+pub const MODIFY_ASSIGNEE_CMD_INACTIVE: Color = Color::Rgb( 138u8, 3u8, 3u8 );

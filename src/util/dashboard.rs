@@ -69,17 +69,18 @@ pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
 // Accepts:
 //     app
 // Returns:
-//     full JSON state object (as specified in GraphQL request), or None if a workflow state is not selected
-pub fn fetch_selected_workflow_state(app: &App) -> Option<Value> {
-    let workflow_state_data_handle = app.linear_issue_op_interface.workflow_states_data.lock().unwrap();
+//     full JSON object (as specified in GraphQL request), or None if a Value is not selected
+pub fn fetch_selected_value(app: &App) -> Option<Value> {
+    let data_handle = app.linear_issue_op_interface.table_data_from_op();
+    let data_lock = data_handle.lock().unwrap();
     let state_idx: usize;
 
-    if let Some(x) = app.linear_issue_op_interface.selected_workflow_state_idx {
+    if let Some(x) = app.linear_issue_op_interface.selected_idx {
         state_idx = x;
     }
     else {
         return None;
     }
 
-    workflow_state_data_handle.get(state_idx).cloned()
+    data_lock.get(state_idx).cloned()
 }

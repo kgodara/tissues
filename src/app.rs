@@ -26,7 +26,7 @@ use crate::util::{
     StatefulList as StatefulList,
     GraphQLCursor,
     dashboard::fetch_selected_view_panel_issue,
-    dashboard::fetch_selected_workflow_state,
+    dashboard::fetch_selected_value,
 };
 
 use crate::components::{
@@ -627,22 +627,79 @@ impl<'a> App<'a> {
                     info!("New self.linear_workflow_select.workflow_states_data: {:?}", workflow_data_lock);
                 });
             },
-            "update_issue_workflow_state" => {
+            "load_team_members" => {
+                let tx2 = tx.clone();
+
+                let users_data_handle = self.linear_issue_op_interface.users_data.clone();
+
+                let linear_config = self.linear_client.config.clone();
+
+                let selected_issue_opt = fetch_selected_view_panel_issue(&self);
+                let selected_issue;
+                let selected_team;
+
+                // Check that an Issue is selected, if not return
+                if let Some(x) = selected_issue_opt {
+                    selected_issue = x;
+                }
+                else {
+                    return;
+                }
+
+                // Get the Issue's team,
+                // panic if not found since every Issue should have a value for ['team']['id']
+                selected_team = selected_issue["team"]["id"].clone();
+
+                if selected_team.is_null() {
+                    error!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
+                    panic!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
+                }
+
+                debug!("dispatch_event('load_team_members') fetched Issue's team");
+
+
+                let _t1 = tokio::spawn(async move {
+
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    debug!("Dispatching LoadTeamMembers event");
+
+                    let cmd = IOEvent::LoadTeamMembers { linear_config, team: selected_team, resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
+
+                    let mut res = resp_rx.await.ok();
+
+                    info!("LoadTeamMembers IOEvent returned: {:?}", res);
+
+                    let mut users_data_lock = users_data_handle.lock().unwrap();
+
+                    info!("dispatch_event('load_workflows') acquired lock on workflow_data_handle");
+
+                    if let Some(Some(ref mut x)) = res {
+                        if let Some(users_vec) = x.as_array_mut() {
+                            *users_data_lock = users_vec.to_vec();
+                        }
+                    }
+
+                    info!("New self.linear_issue_op_interface.users_data: {:?}", users_data_lock);
+                });
+            },
+            "update_issue" => {
                 let tx3 = tx.clone();
 
                 let issue_id: String;
-                let selected_state_id: String;
-                let state_obj;
+                let selected_value_id: String;
+                let value_obj;
 
-                // Get relevant issue and workflow_state id, return if anything not found
+                // Get relevant issue and selected Value id, return if anything not found
                 {
                     let selected_issue_opt = fetch_selected_view_panel_issue(&self);
                     let issue_obj = if let Some(x) = selected_issue_opt { x } else { return; };
                     let issue_id_opt = issue_obj["id"].as_str();
 
-                    let selected_state_opt = fetch_selected_workflow_state(&self);
-                    state_obj = if let Some(x) = selected_state_opt { x } else { return; };
-                    let state_id_opt = state_obj["id"].as_str();
+                    let selected_value_opt = fetch_selected_value(&self);
+                    value_obj = if let Some(x) = selected_value_opt { x } else { return; };
+                    let value_id_opt = value_obj["id"].as_str();
 
                     if let Some(x) = issue_id_opt {
                         issue_id = String::from(x);
@@ -651,33 +708,51 @@ impl<'a> App<'a> {
                         return;
                     }
 
-                    if let Some(x) = state_id_opt {
-                        selected_state_id = String::from(x);
+                    if let Some(x) = value_id_opt {
+                        selected_value_id = String::from(x);
                     }
                     else {
                         return;
                     }
                 }
 
-                debug!("update_issue_workflow_state - issue_id, selected_state_id: {:?}, {:?}", issue_id, selected_state_id);
+                debug!("update_issue - issue_id, selected_value_id: {:?}, {:?}", issue_id, selected_value_id);
 
                 let linear_config = self.linear_client.config.clone();
                 let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();
+
+                let current_op = self.linear_issue_op_interface.current_op.clone();
 
                 // Spawn task to issue command to update workflow state
                 let _t3 = tokio::spawn( async move {
                     let (resp2_tx, resp2_rx) = oneshot::channel();
 
-                    let cmd = IOEvent::UpdateIssueWorkflowState {   linear_config,
-                                                                    issue_id: issue_id.clone(),
-                                                                    workflow_state_id: selected_state_id,
-                                                                    resp: resp2_tx  
-                                                                };
+                    let cmd = match current_op {
+                        IssueModificationOp::ModifyWorkflowState => {
+                            IOEvent::UpdateIssueWorkflowState {   linear_config,
+                                issue_id: issue_id.clone(),
+                                workflow_state_id: selected_value_id,
+                                resp: resp2_tx  
+                            }
+                        },
+                        IssueModificationOp::ModifyAssignee => {
+                            IOEvent::UpdateIssueAssignee {   linear_config,
+                                issue_id: issue_id.clone(),
+                                assignee_id: selected_value_id,
+                                resp: resp2_tx  
+                            }
+                        },
+                        _ => {
+                            error!("IssueModificationOp not supported for 'update_issue': {:?}", current_op);
+                            panic!("Not ready");
+                        }
+                    };
+
                     tx3.send(cmd).await.unwrap();
 
                     let res = resp2_rx.await.ok();
-
-                    info!("UpdateIssueWorkflowState IOEvent returned: {:?}", res);
+                    
+                    info!("UpdateIssue IOEvent returned: {:?}", res);
 
                     // UpdateIssueWorkflowState IOEvent returned: Some(Some(Object({"issue_response": Object({"createdAt": String("2021-02-06T17:47:01.039Z"), "id": String("ace38e69-8a64-46f8-ad57-dc70c61f5599"), "number": Number(11), "title": String("Test Insomnia 1")}), "success": Bool(true)})))
                     // If Some(Some(Object({"success": Bool(true)})))
@@ -691,7 +766,9 @@ impl<'a> App<'a> {
                             update_succeeded = value;
                         }
                     }
+                    
 
+                    
                     // If update succeeded, iterate over all Issues in all ViewPanels
                     // and set issue["state"] = state_obj 
                     //     where id matches 'issue_id'
@@ -705,7 +782,11 @@ impl<'a> App<'a> {
                             for issue_obj in issue_list_handle.iter_mut() {
                                 if let Some(panel_issue_id) = issue_obj["id"].as_str() {
                                     if panel_issue_id == issue_id.as_str() {
-                                        issue_obj["state"] = state_obj.clone();
+                                        match current_op {
+                                            IssueModificationOp::ModifyWorkflowState => {issue_obj["state"] = value_obj.clone();},
+                                            IssueModificationOp::ModifyAssignee => {issue_obj["assignee"] = value_obj.clone();},
+                                            _ => {}
+                                        }
                                     }
                                 }
                             }
