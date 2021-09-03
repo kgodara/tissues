@@ -71,10 +71,10 @@ pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
 // Returns:
 //     full JSON state object (as specified in GraphQL request), or None if a workflow state is not selected
 pub fn fetch_selected_workflow_state(app: &App) -> Option<Value> {
-    let workflow_state_data_handle = app.linear_workflow_select.workflow_states_data.lock().unwrap();
+    let workflow_state_data_handle = app.linear_issue_op_interface.workflow_states_data.lock().unwrap();
     let state_idx: usize;
 
-    if let Some(x) = app.linear_selected_workflow_state_idx {
+    if let Some(x) = app.linear_issue_op_interface.selected_workflow_state_idx {
         state_idx = x;
     }
     else {

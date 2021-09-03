@@ -14,8 +14,10 @@ use tui::{
 use crate::linear::view_resolver::ViewLoader;
 
 use crate::util::{
-    ui::{ TableStyle, gen_table_title_spans },
-    table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
+    table::{ values_to_str, format_cell_fields,
+        get_row_height, colored_cell,
+        TableStyle, gen_table_title_spans
+    },
 };
 
 use crate::constants::table_columns::{ VIEW_PANEL_COLUMNS };

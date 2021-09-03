@@ -26,6 +26,17 @@ lazy_static! {
         ]
     };
 
+    // Issue Modification Columns Start
+    pub static ref WORKFLOW_STATE_SELECT_COLUMNS: Vec<TableColumn<'static>> = {
+        vec![
+            TableColumn { label: "Name", null_fallback: "", min_width: 4, max_height: 2, priority: 2 },
+            TableColumn { label: "Type", null_fallback: "", min_width: 4, max_height: 2, priority: 2 },
+            TableColumn { label: "Desc", null_fallback: "", min_width: 4, max_height: 3, priority: 3 },
+        ]
+    };
+
+    // Issue Modification Columns End
+
     pub static ref DASHBOARD_VIEW_CONFIG_COLUMNS: Vec<TableColumn<'static>> = {
         vec![
             TableColumn { label: "Name", null_fallback: "", min_width: 4, max_height: 2, priority: 2 },

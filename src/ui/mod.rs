@@ -11,18 +11,25 @@ use crate::components::{
     dashboard_view_display::DashboardViewDisplay,
     dashboard_view_panel::DashboardViewPanel,
     linear_custom_view_select::LinearCustomViewSelect,
-    linear_workflow_state_display::LinearWorkflowStateDisplayState,
+
+    linear_issue_op_interface::LinearIssueOpInterface,
 };
 
 use crate::util::{
-    colors,
     ui,
-    ui::{ TableStyle, hex_str_from_style_color },
+    ui::{ hex_str_from_style_color },
+    table::{ TableStyle },
+    issue::{ colored_title_from_issue },
     dashboard::{fetch_selected_view_panel_issue, fetch_selected_view_panel_idx},    
     layout::{ widths_from_rect },
 };
 
-use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS, VIEW_PANEL_COLUMNS };
+use crate::constants::{
+    colors,
+    table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS,
+        VIEW_PANEL_COLUMNS, WORKFLOW_STATE_SELECT_COLUMNS },
+    IssueModificationOp
+};
 
 use tui::{
   backend::Backend,
@@ -132,14 +139,14 @@ where
             } else {
                 false
             };
-        
+
         // Get 'loading' bool from ViewPanel
         let loading_lock = e.loading.lock().unwrap();
         let loading_state: bool = *loading_lock;
         drop(loading_lock);
 
 
-        let table_style = TableStyle { title_style: Some(( e.filter["name"].clone(), e.filter["color"].clone() )),
+        let view_panel_table_style = TableStyle { title_style: Some(( e.filter["name"].clone(), e.filter["color"].clone() )),
             row_bottom_margin: Some(0),
             view_idx: Some((i as u16)+1),
             highlight_table,
@@ -152,7 +159,7 @@ where
         if let Ok(mut view_panel_table) =
             DashboardViewPanel::render(&view_data_handle,
                 &widths,
-                table_style
+                view_panel_table_style
             )
         {
 
@@ -212,24 +219,65 @@ where
 
     f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
 
+    // Draw Linear Issue Op Interface
+    if app.modifying_issue {
+
+        let area = util::ui::centered_rect(40, 80, f.size());
+
+        let issue_op_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
+            .split(area);
+
+        let issue_op_widths: Vec<Constraint> = LinearIssueOpInterface::widths_from_rect_op(&issue_op_chunks[0], &app.linear_issue_op_interface.current_op);
+
+        let issue_op_table_style = TableStyle {
+            title_style: Some(( Value::String(LinearIssueOpInterface::title_from_op(&app.linear_issue_op_interface.current_op)),
+                Value::String(hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")))
+            )),
+            row_bottom_margin: Some(0),
+            view_idx: None,
+            highlight_table: true,
+            req_num: None,
+            loading: false,
+            loader_state: app.loader_tick
+        };
+
+        let mut issue_op_table = match app.linear_issue_op_interface.current_op {
+            IssueModificationOp::ModifyWorkflowState => {
+                let workflow_states_handle = app.linear_issue_op_interface.workflow_states_data.lock().unwrap();
+                let cloned_states_vec: Vec<Value> = workflow_states_handle.clone();
+                drop(workflow_states_handle);
+
+                LinearIssueOpInterface::render(app.linear_issue_op_interface.current_op,
+                        &cloned_states_vec,
+                        &issue_op_widths,
+                        issue_op_table_style
+                    )
+                    .to_owned()
+                    .unwrap()
+            },
+            _ => {
+                panic!("Not ready");
+            }
+        };
+
+        let mut table_state = app.linear_issue_op_interface.table_state().clone();
+
+        issue_op_table = issue_op_table.widths(&issue_op_widths);
+
+        // Render IssueOp table in lower chunk
+        f.render_stateful_widget(issue_op_table, issue_op_chunks[1], &mut table_state);
+    }
+}
+
+    /*
     // Draw Workflow State Selection 
     if app.linear_draw_workflow_state_select {
-        // debug!("draw_action_select - app.linear_draw_workflow_state_select is true");
 
-        let table;
+        let mut table;
         let table_result;
         let workflow_states_handle = app.linear_workflow_select.workflow_states_data.lock().unwrap();
-
-        let cloned_states_vec: Vec<Value> = workflow_states_handle.clone();
-        table_result = LinearWorkflowStateDisplayState::get_rendered_workflow_state_select(&cloned_states_vec).to_owned();
-        drop(workflow_states_handle);
-
-        match table_result {
-            Ok(x) => { table = x },
-            Err(_) => {return;},
-        }
-
-        // debug!("draw_action_select - get_rendered_workflow_state_select() success");
 
         let area = util::ui::centered_rect(40, 80, f.size());
 
@@ -241,12 +289,42 @@ where
 
         f.render_widget(Clear, area); //this clears out the background
 
-        // debug!("draw_action_select - about to call fetch_selected_view_panel_issue()");
+        let workflow_widths: Vec<Constraint> = widths_from_rect( &workflow_chunks[0], &*WORKFLOW_STATE_SELECT_COLUMNS);
+
+        let table_style = TableStyle {
+            title_style: Some(( Value::String("Select New Workflow State".to_string()),
+                Value::String(hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")))
+            )),
+            row_bottom_margin: Some(0),
+            view_idx: None,
+            highlight_table: true,
+            req_num: None,
+            loading: false,
+            loader_state: app.loader_tick
+        };
+
+        let cloned_states_vec: Vec<Value> = workflow_states_handle.clone();
+        table_result = LinearWorkflowStateDisplayState::render(&cloned_states_vec,
+                &workflow_widths,
+                table_style)
+            .to_owned();
+
+        drop(workflow_states_handle);
+
+        match table_result {
+            Ok(x) => { table = x },
+            Err(_) => {return;},
+        }
+
+        let mut table_state = app.linear_workflow_select.workflow_states_state.clone();
+
+        table = table.widths(&workflow_widths);
+
+        // Render workflow state selection table in lower chunk
+        f.render_stateful_widget(table, workflow_chunks[1], &mut table_state);
 
         let selected_issue_opt = fetch_selected_view_panel_issue(&app);
         let selected_issue;
-
-        // debug!("draw_action_select - fetch_selected_view_panel_issue() success");
 
 
         // Check that an Issue is selected, if not:
@@ -259,60 +337,10 @@ where
             app.linear_draw_workflow_state_select = false;
             return;
         }
-        // Get 'color', 'number', and 'title' field from selected Issue
 
-        let selected_issue_color: Value = selected_issue["state"]["color"].clone();
-        let selected_issue_number: Value = selected_issue["number"].clone();
-        let selected_issue_title: Value = selected_issue["title"].clone();
-
-        // Return if one of the issue's fields was not found
-        if  selected_issue_color.is_null() ||
-            selected_issue_number.is_null() ||
-            selected_issue_title.is_null()
-        {
-            error!("Workflow States Component failed to acquire all required Issue fields - color: {:?}, number: {:?}, title: {:?}", selected_issue_color, selected_issue_number, selected_issue_title);
-            app.linear_draw_workflow_state_select = false;
-            return;
-        }
-
-        // debug!("draw_action_select - Get 'color', 'number', and 'title' field from selected Issue success");
-
-
-
-        let mut final_title = String::new();
-        
-        write!( &mut final_title,
-                "{} - {}",
-                selected_issue_number.as_i64().get_or_insert(-0),
-                selected_issue_title.as_str().get_or_insert("ERR TITLE NOT FOUND")
-        );
-
-        // info!("Workflow State Selection final Issue Title: {}", final_title);
-
-        let mut title_color = util::ui::style_color_from_hex_str(&selected_issue_color);
-
-        // Render Issue title in upper chunk
-        let text = vec![
-            Spans::from(Span::styled(
-                final_title,
-                Style::default().fg(*title_color.get_or_insert(Color::Green)).add_modifier(Modifier::ITALIC),
-            ))
-        ];
-
-        let paragraph = Paragraph::new(text.clone())
-            .block(Block::default()/*.title("Left Block")*/.borders(Borders::ALL))
-            .alignment(Alignment::Left).wrap(Wrap { trim: true });
-        
-        // debug!("draw_action_select - rendering workflow state components");
-        
-        f.render_widget(paragraph, workflow_chunks[0]);
-
-        let mut table_state = app.linear_workflow_select.workflow_states_state.clone();
-
-        // Render workflow state selection table in lower chunk
-        f.render_stateful_widget(table, workflow_chunks[1], &mut table_state);
+        f.render_widget(colored_title_from_issue(selected_issue), workflow_chunks[0]);
     }
-}
+    */
 
 pub fn draw_dashboard_view_display<B>(f: &mut Frame<B>, app: &mut App)
 where

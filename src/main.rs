@@ -20,6 +20,10 @@ mod network;
 
 mod components;
 
+use crate::components::{
+    linear_issue_op_interface::LinearIssueOpInterface,
+};
+
 use app::Route as Route;
 
 use serde_json::Value;
@@ -130,9 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 IOEvent::LoadWorkflowStates { linear_config, team, resp } => {
 
-                    let option_stateful = components::
-                                            linear_workflow_state_display::
-                                                LinearWorkflowStateDisplayState::load_workflow_states_by_team(linear_config, &team).await;
+                    let option_stateful = LinearIssueOpInterface::load_workflow_states_by_team(linear_config, &team).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);

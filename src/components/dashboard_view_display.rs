@@ -10,8 +10,10 @@ use tui::{
 };
 
 use crate::util::{
-    ui::{ TableStyle, gen_table_title_spans },
-    table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
+    table::{ TableStyle, gen_table_title_spans, 
+        values_to_str, format_cell_fields,
+        get_row_height, colored_cell 
+    },
 };
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };

@@ -16,8 +16,10 @@ use crate::linear::{
 };
 
 use crate::util::{
-    ui::{ TableStyle, gen_table_title_spans },
-    table::{ values_to_str, format_cell_fields, get_row_height, colored_cell },
+    table::{ values_to_str, format_cell_fields,
+        get_row_height, colored_cell,
+        TableStyle, gen_table_title_spans
+    },
     GraphQLCursor
 };
 
@@ -104,7 +106,7 @@ impl LinearCustomViewSelect {
                 // debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
 
                 max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
-                
+
                 let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
                 let name: String = cell_fields_formatted[0].clone();

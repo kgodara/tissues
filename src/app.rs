@@ -9,6 +9,10 @@ use tokio::sync::oneshot;
 
 use std::sync::{Arc, Mutex};
 
+use crate::constants::{
+    IssueModificationOp
+};
+
 use crate::linear::{
     LinearConfig,
     view_resolver::ViewLoader
@@ -33,8 +37,7 @@ use crate::components::{
     dashboard_view_display::DashboardViewDisplay,
     dashboard_view_panel::DashboardViewPanel,
 
-    // deprecated
-    linear_workflow_state_display::LinearWorkflowStateDisplayState,
+    linear_issue_op_interface::LinearIssueOpInterface,
 };
 
 use tui::{
@@ -115,16 +118,9 @@ pub struct App<'a> {
     pub view_panel_cmd_bar: CommandBar<'a>,
 
 
-
-    // DEPRECATED FIELDS (may be re-used)
-
-    // Linear Workflow Select State
-    pub linear_workflow_select: LinearWorkflowStateDisplayState,
-    // Selected Linear Workflow State
-    pub linear_selected_workflow_state_idx: Option<usize>,
-    // Draw Workflow State Selection panel
-    pub linear_draw_workflow_state_select: bool,
-
+    // Issue Modification fields
+    pub modifying_issue: bool,
+    pub linear_issue_op_interface: LinearIssueOpInterface,
 
     // Available actions
     pub actions: StatefulList<&'a str>,
@@ -166,13 +162,8 @@ impl<'a> Default for App<'a> {
 
             view_panel_cmd_bar: CommandBar::with_type(CommandBarType::Dashboard),
 
-
-            // Deprecated
-            
-            linear_workflow_select: LinearWorkflowStateDisplayState::default(),
-            linear_selected_workflow_state_idx: None,
-
-            linear_draw_workflow_state_select: false,
+            modifying_issue: false,
+            linear_issue_op_interface: LinearIssueOpInterface::default(),
 
             actions: util::StatefulList::with_items(vec![
                 "Modify Dashboard",
@@ -190,22 +181,6 @@ impl<'a> Default for App<'a> {
 
 impl<'a> App<'a> {
 
-
-    pub fn draw_issue_state_select(&self, platform: Platform) -> &bool {
-        match platform {
-            Platform::Linear => { &self.linear_draw_workflow_state_select },
-            Platform::Github => { &false },
-            Platform::Na => { &false }
-        }
-    }
-
-    pub fn set_draw_issue_state_select(&mut self, platform: Platform, v: bool) {
-        match platform {
-            Platform::Linear => { self.linear_draw_workflow_state_select = v },
-            Platform::Github => { },
-            Platform::Na => { },
-        };
-    }
 
     pub fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
         match route {
@@ -598,7 +573,7 @@ impl<'a> App<'a> {
             "load_workflows" => {
                 let tx2 = tx.clone();
 
-                let workflow_data_handle = self.linear_workflow_select.workflow_states_data.clone();
+                let workflow_data_handle = self.linear_issue_op_interface.workflow_states_data.clone();
 
                 let linear_config = self.linear_client.config.clone();
 
@@ -683,6 +658,8 @@ impl<'a> App<'a> {
                         return;
                     }
                 }
+
+                debug!("update_issue_workflow_state - issue_id, selected_state_id: {:?}, {:?}", issue_id, selected_state_id);
 
                 let linear_config = self.linear_client.config.clone();
                 let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();

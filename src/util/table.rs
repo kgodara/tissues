@@ -2,7 +2,8 @@ use serde_json::Value;
 
 use tui::{
     layout::{ Constraint },
-    style::{ Style },
+    style::{ Color, Modifier, Style },
+    text::{Span, Spans},
     widgets::{ Cell }
 };
 
@@ -11,7 +12,80 @@ use crate::util::{
     layout::{ format_str_with_wrap },
 };
 
+use crate::constants::colors::{ API_REQ_NUM };
+
+use crate::util::loader::{ loader_from_state };
+
 use crate::constants::table_columns::TableColumn;
+
+#[derive(Debug)]
+pub struct TableStyle {
+    // General (all tables)
+    // ( name: Value::String, color_hex_str: Value::String || Value::Null )
+    pub title_style: Option<(Value, Value)>,
+    pub row_bottom_margin: Option<u16>,
+
+    // View Panel Specific
+    pub view_idx: Option<u16>,
+
+    pub highlight_table: bool,
+
+    // Loading State Display Relagted
+    pub loading: bool,
+    pub loader_state: u16,
+
+    pub req_num: Option<u16>,
+}
+
+// Accepts:
+//     table_style: style parameters of target table
+// Returns:
+//     Spans<'a>: a group of Spans generated from provided Style
+pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
+
+
+    match table_style.title_style {
+        Some(title_style) => {
+                            // Display Table's View index, if provided
+            Spans::from(vec![   Span::styled(match table_style.view_idx {
+                                                Some(idx) => {
+                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
+                                                },
+                                                None => {String::default()}
+                                            },
+                                            Style::default()
+                                ),
+                                // Display Table's Loading State
+                                Span::styled(
+                                    vec![loader_from_state(table_style.loading, table_style.loader_state).to_string().as_str(), " - "].concat(),
+                                    Style::default()
+                                ),
+                                // Display provided Label as Table Title
+                                Span::styled(String::from(*title_style.0
+                                        .as_str()
+                                        .get_or_insert("Table")
+                                    ),
+                                    Style::default()
+                                        .add_modifier(Modifier::BOLD)
+                                        .fg(*style_color_from_hex_str(&title_style.1)
+                                                .get_or_insert(Color::White)
+                                        )
+                                ),
+                                // If req # provided, display
+                                Span::styled(match table_style.req_num {
+                                        Some(req_u16) => { vec![" - Req #: ", req_u16.to_string().as_str()].concat() },
+                                        None => { String::default() }
+                                    },
+                                    Style::default()
+                                        .add_modifier(Modifier::ITALIC)
+                                        .fg(API_REQ_NUM)
+                                )
+                            ])
+        },
+        None => { Spans::from(Span::styled("Table", Style::default())) }
+    }
+}
+
 
 pub fn values_to_str(values: &[Value], columns: &[TableColumn]) -> Vec<String> {
     values.iter()

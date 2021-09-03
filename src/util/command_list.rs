@@ -2,7 +2,7 @@ use tui::{
     style::{Color}
 };
 
-use crate::util::colors;
+use crate::constants::colors;
 
 #[derive(Debug, Clone)]
 pub enum DashboardCommand {

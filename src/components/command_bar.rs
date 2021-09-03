@@ -4,8 +4,9 @@ use tui::{
     widgets::{Block, Borders, List, ListItem},
 };
 
+use crate::constants::colors;
+
 use crate::util::{
-    colors,
     command_list::{ Command, DashboardCommand, ViewListCommand, CommandList }
 };
 

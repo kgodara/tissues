@@ -6,7 +6,7 @@ pub mod state_table;
 
 pub mod ui;
 
-pub mod colors;
+pub mod issue;
 
 mod cursor;
 pub use cursor::GraphQLCursor;

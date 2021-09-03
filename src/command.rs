@@ -4,8 +4,9 @@ use termion::{event::Key,};
 use crate::app::{App, Platform, Route};
 use crate::network::IOEvent;
 use crate::util::{ state_table };
-
-use crate::components::linear_workflow_state_display::LinearWorkflowStateDisplayState;
+use crate::constants::{
+    IssueModificationOp
+};
 
 use tokio::sync::mpsc::Sender;
 
@@ -14,6 +15,7 @@ use serde_json::Value;
 use tui::{
     widgets::{ TableState },
 };
+
 
 #[derive(Debug)]
 pub enum Command {
@@ -220,13 +222,14 @@ pub fn exec_open_linear_workflow_state_selection_cmd(app: &mut App, tx: &Sender<
     
     // Create pop-up on top of issue display component
     if Route::ActionSelect == app.route {
-        debug!("draw_action_select - setting app.linear_draw_workflow_state_select to true");
 
         // Dispatch event to load workflow states for team of selected issue
         app.dispatch_event("load_workflows", tx);
 
         // Enable drawing of workflow state selection pop-up
-        app.set_draw_issue_state_select(Platform::Linear, true);
+        app.linear_issue_op_interface.current_op = IssueModificationOp::ModifyWorkflowState;
+        app.modifying_issue = true;
+        // app.set_draw_issue_state_select(Platform::Linear, true);
     }
 }
 
@@ -237,9 +240,9 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         Route::ActionSelect => {
 
             // If state change cancelled, reset
-            if app.linear_draw_workflow_state_select {
-                app.linear_draw_workflow_state_select = false;
-                app.linear_workflow_select = LinearWorkflowStateDisplayState::default();
+            if app.modifying_issue {
+                app.modifying_issue = false;
+                app.linear_issue_op_interface.reset_op();
             }
 
             // If a View Panel is selected, unselect it, reset app.linear_dashboard_view_panel_selected to None and
@@ -267,10 +270,14 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
         Route::ActionSelect => {
 
             // If a state change is confirmed, dispatch & reset
-            if app.linear_draw_workflow_state_select && app.linear_selected_workflow_state_idx.is_some() {
-                app.dispatch_event("update_issue_workflow_state", &tx);
-                app.linear_draw_workflow_state_select = false;
-                app.linear_workflow_select = LinearWorkflowStateDisplayState::default();
+            if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update() {
+                match app.linear_issue_op_interface.current_op {
+                    IssueModificationOp::ModifyWorkflowState => {
+                        app.dispatch_event("update_issue_workflow_state", &tx);
+                    },
+                    _ => {panic!("Not ready")}
+                }
+                app.modifying_issue = false;
             }
 
             else if let Some(i) = app.actions.state.selected() {
@@ -347,13 +354,16 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         Route::ActionSelect => {
             let mut load_paginated = false;
 
-            // If the workflow state select panel is open, scroll down on modal
-            if app.linear_draw_workflow_state_select {
-                debug!("Attempting to scroll down on Workflow State Selection");
-                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
+            // If the issue op interface is open, scroll down on modal
+            if app.modifying_issue {
+                debug!("Attempting to scroll down on IssueOpInterface");
+                
+                let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
+                let data_lock = data_handle.lock().unwrap();
+                let mut data_state = app.linear_issue_op_interface.table_state_from_op();
 
-                state_table::next(&mut app.linear_workflow_select.workflow_states_state, handle);
-                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
+                state_table::next(&mut data_state, &*data_lock);
+                app.linear_issue_op_interface.selected_workflow_state_idx = app.linear_issue_op_interface.table_state_from_op().selected();
             }
             // If a ViewPanel is selected, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
@@ -452,13 +462,17 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
     match app.route {
         Route::ActionSelect => {
 
-            // If the workflow state select panel is open, scroll down on modal
-            if app.linear_draw_workflow_state_select {
-                debug!("Attempting to scroll up on Workflow State Selection");
-                let handle = &mut *app.linear_workflow_select.workflow_states_data.lock().unwrap();
 
-                state_table::previous(&mut app.linear_workflow_select.workflow_states_state, handle);
-                app.linear_selected_workflow_state_idx = app.linear_workflow_select.workflow_states_state.selected();
+            // If the issue op interface is open, scroll down on modal
+            if app.modifying_issue {
+                debug!("Attempting to scroll up on IssueOpInterface");
+                
+                let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
+                let data_lock = data_handle.lock().unwrap();
+                let mut data_state = app.linear_issue_op_interface.table_state_from_op();
+
+                state_table::previous(&mut data_state, &*data_lock);
+                app.linear_issue_op_interface.selected_workflow_state_idx = app.linear_issue_op_interface.table_state_from_op().selected();
             }
             // If a ViewPanel is selected and no issue modal open, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {

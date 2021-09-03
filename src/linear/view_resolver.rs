@@ -63,7 +63,6 @@ pub struct Filter {
 #[derive(Debug, Clone)]
 pub struct ViewLoader {
     pub load_strategy: ViewLoadStrategy,
-    
     pub direct_filters: Vec<Filter>,
 
     pub filter_ignorable_groups: HashMap<String, Vec<Filter>>,

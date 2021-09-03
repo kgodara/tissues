@@ -3,6 +3,8 @@ use tui::{
 };
 
 // Component Colors
+// white
+pub const ISSUE_MODIFICATION_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u8);
 pub const CUSTOM_VIEW_SELECT_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u8);
 pub const DASHBOARD_VIEW_LIST_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u8);
 
