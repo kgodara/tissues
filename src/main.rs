@@ -63,6 +63,7 @@ use command::{ Command,
                 get_cmd,
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
+                exec_refresh_view_panel_cmd,
                 exec_select_dashboard_view_list_cmd,
                 exec_select_custom_view_select_cmd,
                 exec_open_issue_op_interface_cmd,
@@ -269,6 +270,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::SelectViewPanel(idx) => {
                             // linear_dashboard_view_panel_selected
                             exec_select_view_panel_cmd(&mut app, idx).await;
+                        },
+                        Command::RefreshViewPanel => {
+                            exec_refresh_view_panel_cmd(&mut app, &tx);
                         },
                         Command::SelectDashboardViewList => {
                             exec_select_dashboard_view_list_cmd(&mut app);

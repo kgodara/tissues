@@ -3,7 +3,9 @@ use termion::{event::Key,};
 
 use crate::app::{App, Platform, Route};
 use crate::network::IOEvent;
-use crate::util::{ state_table };
+use crate::util::{ state_table,
+    dashboard::fetch_selected_view_panel_idx,
+};
 use crate::constants::{
     IssueModificationOp
 };
@@ -30,6 +32,8 @@ pub enum Command {
     Quit,
     Delete,
     SelectViewPanel(usize),
+
+    RefreshViewPanel,
     SelectDashboardViewList,
     SelectCustomViewSelect,
 
@@ -69,6 +73,10 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
                 // Delete Command
                 "d" => {
                     Some(Command::Delete)
+                },
+                // Refresh Command
+                "r" => {
+                    Some(Command::RefreshViewPanel)
                 },
                 // Modify Command
                 "w" => {
@@ -219,6 +227,63 @@ pub fn exec_select_custom_view_select_cmd(app: &mut App) {
 
         app.linear_selected_custom_view_idx = table_state.selected();
         app.linear_custom_view_select.view_table_state = table_state;
+    }
+}
+
+pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
+    // Execute command if:
+    //     view panel is selected &&
+    //     view panel is not loading
+
+    debug!("T1");
+
+    if let Some(idx) = fetch_selected_view_panel_idx(app) {
+        debug!("T2");
+        let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
+
+        debug!("T2.5");
+
+        // let mut loading_init_lock = view_panel_list_handle[self.view_panel_to_paginate].loading.lock().unwrap();
+        // let mut panel_loading_lock = view_panel_list_lock[idx].loading.lock().unwrap();
+
+        debug!("idx: {:?}", idx);
+        let mut panel_loading_lock = view_panel_list_lock[idx].loading.lock().unwrap();
+
+        debug!("T3");
+
+        if !*panel_loading_lock {
+
+            // Reset visual selection
+            app.view_panel_issue_selected = Some(TableState::default());
+
+            // Reset the following view panel fields before dispatching event: "paginate_dashboard_view"
+            //     pub issue_table_data: Arc<Mutex<Vec<Value>>>,
+            //     pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
+            //     pub request_num: Arc<Mutex<u32>>,
+            //     pub loading: Arc<Mutex<bool>>,
+
+            let mut loader_lock = view_panel_list_lock[idx].view_loader.lock().unwrap();
+            let mut panel_issue_lock = view_panel_list_lock[idx].issue_table_data.lock().unwrap();
+            let mut request_num_lock = view_panel_list_lock[idx].request_num.lock().unwrap();
+
+            *panel_issue_lock = vec![];
+            *loader_lock = None;
+            *request_num_lock = 0;
+            *panel_loading_lock = false;
+
+            drop(loader_lock);
+            drop(panel_issue_lock);
+            drop(request_num_lock);
+
+            drop(panel_loading_lock);
+            drop(view_panel_list_lock);
+
+            // mark panel for pagination
+            app.view_panel_to_paginate = idx;
+
+            app.dispatch_event("paginate_dashboard_view", tx);
+
+        }
     }
 }
 

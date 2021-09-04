@@ -62,8 +62,19 @@ pub fn fetch_selected_view_panel_issue(app: &App) -> Option<Value> {
 //     app
 // Returns:
 //     Some(usize) is a ViewPanel is selected, None if a ViewPanel is not selected
-pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
+//     Note: it is the index+1,
+pub fn fetch_selected_view_panel_num(app: &App) -> Option<usize> {
     app.linear_dashboard_view_panel_selected
+}
+
+
+// Accepts:
+//     app
+// Returns:
+//     Some(usize) is a ViewPanel is selected, None if a ViewPanel is not selected
+//     Note: it is the zero-based index,
+pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
+    app.linear_dashboard_view_panel_selected.map(|x| x-1)
 }
 
 // Accepts:

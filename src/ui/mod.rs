@@ -20,7 +20,7 @@ use crate::util::{
     ui::{ hex_str_from_style_color },
     table::{ TableStyle },
     issue::{ colored_title_from_issue },
-    dashboard::{fetch_selected_view_panel_issue, fetch_selected_view_panel_idx},    
+    dashboard::{fetch_selected_view_panel_issue, fetch_selected_view_panel_num},    
     layout::{ widths_from_rect },
 };
 
@@ -68,7 +68,7 @@ where
     let mut refresh_cmd_active = false;
 
     // If a View Panel is selected & it is not loading, allow Refresh command
-    if let Some(selected_view_panel_idx) = fetch_selected_view_panel_idx(app) {
+    if let Some(selected_view_panel_idx) = fetch_selected_view_panel_num(app) {
         // Fetch selected ViewPanel
         let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
 

@@ -506,7 +506,7 @@ impl<'a> App<'a> {
                 // Set ViewPanel loading state to true
                 *loading_init_lock = true;
                 drop(loading_init_lock);
-                
+
 
                 let config = self.linear_client.config.clone();
 
