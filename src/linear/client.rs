@@ -308,28 +308,33 @@ impl LinearClient {
     // View Resolver Query Section End -------
 
     // Issue Modification Queries
-    pub async fn get_workflow_states_by_team(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
+    pub async fn get_workflow_states_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
 
         info!("Calling exec_get_workflow_states_by_team - variables: {:?}", variables);
 
         let linear_api_key = verify_linear_api_key(&linear_config)?;
 
-        let query_response = exec_get_workflow_states_by_team(&linear_api_key, variables).await?;
+        let query_response = exec_get_workflow_states_by_team(&linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let workflow_state_nodes = &query_response["data"]["team"]["states"]["nodes"];
+        let cursor_info = &query_response["data"]["team"]["states"]["pageInfo"];
 
-        Ok(workflow_state_nodes.clone())
+        Ok( json!( { "data_nodes": workflow_state_nodes, "cursor_info": cursor_info } ))
+
     }
-    pub async fn get_users_by_team(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
+    pub async fn get_users_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
         info!("Calling exec_get_users_by_team - variables: {:?}", variables);
 
         let linear_api_key = verify_linear_api_key(&linear_config)?;
 
-        let query_response = exec_get_users_by_team(&linear_api_key, variables).await?;
+        let query_response = exec_get_users_by_team(&linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
 
-        Ok(user_nodes.clone())
+        let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
+        let cursor_info = &query_response["data"]["team"]["members"]["pageInfo"];
+
+        Ok( json!( { "data_nodes": user_nodes, "cursor_info": cursor_info } ))
     }
 
     // Note: This operation does not return a different response even if trying to set the Issue's workflow state to its current workflow state

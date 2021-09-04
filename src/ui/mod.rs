@@ -222,14 +222,20 @@ where
     // Draw Linear Issue Op Interface
     if app.modifying_issue {
 
-        let area = util::ui::centered_rect(40, 80, f.size());
+        let area = util::ui::centered_rect(40, 40, f.size());
 
         let issue_op_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
+            .constraints([Constraint::Percentage(100), /*Constraint::Percentage(70)*/].as_ref())
             .split(area);
 
+        f.render_widget(Clear, area); //this clears out the background
+
         let issue_op_widths: Vec<Constraint> = LinearIssueOpInterface::widths_from_rect_op(&issue_op_chunks[0], &app.linear_issue_op_interface.current_op);
+
+        let issue_op_loading_lock = app.linear_issue_op_interface.loading.lock().unwrap();
+
+
 
         let issue_op_table_style = TableStyle {
             title_style: Some(( Value::String(LinearIssueOpInterface::title_from_op(&app.linear_issue_op_interface.current_op)),
@@ -239,9 +245,11 @@ where
             view_idx: None,
             highlight_table: true,
             req_num: None,
-            loading: false,
+            loading: *issue_op_loading_lock,
             loader_state: app.loader_tick
         };
+
+        drop(issue_op_loading_lock);
 
         let data_handle = app.linear_issue_op_interface.table_data_from_op();
         let data_lock = data_handle.lock().unwrap();
@@ -262,7 +270,7 @@ where
         issue_op_table = issue_op_table.widths(&issue_op_widths);
 
         // Render IssueOp table in lower chunk
-        f.render_stateful_widget(issue_op_table, issue_op_chunks[1], &mut table_state);
+        f.render_stateful_widget(issue_op_table, issue_op_chunks[0], &mut table_state);
     }
 }
 

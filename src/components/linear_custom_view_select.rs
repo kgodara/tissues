@@ -41,7 +41,7 @@ impl LinearCustomViewSelect {
         let cursor_info: Value;
 
         match view_fetch_result {
-            Ok(x) => { 
+            Ok(x) => {
                 views = x["view_nodes"].clone();
                 cursor_info = x["cursor_info"].clone();
             },
@@ -54,7 +54,7 @@ impl LinearCustomViewSelect {
         info!("Custom View Fetch Result: {:?}", views);
 
         match views {
-            serde_json::Value::Array(_) => {
+            Value::Array(_) => {
                 info!("Populating LinearCustomViewSelect::view_table_data with: {:?}", views);
 
                 // return Some(issues);

@@ -570,12 +570,22 @@ impl<'a> App<'a> {
                     info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                 });
             },
-            "load_workflows" => {
+            "load_issue_op_data" => {
                 let tx2 = tx.clone();
 
-                let workflow_data_handle = self.linear_issue_op_interface.workflow_states_data.clone();
+                let op_interface_loading_handle = self.linear_issue_op_interface.loading.clone();
+                let mut op_interface_loading_lock = op_interface_loading_handle.lock().unwrap();
+                // If already loading something, don't try again
+                if *op_interface_loading_lock {
+                    return;
+                }
+                // Set Loading 'true' before fetch
+                *op_interface_loading_lock = true;
+                drop(op_interface_loading_lock);
 
+                let issue_op_data_handle = self.linear_issue_op_interface.table_data_from_op();
                 let linear_config = self.linear_client.config.clone();
+                let current_op = self.linear_issue_op_interface.current_op;
 
                 let selected_issue_opt = fetch_selected_view_panel_issue(&self);
                 let selected_issue;
@@ -598,92 +608,70 @@ impl<'a> App<'a> {
                     panic!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
                 }
 
-                debug!("dispatch_event('load_workflows') fetched Issue's team");
+                // Get Cursor
+                let issue_op_cursor_lock = self.linear_issue_op_interface.cursor.lock().unwrap();
+                let issue_op_cursor: GraphQLCursor = issue_op_cursor_lock.clone();
+                drop(issue_op_cursor_lock);
+
+                let issue_op_cursor_handle = self.linear_issue_op_interface.cursor.clone();
 
 
                 let _t1 = tokio::spawn(async move {
 
                     let (resp_tx, resp_rx) = oneshot::channel();
 
-                    debug!("Dispatching LoadWorkflowStates event");
+                    debug!("Dispatching Load-{:?} event", current_op);
 
-                    let cmd = IOEvent::LoadWorkflowStates { linear_config, team: selected_team, resp: resp_tx };
+                    let cmd = match current_op {
+                        IssueModificationOp::ModifyWorkflowState => {
+                            IOEvent::LoadWorkflowStates { linear_config, linear_cursor: issue_op_cursor, team: selected_team, resp: resp_tx }
+                        },
+                        IssueModificationOp::ModifyAssignee => {
+                            IOEvent::LoadTeamMembers { linear_config, linear_cursor: issue_op_cursor, team: selected_team, resp: resp_tx }
+                        },
+                        _ => {
+                            error!("load_issue_op_data - invalid IssueModificationOp: {:?}", current_op);
+                            panic!("load_issue_op_data - invalid IssueModificationOp: {:?}", current_op);
+                        }
+                    };
+
                     tx2.send(cmd).await.unwrap();
 
                     let mut res = resp_rx.await.ok();
 
-                    info!("LoadWorkflowStates IOEvent returned: {:?}", res);
+                    let mut issue_op_cursor_data_lock = issue_op_cursor_handle.lock().unwrap();
+                    let mut loading_lock = op_interface_loading_handle.lock().unwrap();
+                    *loading_lock = false;
 
-                    let mut workflow_data_lock = workflow_data_handle.lock().unwrap();
 
-                    info!("dispatch_event('load_workflows') acquired lock on workflow_data_handle");
+                    info!("Load-{:?} IOEvent returned: {:?}", current_op, res);
+
+                    let mut issue_op_data_lock = issue_op_data_handle.lock().unwrap();
+
+                    let mut current_issue_op_data = issue_op_data_lock.clone();
 
                     if let Some(Some(ref mut x)) = res {
-                        if let Some(states_vec) = x.as_array_mut() {
-                            *workflow_data_lock = states_vec.to_vec();
+                        debug!("x - {:?}", x);
+                        if let Some(values_vec) = x["data"].as_array_mut() {
+                            current_issue_op_data.append(&mut values_vec.to_vec());
+                            *issue_op_data_lock = current_issue_op_data;
+                        }
+
+                        match GraphQLCursor::linear_cursor_from_page_info(x["cursor_info"].clone()) {
+                            Some(z) => {
+                                info!("Updating issue_op_cursor_data_lock to: {:?}", z);
+                                *issue_op_cursor_data_lock = z;
+                            },
+                            None => {
+                                error!("'load_issue_op_data' linear_cursor_from_page_info() failed for cursor_info: {:?}", x["cursor_info"]);
+                                panic!("'load_issue_op_data' linear_cursor_from_page_info() failed for cursor_info: {:?}", x["cursor_info"]);
+                            },
                         }
                     }
 
-                    info!("New self.linear_workflow_select.workflow_states_data: {:?}", workflow_data_lock);
+                    // info!("New self.linear_workflow_select.workflow_states_data: {:?}", workflow_data_lock);
                 });
-            },
-            "load_team_members" => {
-                let tx2 = tx.clone();
-
-                let users_data_handle = self.linear_issue_op_interface.users_data.clone();
-
-                let linear_config = self.linear_client.config.clone();
-
-                let selected_issue_opt = fetch_selected_view_panel_issue(&self);
-                let selected_issue;
-                let selected_team;
-
-                // Check that an Issue is selected, if not return
-                if let Some(x) = selected_issue_opt {
-                    selected_issue = x;
-                }
-                else {
-                    return;
-                }
-
-                // Get the Issue's team,
-                // panic if not found since every Issue should have a value for ['team']['id']
-                selected_team = selected_issue["team"]["id"].clone();
-
-                if selected_team.is_null() {
-                    error!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
-                    panic!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
-                }
-
-                debug!("dispatch_event('load_team_members') fetched Issue's team");
-
-
-                let _t1 = tokio::spawn(async move {
-
-                    let (resp_tx, resp_rx) = oneshot::channel();
-
-                    debug!("Dispatching LoadTeamMembers event");
-
-                    let cmd = IOEvent::LoadTeamMembers { linear_config, team: selected_team, resp: resp_tx };
-                    tx2.send(cmd).await.unwrap();
-
-                    let mut res = resp_rx.await.ok();
-
-                    info!("LoadTeamMembers IOEvent returned: {:?}", res);
-
-                    let mut users_data_lock = users_data_handle.lock().unwrap();
-
-                    info!("dispatch_event('load_workflows') acquired lock on workflow_data_handle");
-
-                    if let Some(Some(ref mut x)) = res {
-                        if let Some(users_vec) = x.as_array_mut() {
-                            *users_data_lock = users_vec.to_vec();
-                        }
-                    }
-
-                    info!("New self.linear_issue_op_interface.users_data: {:?}", users_data_lock);
-                });
-            },
+            }
             "update_issue" => {
                 let tx3 = tx.clone();
 

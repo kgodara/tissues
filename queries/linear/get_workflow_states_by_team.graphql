@@ -1,12 +1,16 @@
-{   "query": "query fetchWorkflowStatesByTeam($ref: String!) {
+{   "query": "query fetchWorkflowStatesByTeam($firstNum: Int, $afterCursor: String, $ref: String!) {
         team(id: $ref) {
-            states {
+            states(first: $firstNum, after: $afterCursor) {
                 nodes {
                     id
                     name
                     type
                     color
                     description
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
                 }
             }
         }

@@ -333,7 +333,6 @@ pub async fn exec_fetch_issues_by_project(api_key: &str, issue_cursor: Option<Gr
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_PROJECT)?;
 
     query["variables"] = Value::Object(variables);
-    // query["variables"] = json!({});
     query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
 
 
@@ -378,13 +377,16 @@ pub async fn exec_get_teams(api_key: &str) -> QueryResult {
 
 // Non Custom View Resolver Queries
 
-pub async fn exec_get_workflow_states_by_team(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+pub async fn exec_get_workflow_states_by_team(api_key: &str, cursor: Option<GraphQLCursor>, variables: Map<String, Value>, page_size: u32) -> QueryResult {
 
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_GET_WORKFLOW_STATES_BY_TEAM)?;
 
     query["variables"] = Value::Object(variables);
+    query["variables"]["firstNum"] = Value::Number(Number::from(page_size));
+
+    set_linear_after_cursor_from_opt(&mut query["variables"], cursor)?;
 
     let client = reqwest::Client::new();
 
@@ -400,12 +402,15 @@ pub async fn exec_get_workflow_states_by_team(api_key: &str, variables: Map<Stri
     Ok(resp)
 }
 
-pub async fn exec_get_users_by_team(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+pub async fn exec_get_users_by_team(api_key: &str, cursor: Option<GraphQLCursor>, variables: Map<String, Value>, page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_GET_USERS_BY_TEAM)?;
 
     query["variables"] = Value::Object(variables);
+    query["variables"]["firstNum"] = Value::Number(Number::from(page_size));
+
+    set_linear_after_cursor_from_opt(&mut query["variables"], cursor)?;
 
     let client = reqwest::Client::new();
 

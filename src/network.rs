@@ -36,11 +36,13 @@ pub enum IOEvent {
 
     LoadWorkflowStates {
         linear_config: LinearConfig,
+        linear_cursor: GraphQLCursor,
         team: Value,
         resp: Responder<Value>,
     },
     LoadTeamMembers {
         linear_config: LinearConfig,
+        linear_cursor: GraphQLCursor,
         team: Value,
         resp: Responder<Value>,
     },

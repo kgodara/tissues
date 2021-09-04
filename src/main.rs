@@ -22,9 +22,13 @@ mod components;
 
 use crate::components::{
     linear_issue_op_interface::LinearIssueOpInterface,
+    linear_custom_view_select::LinearCustomViewSelect,
 };
 
-use crate::linear::client::LinearClient;
+use crate::linear::{
+    client::LinearClient,
+    view_resolver,
+};
 
 use app::Route as Route;
 
@@ -118,14 +122,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = resp.send(tz_list_option);
                 },
                 IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
-                    let option_stateful = components::linear_custom_view_select::LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
+                    let option_stateful = LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
                     info!("LoadCustomViews data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
                 IOEvent::LoadViewIssues { linear_config, view, team_tz_lookup, tz_offset_lookup, issue_data, view_loader, resp } => {
-                    // let option_stateful = linear::view_resolver::get_issues_from_view(&view, linear_config).await;
-                    let issue_list = linear::view_resolver::optimized_view_issue_fetch(&view, view_loader,
+                    let issue_list = view_resolver::optimized_view_issue_fetch(&view, view_loader,
                                                                                         team_tz_lookup,
                                                                                         tz_offset_lookup,
                                                                                         issue_data,
@@ -134,15 +137,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(issue_list);
                 },
-                IOEvent::LoadWorkflowStates { linear_config, team, resp } => {
+                IOEvent::LoadWorkflowStates { linear_config, linear_cursor, team, resp } => {
 
-                    let option_stateful = LinearIssueOpInterface::load_workflow_states_by_team(linear_config, &team).await;
+                    let option_stateful = LinearIssueOpInterface::load_workflow_states_by_team(linear_config, Some(linear_cursor), &team).await;
                     info!("LoadWorkflowStates data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
-                IOEvent::LoadTeamMembers { linear_config, team, resp } => {
-                    let option_stateful = LinearIssueOpInterface::load_users_by_team(linear_config, &team).await;
+                IOEvent::LoadTeamMembers { linear_config, linear_cursor, team, resp } => {
+                    let option_stateful = LinearIssueOpInterface::load_users_by_team(linear_config, Some(linear_cursor), &team).await;
                     info!("LoadTeamMembers data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);

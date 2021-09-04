@@ -232,10 +232,12 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
         app.linear_issue_op_interface.current_op = op;
         app.modifying_issue = true;
 
+        app.dispatch_event("load_issue_op_data", tx);
+        /*
         match op {
             IssueModificationOp::ModifyWorkflowState => {
                 // Dispatch event to load workflow states for team of selected issue
-                app.dispatch_event("load_workflows", tx);
+                app.dispatch_event("load_issue_op_data", tx);
             },
             IssueModificationOp::ModifyAssignee => {
                 // Dispatch event to load team members for team of selected issue
@@ -243,6 +245,7 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
             },
             _ => {panic!("Not ready")}
         }
+        */
 
     }
 }
@@ -376,13 +379,61 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             // If the issue op interface is open, scroll down on modal
             if app.modifying_issue {
                 debug!("Attempting to scroll down on IssueOpInterface");
-                
+
+
+
+
+                let mut load_paginated = false;
+                {
+                    let issue_op_data_handle = app.linear_issue_op_interface.table_data_from_op();
+
+                    let issue_op_data_lock = issue_op_data_handle.lock().unwrap();
+
+                    // if handle.len() == 0:
+                    //     return; (either no custom views, or custom views being loaded)
+
+                    // Check if at end of linear_issue_op_interface.table_data_from_op()
+                    //  If true: Check if app.linear_issue_op_interface.cursor.has_next_page = true
+                    //      If true: dispatch event to load next page of linear issues
+                    //          and merge with current linear_custom_view_select.view_table_data
+
+                    if issue_op_data_lock.is_empty() {
+                        return;
+                    }
+
+                    // if called with len()=0, panics
+                    let is_last_element = state_table::is_last_element(& app.linear_issue_op_interface.data_state, &*issue_op_data_lock);
+                    let cursor_has_next_page;
+
+                    {
+                        let issue_op_cursor_data_lock = app.linear_issue_op_interface.cursor.lock().unwrap();
+                        cursor_has_next_page = issue_op_cursor_data_lock.has_next_page;
+                    }
+
+                    debug!("exec_scroll_down_cmd::Route::ActionSelect - is_last_element, cursor_has_next_page: {:?}, {:?}", is_last_element, cursor_has_next_page);
+
+                    if is_last_element && cursor_has_next_page {
+                        load_paginated = true;
+                    }
+                    else {
+                        state_table::next(&mut app.linear_issue_op_interface.data_state, &*issue_op_data_lock);
+                        app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
+                    }
+                }
+    
+                if load_paginated {
+                    app.dispatch_event("load_issue_op_data", &tx);
+                }
+
+                // Condensed version w/out pagination:
+                /*
                 let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
                 let data_lock = data_handle.lock().unwrap();
                 let mut data_state = &mut app.linear_issue_op_interface.data_state;
 
                 state_table::next(&mut data_state, &*data_lock);
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
+                */
             }
             // If a ViewPanel is selected, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
