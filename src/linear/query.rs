@@ -49,7 +49,25 @@ const LINEAR_SET_ISSUE_ASSIGNEE: &str = "queries/linear/issue_modifications/set_
 const LINEAR_SET_ISSUE_PROJECT: &str = "queries/linear/issue_modifications/set_issue_project.graphql";
 const LINEAR_SET_ISSUE_CYCLE: &str = "queries/linear/issue_modifications/set_issue_cycle.graphql";
 
+lazy_static! {
+    pub static ref CLIENT: reqwest::Client = reqwest::Client::new();
+}
+
+
 type QueryResult = Result<Value, GraphQLRequestError>;
+
+async fn dispatch_linear_req(api_key: &str, query: &Value) -> QueryResult {
+    let r = CLIENT.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(r)
+}
 
 
 pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
@@ -57,26 +75,13 @@ pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQL
     query = parse_graphql_from_file(&LINEAR_FETCH_CUSTOM_VIEWS_PATH)?;
 
     query["variables"] = Value::Object(Map::default());
-    // query["variables"] = json!({});
     query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
 
     set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
 
     info!("fetch_custom_views variables: {:?}", query["variables"]);
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-
-    Ok(resp)
-
+    dispatch_linear_req(api_key, &query).await
 }
 
 pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCursor>, team_tz_page_size: u32) -> QueryResult {
@@ -84,25 +89,13 @@ pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQ
     query = parse_graphql_from_file(&LINEAR_FETCH_TEAM_TIME_ZONES_PATH)?;
 
     query["variables"] = Value::Object(Map::default());
-    // query["variables"] = json!({});
     query["variables"]["firstNum"] = Value::Number(Number::from(team_tz_page_size));
 
     set_linear_after_cursor_from_opt(&mut query["variables"], team_cursor)?;
 
     info!("fetch_team_timezones variables: {:?}", query["variables"]);
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-
-    Ok(resp)
+    dispatch_linear_req(api_key, &query).await
 }
 
 
@@ -120,26 +113,13 @@ pub async fn exec_fetch_all_issues(api_key: &str, issue_cursor: Option<GraphQLCu
 
     info!("fetch_all_issues variables: {:?}", query["variables"]);
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-    Ok(resp)
+    dispatch_linear_req(api_key, &query).await
 }
 
 pub async fn exec_fetch_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
     let mut query;
 
     query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_TEAM_PATH)?;
-
-    // query["variables"] = Value::Object(variables);
-
 
     query["variables"] = Value::Object(variables);
     query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
@@ -150,18 +130,7 @@ pub async fn exec_fetch_issues_by_team(api_key: &str, issue_cursor: Option<Graph
 
     info!("fetch_issues_by_team variables: {:?}", query["variables"]);
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-
-    Ok(resp)
+    dispatch_linear_req(api_key, &query).await
 }
 
 
@@ -190,18 +159,7 @@ pub async fn exec_fetch_issue_by_direct_filter(filter_type: &FilterType, api_key
 
     info!("exec_fetch_issue_by_direct_filter - {:?} - variables: {:?}", filter_type, query["variables"]);
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-
-    Ok(resp)
+    dispatch_linear_req(api_key, &query).await
 }
 
 
@@ -228,18 +186,7 @@ pub async fn exec_get_issue_op_data(op: &IssueModificationOp, api_key: &str, cur
 
     set_linear_after_cursor_from_opt(&mut query["variables"], cursor)?;
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-
-    Ok(resp)
+    dispatch_linear_req(api_key, &query).await
 }
 
 // Issue Op Update Mutations
@@ -260,16 +207,5 @@ pub async fn exec_update_issue(op: &IssueModificationOp, api_key: &str, variable
 
     info!("{:?} query: {:?}", op, query);
 
-    let client = reqwest::Client::new();
-
-    let resp = client.post("https://api.linear.app/graphql")
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", api_key)
-                        .json(&query)
-                        .send()
-                        .await?
-                        .json()
-                        .await?;
-
-    Ok(resp)
+    dispatch_linear_req(api_key, &query).await
 }

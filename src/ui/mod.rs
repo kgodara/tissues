@@ -19,7 +19,6 @@ use crate::util::{
     ui,
     ui::{ hex_str_from_style_color },
     table::{ TableStyle },
-    issue::{ colored_title_from_issue },
     dashboard::{fetch_selected_view_panel_issue, fetch_selected_view_panel_num},    
     layout::{ widths_from_rect },
 };
@@ -27,8 +26,7 @@ use crate::util::{
 use crate::constants::{
     colors,
     table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS,
-        VIEW_PANEL_COLUMNS, WORKFLOW_STATE_SELECT_COLUMNS },
-    IssueModificationOp
+        VIEW_PANEL_COLUMNS },
 };
 
 use tui::{

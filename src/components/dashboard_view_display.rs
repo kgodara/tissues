@@ -101,15 +101,6 @@ impl DashboardViewDisplay {
         })
         .collect();
 
-
-        // Get widths based on TableColumns
-
-        // lazy_static! provides a struct which dereferences towards target struct, hence: '&*'
-        // https://github.com/rust-lang-nursery/lazy-static.rs/issues/119#issuecomment-419595818
-        // debug!("get_rendered_view_table - widths_from_rect(): {:?}", widths_from_rect(bbox, &*DASHBOARD_VIEW_CONFIG_COLUMNS));
-
-        // let widths: Vec<Constraint> = widths_from_rect(bbox, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
-
         let t = Table::new(rows)
             .header(header)
             .block(Block::default()
@@ -120,7 +111,6 @@ impl DashboardViewDisplay {
             .highlight_style(selected_style);
 
         Ok(t)
-
     }
 }
 

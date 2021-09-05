@@ -29,7 +29,7 @@ use crate::util::{
 use crate::constants::{
     IssueModificationOp,
     colors,
-    table_columns::{ TableColumn,
+    table_columns::{
         WORKFLOW_STATE_SELECT_COLUMNS, ASSIGNEE_SELECT_COLUMNS,
         PROJECT_SELECT_COLUMNS, CYCLE_SELECT_COLUMNS
     }
