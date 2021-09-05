@@ -709,39 +709,12 @@ impl<'a> App<'a> {
                 let _t3 = tokio::spawn( async move {
                     let (resp2_tx, resp2_rx) = oneshot::channel();
 
-                    let cmd = match current_op {
-                        IssueModificationOp::ModifyWorkflowState => {
-                            IOEvent::UpdateIssueWorkflowState {   linear_config,
-                                issue_id: issue_id.clone(),
-                                workflow_state_id: selected_value_id,
-                                resp: resp2_tx  
-                            }
-                        },
-                        IssueModificationOp::ModifyAssignee => {
-                            IOEvent::UpdateIssueAssignee {   linear_config,
-                                issue_id: issue_id.clone(),
-                                assignee_id: selected_value_id,
-                                resp: resp2_tx  
-                            }
-                        },
-                        IssueModificationOp::ModifyProject => {
-                            IOEvent::UpdateIssueProject {   linear_config,
-                                issue_id: issue_id.clone(),
-                                project_id: selected_value_id,
-                                resp: resp2_tx  
-                            }
-                        },
-                        IssueModificationOp::ModifyCycle => {
-                            IOEvent::UpdateIssueCycle {   linear_config,
-                                issue_id: issue_id.clone(),
-                                cycle_id: selected_value_id,
-                                resp: resp2_tx  
-                            }
-                        },
-                        _ => {
-                            error!("IssueModificationOp not supported for 'update_issue': {:?}", current_op);
-                            panic!("IssueModificationOp not supported for 'update_issue': {:?}", current_op);
-                        }
+                    let cmd = IOEvent::UpdateIssue {
+                        op: current_op,
+                        linear_config,
+                        issue_id: issue_id.clone(),
+                        ref_id: selected_value_id,
+                        resp: resp2_tx
                     };
 
                     tx3.send(cmd).await.unwrap();
