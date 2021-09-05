@@ -23,9 +23,13 @@ use super::query::{
 
     exec_get_workflow_states_by_team,
     exec_get_users_by_team,
+    exec_get_projects_by_team,
+    exec_get_cycles_by_team,
     
     exec_update_issue_workflow_state,
     exec_update_issue_assignee,
+    exec_update_issue_project,
+    exec_update_issue_cycle,
 };
 
 
@@ -320,7 +324,6 @@ impl LinearClient {
         let cursor_info = &query_response["data"]["team"]["states"]["pageInfo"];
 
         Ok( json!( { "data_nodes": workflow_state_nodes, "cursor_info": cursor_info } ))
-
     }
     pub async fn get_users_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
         info!("Calling exec_get_users_by_team - variables: {:?}", variables);
@@ -330,12 +333,39 @@ impl LinearClient {
         let query_response = exec_get_users_by_team(&linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
-
-        let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
         let cursor_info = &query_response["data"]["team"]["members"]["pageInfo"];
 
         Ok( json!( { "data_nodes": user_nodes, "cursor_info": cursor_info } ))
     }
+    pub async fn get_projects_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
+        info!("Calling exec_get_projects_by_team - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        let query_response = exec_get_projects_by_team(&linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
+
+        let project_nodes = &query_response["data"]["team"]["projects"]["nodes"];
+        let cursor_info = &query_response["data"]["team"]["projects"]["pageInfo"];
+
+        Ok( json!( { "data_nodes": project_nodes, "cursor_info": cursor_info } ))
+    }
+    pub async fn get_cycles_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
+        info!("Calling exec_get_cycles_by_team - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        debug!("dispatching query");
+
+        let query_response = exec_get_cycles_by_team(&linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
+
+        debug!("got query response");
+
+        let cycle_nodes = &query_response["data"]["team"]["cycles"]["nodes"];
+        let cursor_info = &query_response["data"]["team"]["cycles"]["pageInfo"];
+
+        Ok( json!( { "data_nodes": cycle_nodes, "cursor_info": cursor_info } ))
+    }
+
 
     // Note: This operation does not return a different response even if trying to set the Issue's workflow state to its current workflow state
     pub async fn update_issue_workflow_state(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
@@ -370,7 +400,6 @@ impl LinearClient {
 
     }
 
-    // Note: This operation does not return a different response even if trying to set the Issue's workflow state to its current workflow state
     pub async fn update_issue_assignee(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
 
         info!("Calling update_issue_workflow_state - variables: {:?}", variables);
@@ -378,6 +407,35 @@ impl LinearClient {
         let linear_api_key = verify_linear_api_key(&linear_config)?;
 
         let query_response = exec_update_issue_assignee(&linear_api_key, variables).await?;
+
+        let issue_node = &query_response["data"]["issueUpdate"]["issue"];
+        let success = &query_response["data"]["issueUpdate"]["success"];
+
+        Ok( json!( { "issue_response": issue_node, "success": success } ) )
+    }
+
+
+    pub async fn update_issue_project(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
+
+        info!("Calling update_issue_project - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        let query_response = exec_update_issue_project(&linear_api_key, variables).await?;
+
+        let issue_node = &query_response["data"]["issueUpdate"]["issue"];
+        let success = &query_response["data"]["issueUpdate"]["success"];
+
+        Ok( json!( { "issue_response": issue_node, "success": success } ) )
+    }
+
+    pub async fn update_issue_cycle(linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
+
+        info!("Calling update_issue_cycle - variables: {:?}", variables);
+
+        let linear_api_key = verify_linear_api_key(&linear_config)?;
+
+        let query_response = exec_update_issue_cycle(&linear_api_key, variables).await?;
 
         let issue_node = &query_response["data"]["issueUpdate"]["issue"];
         let success = &query_response["data"]["issueUpdate"]["success"];

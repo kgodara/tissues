@@ -65,6 +65,9 @@ where
 
     // Determine which Commands are allowed based on state of selection
     let mut modify_workflow_state_cmd_active = false;
+    let mut modify_assignee_cmd_active = false;
+    let mut modify_project_cmd_active = false;
+    let mut modify_cycle_cmd_active = false;
     let mut refresh_cmd_active = false;
 
     // If a View Panel is selected & it is not loading, allow Refresh command
@@ -84,10 +87,18 @@ where
     // If a View Panel Issue is selected, allow ModifyWorkflowState command
     if fetch_selected_view_panel_issue(app).is_some() {
         modify_workflow_state_cmd_active = true;
+        modify_assignee_cmd_active = true;
+        modify_project_cmd_active = true;
+        modify_cycle_cmd_active = true;
     }
 
     // Update Command statuses
     app.view_panel_cmd_bar.set_modify_workflow_state_active(modify_workflow_state_cmd_active);
+    app.view_panel_cmd_bar.set_modify_assignee_active(modify_assignee_cmd_active);
+    app.view_panel_cmd_bar.set_modify_project_active(modify_project_cmd_active);
+    app.view_panel_cmd_bar.set_modify_cycle_active(modify_cycle_cmd_active);
+
+
     app.view_panel_cmd_bar.set_refresh_panel_active(refresh_cmd_active);
 
     // Render command bar

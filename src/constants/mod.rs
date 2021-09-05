@@ -4,7 +4,13 @@ pub mod colors;
 
 #[derive(Debug, Clone, Copy)]
 pub enum IssueModificationOp {
+    // implemented
     ModifyWorkflowState,
     ModifyAssignee,
+    ModifyProject,
+    ModifyCycle,
+    ModifyTeam,
+
+    // unimplemented
     ModifyLabels,
 }

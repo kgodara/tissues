@@ -85,6 +85,12 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
                 "a" => {
                     Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyAssignee))
                 },
+                "p" => {
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyProject))
+                },
+                "c" => {
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyCycle))
+                },
 
                 // View Panel Selection Shortcuts
                 "1" => {
@@ -298,20 +304,6 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
         app.modifying_issue = true;
 
         app.dispatch_event("load_issue_op_data", tx);
-        /*
-        match op {
-            IssueModificationOp::ModifyWorkflowState => {
-                // Dispatch event to load workflow states for team of selected issue
-                app.dispatch_event("load_issue_op_data", tx);
-            },
-            IssueModificationOp::ModifyAssignee => {
-                // Dispatch event to load team members for team of selected issue
-                app.dispatch_event("load_team_members", tx);
-            },
-            _ => {panic!("Not ready")}
-        }
-        */
-
     }
 }
 
@@ -355,15 +347,7 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
 
             // If a state change is confirmed, dispatch & reset
             if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update() {
-                match app.linear_issue_op_interface.current_op {
-                    IssueModificationOp::ModifyWorkflowState => {
-                        app.dispatch_event("update_issue", &tx);
-                    },
-                    IssueModificationOp::ModifyAssignee => {
-                        app.dispatch_event("update_issue", &tx);
-                    }
-                    _ => {panic!("Not ready")}
-                }
+                app.dispatch_event("update_issue", &tx);
                 app.modifying_issue = false;
             }
 

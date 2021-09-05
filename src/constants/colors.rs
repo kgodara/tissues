@@ -38,3 +38,11 @@ pub const MODIFY_WORKFLOW_STATE_CMD_INACTIVE: Color = Color::Rgb( 189u8, 99u8, 2
 // Red (25% darker for inactive) -- https://pinetools.com/darken-color
 pub const MODIFY_ASSIGNEE_CMD_ACTIVE: Color = Color::Rgb( 184u8, 4u8, 4u8 );
 pub const MODIFY_ASSIGNEE_CMD_INACTIVE: Color = Color::Rgb( 138u8, 3u8, 3u8 );
+
+// Purple (25% darker for inactive) -- https://pinetools.com/darken-color
+pub const MODIFY_PROJECT_CMD_ACTIVE: Color = Color::Rgb( 83u8, 25u8, 231u8 );
+pub const MODIFY_PROJECT_CMD_INACTIVE: Color = Color::Rgb( 61u8, 18u8, 173u8 );
+
+// Green (25% darker for inactive) -- https://pinetools.com/darken-color
+pub const MODIFY_CYCLE_CMD_ACTIVE: Color = Color::Rgb( 14u8, 138u8, 22u8 );
+pub const MODIFY_CYCLE_CMD_INACTIVE: Color = Color::Rgb( 10u8, 103u8, 16u8 );

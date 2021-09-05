@@ -622,17 +622,11 @@ impl<'a> App<'a> {
 
                     debug!("Dispatching Load-{:?} event", current_op);
 
-                    let cmd = match current_op {
-                        IssueModificationOp::ModifyWorkflowState => {
-                            IOEvent::LoadWorkflowStates { linear_config, linear_cursor: issue_op_cursor, team: selected_team, resp: resp_tx }
-                        },
-                        IssueModificationOp::ModifyAssignee => {
-                            IOEvent::LoadTeamMembers { linear_config, linear_cursor: issue_op_cursor, team: selected_team, resp: resp_tx }
-                        },
-                        _ => {
-                            error!("load_issue_op_data - invalid IssueModificationOp: {:?}", current_op);
-                            panic!("load_issue_op_data - invalid IssueModificationOp: {:?}", current_op);
-                        }
+                    let cmd = IOEvent::LoadOpData { op: current_op,
+                        linear_config,
+                        linear_cursor: issue_op_cursor,
+                        team: selected_team,
+                        resp: resp_tx 
                     };
 
                     tx2.send(cmd).await.unwrap();
@@ -730,9 +724,23 @@ impl<'a> App<'a> {
                                 resp: resp2_tx  
                             }
                         },
+                        IssueModificationOp::ModifyProject => {
+                            IOEvent::UpdateIssueProject {   linear_config,
+                                issue_id: issue_id.clone(),
+                                project_id: selected_value_id,
+                                resp: resp2_tx  
+                            }
+                        },
+                        IssueModificationOp::ModifyCycle => {
+                            IOEvent::UpdateIssueCycle {   linear_config,
+                                issue_id: issue_id.clone(),
+                                cycle_id: selected_value_id,
+                                resp: resp2_tx  
+                            }
+                        },
                         _ => {
                             error!("IssueModificationOp not supported for 'update_issue': {:?}", current_op);
-                            panic!("Not ready");
+                            panic!("IssueModificationOp not supported for 'update_issue': {:?}", current_op);
                         }
                     };
 
@@ -773,6 +781,8 @@ impl<'a> App<'a> {
                                         match current_op {
                                             IssueModificationOp::ModifyWorkflowState => {issue_obj["state"] = value_obj.clone();},
                                             IssueModificationOp::ModifyAssignee => {issue_obj["assignee"] = value_obj.clone();},
+                                            IssueModificationOp::ModifyProject => {issue_obj["project"] = value_obj.clone();},
+                                            IssueModificationOp::ModifyCycle => {issue_obj["cycle"] = value_obj.clone();},
                                             _ => {}
                                         }
                                     }

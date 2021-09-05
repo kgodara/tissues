@@ -9,6 +9,8 @@ pub enum DashboardCommand {
     RefreshPanel,
     ModifyWorkflowState,
     ModifyAssignee,
+    ModifyProject,
+    ModifyCycle,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +67,20 @@ impl Default for CommandList<'_> {
                     active_color: colors::MODIFY_ASSIGNEE_CMD_ACTIVE,
                     inactive_color: colors::MODIFY_ASSIGNEE_CMD_INACTIVE,
                 },
+                CommandValue { key_char: 'p',
+                    cmd_type: Command::Dashboard(DashboardCommand::ModifyProject),
+                    label: "Modify Project",
+                    active_color: colors::MODIFY_PROJECT_CMD_ACTIVE,
+                    inactive_color: colors::MODIFY_PROJECT_CMD_INACTIVE,
+                },
+                CommandValue { key_char: 'c',
+                    cmd_type: Command::Dashboard(DashboardCommand::ModifyCycle),
+                    label: "Modify Cycle",
+                    active_color: colors::MODIFY_CYCLE_CMD_ACTIVE,
+                    inactive_color: colors::MODIFY_CYCLE_CMD_INACTIVE,
+                },
+
+
             ],
             view_list: vec![
                 CommandValue { key_char: 'd',

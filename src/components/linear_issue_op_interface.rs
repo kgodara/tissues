@@ -29,7 +29,10 @@ use crate::util::{
 use crate::constants::{
     IssueModificationOp,
     colors,
-    table_columns::{ TableColumn, WORKFLOW_STATE_SELECT_COLUMNS, ASSIGNEE_SELECT_COLUMNS }
+    table_columns::{ TableColumn,
+        WORKFLOW_STATE_SELECT_COLUMNS, ASSIGNEE_SELECT_COLUMNS,
+        PROJECT_SELECT_COLUMNS, CYCLE_SELECT_COLUMNS
+    }
 };
 
 pub struct LinearIssueOpInterface {
@@ -42,12 +45,15 @@ pub struct LinearIssueOpInterface {
 
     pub workflow_states_data: Arc<Mutex<Vec<Value>>>,
     pub users_data: Arc<Mutex<Vec<Value>>>,
+    pub projects_data: Arc<Mutex<Vec<Value>>>,
+    pub cycles_data: Arc<Mutex<Vec<Value>>>,
 }
 
 
 impl LinearIssueOpInterface {
 
     // loading functions section start
+    /*
     pub async fn load_workflow_states_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, team: &Value) -> Option<Value> {
 
         let team_id;
@@ -135,6 +141,73 @@ impl LinearIssueOpInterface {
             _ => {return None;},
         }
     }
+    */
+
+    pub async fn load_op_data(op: &IssueModificationOp,
+        linear_config: LinearConfig,
+        linear_cursor: Option<GraphQLCursor>,
+        team: &Value)-> Option<Value> {
+
+        let team_id;
+        if let Some(x) = team.as_str() {
+            team_id = x;
+        }
+        else {
+            return None;
+        }
+
+        let mut variables: Map<String, Value> = Map::new();
+        variables.insert(String::from("ref"), Value::String(String::from(team_id)));
+
+        debug!("load_op_data about to dispatch query");
+
+        let data_result = match op {
+            IssueModificationOp::ModifyWorkflowState => {
+                LinearClient::get_workflow_states_by_team(linear_config, linear_cursor, variables).await
+            }
+            IssueModificationOp::ModifyAssignee => {
+                LinearClient::get_users_by_team(linear_config, linear_cursor, variables).await
+            },
+            IssueModificationOp::ModifyProject => {
+                LinearClient::get_projects_by_team(linear_config, linear_cursor, variables).await
+            },
+            IssueModificationOp::ModifyCycle => {
+                LinearClient::get_cycles_by_team(linear_config, linear_cursor, variables).await
+            },
+            _ => {
+                error!("LinearIssueOpInterface::load_op_data, invalid IssueModificationOp: {:?}", op);
+                panic!("LinearIssueOpInterface::load_op_data, invalid IssueModificationOp: {:?}", op);
+            }
+        };
+
+        let data: Value;
+        let cursor_info: Value;
+
+        match data_result {
+            Ok(x) => {
+                data = x["data_nodes"].clone();
+                cursor_info = x["cursor_info"].clone();
+            },
+            Err(y) => {
+                error!("Get data for {:?} failed: {:?}", op, y);
+                return None;
+            },
+        }
+
+        debug!("load_op_data - op, data: {:?}, {:?}", op, data);
+
+        if data == Value::Null {
+            return Some(Value::Array(vec![]));
+        }
+
+        match data {
+            Value::Array(_) => {
+                return Some(json!( { "data": data, "cursor_info": cursor_info } ));
+            },
+            _ => {return None;},
+        }
+    }
+
     // loading functions section end
 
     pub fn table_data_from_op(&self) -> Arc<Mutex<Vec<Value>>> {
@@ -144,6 +217,12 @@ impl LinearIssueOpInterface {
             },
             IssueModificationOp::ModifyAssignee => {
                 self.users_data.clone()
+            },
+            IssueModificationOp::ModifyProject => {
+                self.projects_data.clone()
+            },
+            IssueModificationOp::ModifyCycle => {
+                self.cycles_data.clone()
             }
             _ => {panic!("Not ready")}
         }
@@ -155,6 +234,12 @@ impl LinearIssueOpInterface {
                 self.selected_idx.is_some()
             },
             IssueModificationOp::ModifyAssignee => {
+                self.selected_idx.is_some()
+            },
+            IssueModificationOp::ModifyProject => {
+                self.selected_idx.is_some()
+            },
+            IssueModificationOp::ModifyCycle => {
                 self.selected_idx.is_some()
             },
             _ => {panic!("not ready")}
@@ -169,6 +254,14 @@ impl LinearIssueOpInterface {
             },
             IssueModificationOp::ModifyAssignee => {
                 self.users_data = Arc::new(Mutex::new(vec![]));
+                self.selected_idx = None;
+            },
+            IssueModificationOp::ModifyProject => {
+                self.projects_data = Arc::new(Mutex::new(vec![]));
+                self.selected_idx = None;
+            },
+            IssueModificationOp::ModifyCycle => {
+                self.cycles_data = Arc::new(Mutex::new(vec![]));
                 self.selected_idx = None;
             },
             _ => {panic!("Not ready")}
@@ -205,6 +298,30 @@ impl LinearIssueOpInterface {
 
                 format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS)
             },
+            IssueModificationOp::ModifyProject => {
+                cell_fields = values_to_str(
+                    &[
+                        row["name"].clone(),
+                        row["state"].clone(),
+                    ],
+                    &PROJECT_SELECT_COLUMNS
+                );
+
+                format_cell_fields(&cell_fields, widths, &PROJECT_SELECT_COLUMNS)
+            },
+            IssueModificationOp::ModifyCycle => {
+                cell_fields = values_to_str(
+                    &[
+                        row["name"].clone(),
+                        row["number"].clone(),
+                        row["startsAt"].clone(),
+                        row["endsAt"].clone(),
+                    ],
+                    &CYCLE_SELECT_COLUMNS
+                );
+
+                format_cell_fields(&cell_fields, widths, &CYCLE_SELECT_COLUMNS)
+            },
             _ => {
                 panic!("Not ready yet");
             }
@@ -218,7 +335,13 @@ impl LinearIssueOpInterface {
             },
             IssueModificationOp::ModifyAssignee => {
                 widths_from_rect(bbox, &ASSIGNEE_SELECT_COLUMNS)
-            }
+            },
+            IssueModificationOp::ModifyProject => {
+                widths_from_rect(bbox, &PROJECT_SELECT_COLUMNS)
+            },
+            IssueModificationOp::ModifyCycle => {
+                widths_from_rect(bbox, &CYCLE_SELECT_COLUMNS)
+            },
             _ => {panic!("Not ready")}
         }
     }
@@ -230,6 +353,12 @@ impl LinearIssueOpInterface {
             },
             IssueModificationOp::ModifyAssignee => {
                 "Select New Assignee".to_string()
+            },
+            IssueModificationOp::ModifyProject => {
+                "Select New Project".to_string()
+            },
+            IssueModificationOp::ModifyCycle => {
+                "Select New Cycle".to_string()
             },
             _ => {
                 panic!("Not ready");
@@ -252,7 +381,12 @@ impl LinearIssueOpInterface {
         let header_cells: Vec<Cell> = match op {
                 IssueModificationOp::ModifyWorkflowState => { &*WORKFLOW_STATE_SELECT_COLUMNS },
                 IssueModificationOp::ModifyAssignee => { &*ASSIGNEE_SELECT_COLUMNS },
-                _ => { panic!("Not ready") }
+                IssueModificationOp::ModifyProject => { &*PROJECT_SELECT_COLUMNS },
+                IssueModificationOp::ModifyCycle => { &*CYCLE_SELECT_COLUMNS },
+                _ => { 
+                    error!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
+                    panic!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
+                }
             }
             .iter()
             .map(|h| Cell::from(&*h.label).style(Style::default().fg(Color::LightGreen)))
@@ -290,6 +424,17 @@ impl LinearIssueOpInterface {
                     },
                     IssueModificationOp::ModifyAssignee => {
                         // No colored cell for users
+                    },
+                    IssueModificationOp::ModifyProject => {
+                        let name: String = cell_fields_formatted[0].clone();
+                        let color = row["color"].clone();
+        
+                        // Insert new "name" cell, and remove unformatted version
+                        cells.insert(0, colored_cell(name, color));
+                        cells.remove(1);
+                    },
+                    IssueModificationOp::ModifyCycle => {
+                        // No colored cell for cycles
                     },
                     _ => {
                         panic!("Not ready yet");
@@ -337,6 +482,8 @@ impl Default for LinearIssueOpInterface {
 
             workflow_states_data: Arc::new(Mutex::new(vec![])),
             users_data: Arc::new(Mutex::new(vec![])),
+            projects_data: Arc::new(Mutex::new(vec![])),
+            cycles_data: Arc::new(Mutex::new(vec![])),
         }
     }
 }

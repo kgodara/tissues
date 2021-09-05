@@ -40,6 +40,16 @@ impl GraphQLCursor {
                         has_next_page: *page_bool,
                         end_cursor: cursor_str.clone(),
                     });
+                } else if !page_bool {
+                    // allow for null endCursor if no more pages remain
+                    // https://github.com/kgodara/rust-cli/issues/78
+                    if let Value::Null = &page_object["endCursor"] {
+                        return_option = Some(GraphQLCursor {
+                            platform: Platform::Linear,
+                            has_next_page: *page_bool,
+                            end_cursor: "".to_string(),
+                        });
+                    }
                 }
             }
         }

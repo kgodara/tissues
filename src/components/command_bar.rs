@@ -25,6 +25,8 @@ pub struct CommandBar<'a> {
     refresh_panel_active: bool,
     modify_workflow_state_active: bool,
     modify_assignee_active: bool,
+    modify_project_active: bool,
+    modify_cycle_active: bool,
 
     // View List Command States
     remove_view_active: bool,
@@ -42,6 +44,8 @@ impl<'a> CommandBar<'a> {
             refresh_panel_active: false,
             modify_workflow_state_active: false,
             modify_assignee_active: false,
+            modify_project_active: false,
+            modify_cycle_active: false,
 
             // View List Command States
             remove_view_active: false,
@@ -85,6 +89,30 @@ impl<'a> CommandBar<'a> {
         }
     }
 
+    pub fn set_modify_project_active(&mut self, state: bool) {
+        match self.command_bar_type {
+            CommandBarType::Dashboard => {
+                self.modify_project_active = state;
+            },
+            _ => {
+                error!("'set_modify_project_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                panic!("'set_modify_project_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+            },
+        }
+    }
+
+    pub fn set_modify_cycle_active(&mut self, state: bool) {
+        match self.command_bar_type {
+            CommandBarType::Dashboard => {
+                self.modify_cycle_active = state;
+            },
+            _ => {
+                error!("'set_modify_cycle_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                panic!("'set_modify_cycle_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+            },
+        }
+    }
+
 
     // View List Command Setters
     pub fn set_remove_view_active(&mut self, state: bool) {
@@ -117,14 +145,28 @@ impl<'a> CommandBar<'a> {
                                 if self.modify_workflow_state_active {
                                     Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_WORKFLOW_STATE_CMD_ACTIVE)
                                 } else {
-                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_WORKFLOW_STATE_CMD_INACTIVE)
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::MODIFY_WORKFLOW_STATE_CMD_INACTIVE)
                                 }
                             },
                             DashboardCommand::ModifyAssignee => {
                                 if self.modify_workflow_state_active {
                                     Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_ASSIGNEE_CMD_ACTIVE)
                                 } else {
-                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_ASSIGNEE_CMD_INACTIVE)
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::MODIFY_ASSIGNEE_CMD_INACTIVE)
+                                }
+                            },
+                            DashboardCommand::ModifyProject => {
+                                if self.modify_workflow_state_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_PROJECT_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::MODIFY_PROJECT_CMD_INACTIVE)
+                                }
+                            },
+                            DashboardCommand::ModifyCycle => {
+                                if self.modify_workflow_state_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_CYCLE_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::MODIFY_CYCLE_CMD_INACTIVE)
                                 }
                             }
                         }
@@ -196,8 +238,7 @@ impl<'a> CommandBar<'a> {
                 Style::default()
                     .bg(Color::LightGreen)
                     .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
+            );
         
         Ok(items)
     }

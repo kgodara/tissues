@@ -42,6 +42,22 @@ lazy_static! {
         ]
     };
 
+    pub static ref PROJECT_SELECT_COLUMNS: Vec<TableColumn<'static>> = {
+        vec![
+            TableColumn { label: "Name", null_fallback: "", min_width: 4, max_height: 2, priority: 2 },
+            TableColumn { label: "State", null_fallback: "", min_width: 5, max_height: 2, priority: 2 },
+        ]
+    };
+
+    pub static ref CYCLE_SELECT_COLUMNS: Vec<TableColumn<'static>> = {
+        vec![
+            TableColumn { label: "Name", null_fallback: "", min_width: 4, max_height: 2, priority: 3 },
+            TableColumn { label: "Number", null_fallback: "", min_width: 6, max_height: 2, priority: 1 },
+            TableColumn { label: "startsAt", null_fallback: "", min_width: 9, max_height: 1, priority: 2 },
+            TableColumn { label: "endsAt", null_fallback: "", min_width: 9, max_height: 1, priority: 2 },
+        ]
+    };
+
     // Issue Modification Columns End
 
     pub static ref DASHBOARD_VIEW_CONFIG_COLUMNS: Vec<TableColumn<'static>> = {

@@ -37,11 +37,16 @@ const LINEAR_GET_TEAMS_PATH: &str = "queries/linear/get_teams.graphql";
 
 const LINEAR_FETCH_ISSUES_BY_TEAM_PATH_OLD: &str = "queries/linear/fetch_issues_by_team.graphql";
 
-const LINEAR_GET_WORKFLOW_STATES_BY_TEAM: &str = "queries/linear/get_workflow_states_by_team.graphql";
-const LINEAR_GET_USERS_BY_TEAM: &str = "queries/linear/get_users_by_team.graphql";
+const LINEAR_GET_WORKFLOW_STATES_BY_TEAM: &str = "queries/linear/op_fetch/get_workflow_states_by_team.graphql";
+const LINEAR_GET_USERS_BY_TEAM: &str = "queries/linear/op_fetch/get_users_by_team.graphql";
+const LINEAR_GET_PROJECTS_BY_TEAM: &str = "queries/linear/op_fetch/get_projects_by_team.graphql";
+const LINEAR_GET_CYCLES_BY_TEAM: &str = "queries/linear/op_fetch/get_cycles_by_team.graphql";
 
-const LINEAR_UPDATE_ISSUE_WORKFLOW_STATE: &str = "queries/linear/issue_modifications/update_issue_workflow_state.graphql";
-const LINEAR_UPDATE_ISSUE_ASSIGNEE: &str = "queries/linear/issue_modifications/update_issue_assignee.graphql";
+
+const LINEAR_SET_ISSUE_WORKFLOW_STATE: &str = "queries/linear/issue_modifications/set_issue_workflow_state.graphql";
+const LINEAR_SET_ISSUE_ASSIGNEE: &str = "queries/linear/issue_modifications/set_issue_assignee.graphql";
+const LINEAR_SET_ISSUE_PROJECT: &str = "queries/linear/issue_modifications/set_issue_project.graphql";
+const LINEAR_SET_ISSUE_CYCLE: &str = "queries/linear/issue_modifications/set_issue_cycle.graphql";
 
 type QueryResult = Result<Value, GraphQLRequestError>;
 
@@ -377,6 +382,7 @@ pub async fn exec_get_teams(api_key: &str) -> QueryResult {
 
 // Non Custom View Resolver Queries
 
+// Issue Op Quries
 pub async fn exec_get_workflow_states_by_team(api_key: &str, cursor: Option<GraphQLCursor>, variables: Map<String, Value>, page_size: u32) -> QueryResult {
 
     let mut query;
@@ -426,10 +432,60 @@ pub async fn exec_get_users_by_team(api_key: &str, cursor: Option<GraphQLCursor>
     Ok(resp)
 }
 
+pub async fn exec_get_projects_by_team(api_key: &str, cursor: Option<GraphQLCursor>, variables: Map<String, Value>, page_size: u32) -> QueryResult {
+    let mut query;
+
+    query = parse_graphql_from_file(&LINEAR_GET_PROJECTS_BY_TEAM)?;
+
+    query["variables"] = Value::Object(variables);
+    query["variables"]["firstNum"] = Value::Number(Number::from(page_size));
+
+    set_linear_after_cursor_from_opt(&mut query["variables"], cursor)?;
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+}
+
+pub async fn exec_get_cycles_by_team(api_key: &str, cursor: Option<GraphQLCursor>, variables: Map<String, Value>, page_size: u32) -> QueryResult {
+    let mut query;
+
+    query = parse_graphql_from_file(&LINEAR_GET_CYCLES_BY_TEAM)?;
+
+    query["variables"] = Value::Object(variables);
+    query["variables"]["firstNum"] = Value::Number(Number::from(page_size));
+
+    set_linear_after_cursor_from_opt(&mut query["variables"], cursor)?;
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+}
+
+
+// Issue Op Update Mutations
 pub async fn exec_update_issue_workflow_state(api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query;
-    query = parse_graphql_from_file(&LINEAR_UPDATE_ISSUE_WORKFLOW_STATE)?;
+    query = parse_graphql_from_file(&LINEAR_SET_ISSUE_WORKFLOW_STATE)?;
 
     query["variables"] = Value::Object(variables);
 
@@ -453,11 +509,59 @@ pub async fn exec_update_issue_workflow_state(api_key: &str, variables: Map<Stri
 pub async fn exec_update_issue_assignee(api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query;
-    query = parse_graphql_from_file(&LINEAR_UPDATE_ISSUE_ASSIGNEE)?;
+    query = parse_graphql_from_file(&LINEAR_SET_ISSUE_ASSIGNEE)?;
 
     query["variables"] = Value::Object(variables);
 
     info!("update_issue_assignee query: {:?}", query);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+
+}
+
+pub async fn exec_update_issue_project(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+
+    let mut query;
+    query = parse_graphql_from_file(&LINEAR_SET_ISSUE_PROJECT)?;
+
+    query["variables"] = Value::Object(variables);
+
+    info!("update_issue_project query: {:?}", query);
+
+    let client = reqwest::Client::new();
+
+    let resp = client.post("https://api.linear.app/graphql")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", api_key)
+                        .json(&query)
+                        .send()
+                        .await?
+                        .json()
+                        .await?;
+
+    Ok(resp)
+
+}
+
+pub async fn exec_update_issue_cycle(api_key: &str, variables: Map<String, Value>) -> QueryResult {
+
+    let mut query;
+    query = parse_graphql_from_file(&LINEAR_SET_ISSUE_CYCLE)?;
+
+    query["variables"] = Value::Object(variables);
+
+    info!("update_issue_cycle query: {:?}", query);
 
     let client = reqwest::Client::new();
 

@@ -1,0 +1,13 @@
+{   "query": "mutation setIssueWorkflowState($issueId: String!, $newStateId: String!) {
+        issueUpdate(input: { stateId: $newStateId }, id: $issueId) {
+            success
+            issue {
+                id
+                title
+                createdAt
+                number
+            }
+        }
+    }",
+    "operationName": "setIssueWorkflowState"
+}

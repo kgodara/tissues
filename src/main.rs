@@ -138,16 +138,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let _ = resp.send(issue_list);
                 },
-                IOEvent::LoadWorkflowStates { linear_config, linear_cursor, team, resp } => {
-
-                    let option_stateful = LinearIssueOpInterface::load_workflow_states_by_team(linear_config, Some(linear_cursor), &team).await;
-                    info!("LoadWorkflowStates data: {:?}", option_stateful);
-
-                    let _ = resp.send(option_stateful);
-                },
-                IOEvent::LoadTeamMembers { linear_config, linear_cursor, team, resp } => {
-                    let option_stateful = LinearIssueOpInterface::load_users_by_team(linear_config, Some(linear_cursor), &team).await;
-                    info!("LoadTeamMembers data: {:?}", option_stateful);
+                IOEvent::LoadOpData { op, linear_config, linear_cursor, team, resp } => {
+                    let option_stateful = LinearIssueOpInterface::load_op_data(&op, linear_config, Some(linear_cursor), &team).await;
+                    info!("load_op_data data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
                 },
@@ -177,6 +170,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let option_stateful = LinearClient::update_issue_assignee(linear_config, issue_update_variables).await;
 
                     info!("UpdateIssueAssignee data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful.ok());
+                },
+
+                IOEvent::UpdateIssueProject { linear_config, issue_id, project_id, resp } => {
+
+                    let mut issue_update_variables = serde_json::Map::new();
+
+                    issue_update_variables.insert(String::from("issueId"), Value::String(issue_id));
+                    issue_update_variables.insert(String::from("ref"), Value::String(project_id));
+
+                    let option_stateful = LinearClient::update_issue_project(linear_config, issue_update_variables).await;
+
+                    info!("UpdateIssueProject data: {:?}", option_stateful);
+
+                    let _ = resp.send(option_stateful.ok());
+                },
+
+                IOEvent::UpdateIssueCycle { linear_config, issue_id, cycle_id, resp } => {
+
+                    let mut issue_update_variables = serde_json::Map::new();
+
+                    issue_update_variables.insert(String::from("issueId"), Value::String(issue_id));
+                    issue_update_variables.insert(String::from("ref"), Value::String(cycle_id));
+
+                    let option_stateful = LinearClient::update_issue_cycle(linear_config, issue_update_variables).await;
+
+                    info!("UpdateIssueCycle data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful.ok());
                 },
