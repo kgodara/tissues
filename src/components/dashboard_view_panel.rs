@@ -1,7 +1,12 @@
 
 use std::cmp::max;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+    atomic::AtomicBool,
+};
+
 
 use serde_json::Value;
 
@@ -29,7 +34,7 @@ pub struct DashboardViewPanel {
     pub issue_table_data: Arc<Mutex<Vec<Value>>>,
     pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
     pub request_num: Arc<Mutex<u32>>,
-    pub loading: Arc<Mutex<bool>>,
+    pub loading: Arc<AtomicBool>,
 }
 
 impl DashboardViewPanel {
@@ -39,7 +44,7 @@ impl DashboardViewPanel {
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
             view_loader: Arc::new(Mutex::new(None)),
             request_num: Arc::new(Mutex::new(0)),
-            loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -130,7 +135,7 @@ impl Default for DashboardViewPanel {
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
             view_loader: Arc::new(Mutex::new(None)),
             request_num: Arc::new(Mutex::new(0)),
-            loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(AtomicBool::new(false)),
         }
     }
 }

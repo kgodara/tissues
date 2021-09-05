@@ -1,6 +1,8 @@
 
 use termion::{event::Key,};
 
+use std::sync::atomic::{ AtomicBool, Ordering };
+
 use crate::app::{App, Platform, Route};
 use crate::network::IOEvent;
 use crate::util::{ state_table,
@@ -241,23 +243,18 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     //     view panel is selected &&
     //     view panel is not loading
 
-    debug!("T1");
-
     if let Some(idx) = fetch_selected_view_panel_idx(app) {
-        debug!("T2");
         let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
 
-        debug!("T2.5");
 
         // let mut loading_init_lock = view_panel_list_handle[self.view_panel_to_paginate].loading.lock().unwrap();
         // let mut panel_loading_lock = view_panel_list_lock[idx].loading.lock().unwrap();
 
         debug!("idx: {:?}", idx);
-        let mut panel_loading_lock = view_panel_list_lock[idx].loading.lock().unwrap();
+        let is_panel_loading = &view_panel_list_lock[idx].loading;
 
-        debug!("T3");
 
-        if !*panel_loading_lock {
+        if !is_panel_loading.load(Ordering::Relaxed) {
 
             // Reset visual selection
             app.view_panel_issue_selected = Some(TableState::default());
@@ -266,7 +263,7 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             //     pub issue_table_data: Arc<Mutex<Vec<Value>>>,
             //     pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
             //     pub request_num: Arc<Mutex<u32>>,
-            //     pub loading: Arc<Mutex<bool>>,
+            //     pub loading: Arc<AtomicBool>,
 
             let mut loader_lock = view_panel_list_lock[idx].view_loader.lock().unwrap();
             let mut panel_issue_lock = view_panel_list_lock[idx].issue_table_data.lock().unwrap();
@@ -275,13 +272,13 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             *panel_issue_lock = vec![];
             *loader_lock = None;
             *request_num_lock = 0;
-            *panel_loading_lock = false;
+
+            is_panel_loading.store(false, Ordering::Relaxed);
 
             drop(loader_lock);
             drop(panel_issue_lock);
             drop(request_num_lock);
 
-            drop(panel_loading_lock);
             drop(view_panel_list_lock);
 
             // mark panel for pagination

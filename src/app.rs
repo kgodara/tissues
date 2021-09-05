@@ -7,7 +7,14 @@ use network::IOEvent as IOEvent;
 
 use tokio::sync::oneshot;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+    atomic::{
+        AtomicBool,
+        Ordering
+    }
+};
 
 use crate::constants::{
     IssueModificationOp
@@ -54,7 +61,7 @@ pub struct ViewLoadBundle {
     pub table_data: Arc<Mutex<Vec<Value>>>,
     pub loader: Arc<Mutex<Option<ViewLoader>>>,
     pub request_num: Arc<Mutex<u32>>,
-    pub loading: Arc<Mutex<bool>>,
+    pub loading: Arc<AtomicBool>,
 
     pub tx: tokio::sync::mpsc::Sender<IOEvent>,
 }
@@ -89,7 +96,7 @@ pub struct App<'a> {
     pub tz_name_offset_map: Arc<Mutex<HashMap<String, f64>>>,
 
     pub team_tz_map: Arc<Mutex<HashMap<String, String>>>,
-    pub team_tz_load_done: Arc<Mutex<bool>>,
+    pub team_tz_load_done: Arc<AtomicBool>,
 
     // Linear Custom View Select
     pub linear_custom_view_select: LinearCustomViewSelect,
@@ -141,7 +148,7 @@ impl<'a> Default for App<'a> {
             tz_name_offset_map: Arc::new(Mutex::new(linear::parse_timezones_from_file())),
 
             team_tz_map: Arc::new(Mutex::new(HashMap::new())),
-            team_tz_load_done: Arc::new(Mutex::new(false)),
+            team_tz_load_done: Arc::new(AtomicBool::new(false)),
 
             linear_custom_view_select: LinearCustomViewSelect::default(),
             linear_selected_custom_view_idx: None,
@@ -225,17 +232,12 @@ impl<'a> App<'a> {
 
 
                 let view_select_loading_handle = self.linear_custom_view_select.loading.clone();
-
-                let mut view_select_loading_lock = view_select_loading_handle.lock().unwrap();
-
                 // If already loading something, don't try again
-                if *view_select_loading_lock {
+                if view_select_loading_handle.load(Ordering::Relaxed) {
                     return;
                 }
-
                 // Set Loading 'true' before fetch
-                *view_select_loading_lock = true;
-                drop(view_select_loading_lock);
+                view_select_loading_handle.store(true, Ordering::Relaxed);
 
 
                 let tx2 = tx.clone();
@@ -266,7 +268,6 @@ impl<'a> App<'a> {
 
                     let mut view_data_lock = view_data_handle.lock().unwrap();
                     let mut view_cursor_data_lock = view_cursor_handle.lock().unwrap();
-                    let mut view_select_loading_lock = view_select_loading_handle.lock().unwrap();
 
                     let mut current_views = view_data_lock.clone();
 
@@ -275,7 +276,7 @@ impl<'a> App<'a> {
                         if let Some(new_views_vec) = y["views"].as_array_mut() {
                             current_views.append(new_views_vec);
                             *view_data_lock = current_views;
-                            *view_select_loading_lock = false;
+                            view_select_loading_handle.store(false, Ordering::Relaxed);
                         }
 
                         match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
@@ -440,9 +441,7 @@ impl<'a> App<'a> {
                         drop(loader_handle);
 
                         // Set ViewPanel loading state to true
-                        let mut loading_init_lock = item.loading.lock().unwrap();
-                        *loading_init_lock = true;
-                        drop(loading_init_lock);
+                        item.loading.store(true, Ordering::Relaxed);
 
                         tokio::spawn(async move {
                             let (resp_tx, resp_rx) = oneshot::channel();
@@ -465,13 +464,12 @@ impl<'a> App<'a> {
                             let mut view_panel_data_lock = item.table_data.lock().unwrap();
                             let mut loader_handle = item.loader.lock().unwrap();
                             let mut request_num_lock = item.request_num.lock().unwrap();
-                            let mut loading_lock = item.loading.lock().unwrap();
 
                             if let Some(x) = res {
                                 *view_panel_data_lock = x.0;
                                 *loader_handle = Some(x.1);
                                 *request_num_lock += x.2;
-                                *loading_lock = false;
+                                item.loading.store(false, Ordering::Relaxed);
                             }
                             info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                         })
@@ -496,16 +494,15 @@ impl<'a> App<'a> {
 
                 let view_panel_list_handle = self.linear_dashboard_view_panel_list.lock().unwrap();
 
-                let mut loading_init_lock = view_panel_list_handle[self.view_panel_to_paginate].loading.lock().unwrap();
+                let is_loading = &view_panel_list_handle[self.view_panel_to_paginate].loading;
 
                 // If already loading something, don't try again
-                if *loading_init_lock {
+                if is_loading.load(Ordering::Relaxed) {
                     return;
                 }
 
                 // Set ViewPanel loading state to true
-                *loading_init_lock = true;
-                drop(loading_init_lock);
+                is_loading.store(true, Ordering::Relaxed);
 
 
                 let config = self.linear_client.config.clone();
@@ -554,8 +551,6 @@ impl<'a> App<'a> {
                     let mut loader = loader_handle.lock().unwrap();
                     let mut request_num_lock = request_num_handle.lock().unwrap();
 
-                    let mut loading_lock = loading_handle.lock().unwrap();
-
                     let mut current_view_issues = view_panel_data_lock.clone();
 
                     if let Some(mut x) = res {
@@ -564,7 +559,7 @@ impl<'a> App<'a> {
                         *view_panel_data_lock = current_view_issues.clone();
                         *loader = Some(x.1);
                         *request_num_lock += x.2;
-                        *loading_lock = false;
+                        loading_handle.store(false, Ordering::Relaxed);
 
                     }
                     info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
@@ -574,14 +569,12 @@ impl<'a> App<'a> {
                 let tx2 = tx.clone();
 
                 let op_interface_loading_handle = self.linear_issue_op_interface.loading.clone();
-                let mut op_interface_loading_lock = op_interface_loading_handle.lock().unwrap();
                 // If already loading something, don't try again
-                if *op_interface_loading_lock {
+                if op_interface_loading_handle.load(Ordering::Relaxed) {
                     return;
                 }
                 // Set Loading 'true' before fetch
-                *op_interface_loading_lock = true;
-                drop(op_interface_loading_lock);
+                op_interface_loading_handle.store(true, Ordering::Relaxed);
 
                 let issue_op_data_handle = self.linear_issue_op_interface.table_data_from_op();
                 let linear_config = self.linear_client.config.clone();
@@ -634,8 +627,7 @@ impl<'a> App<'a> {
                     let mut res = resp_rx.await.ok();
 
                     let mut issue_op_cursor_data_lock = issue_op_cursor_handle.lock().unwrap();
-                    let mut loading_lock = op_interface_loading_handle.lock().unwrap();
-                    *loading_lock = false;
+                    op_interface_loading_handle.store(false, Ordering::Relaxed);
 
 
                     info!("Load-{:?} IOEvent returned: {:?}", current_op, res);
@@ -703,7 +695,7 @@ impl<'a> App<'a> {
                 let linear_config = self.linear_client.config.clone();
                 let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();
 
-                let current_op = self.linear_issue_op_interface.current_op.clone();
+                let current_op = self.linear_issue_op_interface.current_op;
 
                 // Spawn task to issue command to update workflow state
                 let _t3 = tokio::spawn( async move {

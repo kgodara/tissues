@@ -7,6 +7,7 @@ extern crate lazy_static;
 
 use std::io;
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod app;
 mod graphql;
@@ -190,13 +191,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("LoadLinearTeamTimeZones IOEvent returned: {:?}", res);
 
         let mut team_tz_map_lock = team_tz_map_handle.lock().unwrap();
-        let mut team_tz_load_done_lock = team_tz_load_done_handle.lock().unwrap();
 
         if let Some(id_tz_pairs) = res {
             for pair in id_tz_pairs.iter() {
                 team_tz_map_lock.insert(pair.0.clone(), pair.1.clone());
             }
-            *team_tz_load_done_lock = true;
+            team_tz_load_done_handle.store(true, Ordering::Relaxed);
         }
     });
 

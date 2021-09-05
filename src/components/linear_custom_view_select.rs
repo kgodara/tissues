@@ -6,7 +6,11 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
-use std::sync::{ Arc, Mutex };
+use std::sync::{
+    Arc,
+    Mutex, 
+    atomic::{ AtomicBool }
+};
 
 use serde_json::{ Value, json};
 
@@ -29,7 +33,7 @@ use crate::constants::table_columns::{ CUSTOM_VIEW_SELECT_COLUMNS };
 pub struct LinearCustomViewSelect {
     pub view_table_data: Arc<Mutex<Vec<Value>>>,
     pub view_table_state: TableState,
-    pub loading: Arc<Mutex<bool>>,
+    pub loading: Arc<AtomicBool>,
 }
 
 
@@ -154,7 +158,7 @@ impl Default for LinearCustomViewSelect {
         LinearCustomViewSelect {
             view_table_data: Arc::new(Mutex::new(Vec::new())),
             view_table_state: TableState::default(),
-            loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(AtomicBool::new(false)),
         }
     }
 }

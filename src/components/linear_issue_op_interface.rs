@@ -1,4 +1,9 @@
 use std::cmp::max;
+use std::sync::{
+    Arc,
+    Mutex,
+    atomic::AtomicBool,
+};
 
 use tui::{
     layout::{Constraint, Rect},
@@ -8,7 +13,6 @@ use tui::{
 
 use serde_json::{ Value, json, Map };
 
-use std::sync::{Arc, Mutex};
 
 use crate::linear::{
     client::LinearClient,
@@ -40,7 +44,7 @@ pub struct LinearIssueOpInterface {
     pub current_op: IssueModificationOp,
     pub selected_idx: Option<usize>,
     pub data_state: TableState,
-    pub loading: Arc<Mutex<bool>>,
+    pub loading: Arc<AtomicBool>,
     pub cursor: Arc<Mutex<GraphQLCursor>>,
 
     pub workflow_states_data: Arc<Mutex<Vec<Value>>>,
@@ -388,7 +392,7 @@ impl Default for LinearIssueOpInterface {
             current_op: IssueModificationOp::ModifyWorkflowState,
             selected_idx: None,
             data_state: TableState::default(),
-            loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(AtomicBool::new(false)),
             cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
 
             workflow_states_data: Arc::new(Mutex::new(vec![])),
