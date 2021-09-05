@@ -1,5 +1,5 @@
-{   "query": "mutation setIssueWorkflowState($issueId: String!, $newStateId: String!) {
-        issueUpdate(input: { stateId: $newStateId }, id: $issueId) {
+{   "query": "mutation setIssueWorkflowState($issueId: String!, $ref: String!) {
+        issueUpdate(input: { stateId: $ref }, id: $issueId) {
             success
             issue {
                 id

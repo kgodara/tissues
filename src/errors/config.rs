@@ -2,7 +2,6 @@ use thiserror::Error;
 use std::io;
 use crate::util::GraphQLCursor;
 
-
 #[derive(Error, Debug)]
 pub enum GraphQLParseError {
     #[error("Failed to read GraphQL query file")]
@@ -32,6 +31,7 @@ pub enum GraphQLRequestError {
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
+    // Examples:
     /*
     #[error("data store disconnected")]
     Disconnect(#[from] io::Error),

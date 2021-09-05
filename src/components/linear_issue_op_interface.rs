@@ -1,4 +1,9 @@
 use std::cmp::max;
+use std::sync::{
+    Arc,
+    Mutex,
+    atomic::AtomicBool,
+};
 
 use tui::{
     layout::{Constraint, Rect},
@@ -8,7 +13,6 @@ use tui::{
 
 use serde_json::{ Value, json, Map };
 
-use std::sync::{Arc, Mutex};
 
 use crate::linear::{
     client::LinearClient,
@@ -29,7 +33,7 @@ use crate::util::{
 use crate::constants::{
     IssueModificationOp,
     colors,
-    table_columns::{ TableColumn,
+    table_columns::{
         WORKFLOW_STATE_SELECT_COLUMNS, ASSIGNEE_SELECT_COLUMNS,
         PROJECT_SELECT_COLUMNS, CYCLE_SELECT_COLUMNS
     }
@@ -40,7 +44,7 @@ pub struct LinearIssueOpInterface {
     pub current_op: IssueModificationOp,
     pub selected_idx: Option<usize>,
     pub data_state: TableState,
-    pub loading: Arc<Mutex<bool>>,
+    pub loading: Arc<AtomicBool>,
     pub cursor: Arc<Mutex<GraphQLCursor>>,
 
     pub workflow_states_data: Arc<Mutex<Vec<Value>>>,
@@ -53,95 +57,6 @@ pub struct LinearIssueOpInterface {
 impl LinearIssueOpInterface {
 
     // loading functions section start
-    /*
-    pub async fn load_workflow_states_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, team: &Value) -> Option<Value> {
-
-        let team_id;
-        if let Some(x) = team.as_str() {
-            team_id = x;
-        }
-        else {
-            return None;
-        }
-
-        let mut variables: Map<String, Value> = Map::new();
-        variables.insert(String::from("ref"), Value::String(String::from(team_id)));
-
-        let workflow_states_result = LinearClient::get_workflow_states_by_team(linear_config, linear_cursor, variables).await;
-
-        let workflow_states: Value;
-        let cursor_info: Value;
-
-        match workflow_states_result {
-            Ok(x) => {
-                workflow_states = x["data_nodes"].clone();
-                cursor_info = x["cursor_info"].clone();
-            },
-            Err(y) => {
-                error!("Get WorkflowStates failed: {:?}", y);
-                return None;
-            },
-        }
-
-        debug!("load_workflow_states_by_team - workflow_states: {:?}", workflow_states);
-
-        if workflow_states == Value::Null {
-            return Some(Value::Array(vec![]));
-        }
-
-        match workflow_states {
-            Value::Array(_) => {
-                info!("Populating LinearIssueOpInterface::workflow_states_data with: {:?}", workflow_states);
-                return Some(json!( { "data": workflow_states, "cursor_info": cursor_info } ));
-            },
-            _ => {return None;},
-        }
-    }
-
-    pub async fn load_users_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, team: &Value) -> Option<Value> {
-        let team_id;
-        if let Some(x) = team.as_str() {
-            team_id = x;
-        }
-        else {
-            return None;
-        }
-
-        let mut variables: Map<String, Value> = Map::new();
-        variables.insert(String::from("ref"), Value::String(String::from(team_id)));
-
-        let users_result = LinearClient::get_users_by_team(linear_config, linear_cursor, variables).await;
-
-
-        let users: Value;
-        let cursor_info: Value;
-
-        match users_result {
-            Ok(x) => {
-                users = x["data_nodes"].clone();
-                cursor_info = x["cursor_info"].clone();
-            },
-            Err(y) => {
-                error!("Get TeamMembers failed: {:?}", y);
-                return None;
-            },
-        }
-
-        debug!("load_users_by_team - users: {:?}", users);
-
-        if users == Value::Null {
-            return Some(Value::Array(vec![]));
-        }
-
-        match users {
-            Value::Array(_) => {
-                info!("Populating LinearIssueOpInterface::users_data with: {:?}", users);
-                return Some(json!( { "data": users, "cursor_info": cursor_info } ));
-            },
-            _ => {return None;},
-        }
-    }
-    */
 
     pub async fn load_op_data(op: &IssueModificationOp,
         linear_config: LinearConfig,
@@ -477,7 +392,7 @@ impl Default for LinearIssueOpInterface {
             current_op: IssueModificationOp::ModifyWorkflowState,
             selected_idx: None,
             data_state: TableState::default(),
-            loading: Arc::new(Mutex::new(false)),
+            loading: Arc::new(AtomicBool::new(false)),
             cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
 
             workflow_states_data: Arc::new(Mutex::new(vec![])),

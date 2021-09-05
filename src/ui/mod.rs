@@ -1,6 +1,7 @@
 
 
 use std::fmt::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::app;
 use crate::util;
@@ -19,7 +20,6 @@ use crate::util::{
     ui,
     ui::{ hex_str_from_style_color },
     table::{ TableStyle },
-    issue::{ colored_title_from_issue },
     dashboard::{fetch_selected_view_panel_issue, fetch_selected_view_panel_num},    
     layout::{ widths_from_rect },
 };
@@ -27,8 +27,7 @@ use crate::util::{
 use crate::constants::{
     colors,
     table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS,
-        VIEW_PANEL_COLUMNS, WORKFLOW_STATE_SELECT_COLUMNS },
-    IssueModificationOp
+        VIEW_PANEL_COLUMNS },
 };
 
 use tui::{
@@ -76,10 +75,7 @@ where
         let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
 
         if let Some(x) = view_panel_list_lock.get(selected_view_panel_idx-1) {
-            let view_panel_loading_lock = x.loading.lock().unwrap();
-            
-            refresh_cmd_active = !*view_panel_loading_lock;   
-            drop(view_panel_loading_lock);
+            refresh_cmd_active = !x.loading.load(Ordering::Relaxed);
         }
         drop(view_panel_list_lock);
     }
@@ -152,9 +148,7 @@ where
             };
 
         // Get 'loading' bool from ViewPanel
-        let loading_lock = e.loading.lock().unwrap();
-        let loading_state: bool = *loading_lock;
-        drop(loading_lock);
+        let loading_state: bool = e.loading.load(Ordering::Relaxed);
 
 
         let view_panel_table_style = TableStyle { title_style: Some(( e.filter["name"].clone(), e.filter["color"].clone() )),
@@ -244,10 +238,6 @@ where
 
         let issue_op_widths: Vec<Constraint> = LinearIssueOpInterface::widths_from_rect_op(&issue_op_chunks[0], &app.linear_issue_op_interface.current_op);
 
-        let issue_op_loading_lock = app.linear_issue_op_interface.loading.lock().unwrap();
-
-
-
         let issue_op_table_style = TableStyle {
             title_style: Some(( Value::String(LinearIssueOpInterface::title_from_op(&app.linear_issue_op_interface.current_op)),
                 Value::String(hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")))
@@ -256,11 +246,9 @@ where
             view_idx: None,
             highlight_table: true,
             req_num: None,
-            loading: *issue_op_loading_lock,
+            loading: app.linear_issue_op_interface.loading.load(Ordering::Relaxed),
             loader_state: app.loader_tick
         };
-
-        drop(issue_op_loading_lock);
 
         let data_handle = app.linear_issue_op_interface.table_data_from_op();
         let data_lock = data_handle.lock().unwrap();
@@ -389,8 +377,6 @@ where
   
     let view_data_handle = &app.linear_custom_view_select.view_table_data.lock().unwrap();
 
-    let custom_view_select_loading_lock = app.linear_custom_view_select.loading.lock().unwrap();
-
     // Create TableStyle for Custom View Select
     let custom_view_select_table_style = TableStyle { 
         title_style: 
@@ -401,11 +387,9 @@ where
         view_idx: Some(2),
         highlight_table: !app.linear_dashboard_view_list_selected,
         req_num: None,
-        loading: *custom_view_select_loading_lock,
+        loading: app.linear_custom_view_select.loading.load(Ordering::Relaxed),
         loader_state: app.loader_tick,
     };
-
-    drop(custom_view_select_loading_lock);
 
     // subtract 2 from width to account for single character table borders
     let view_select_content_rect = Rect::new(bottom_row_chunks[1].x, bottom_row_chunks[1].y, bottom_row_chunks[1].width-2, bottom_row_chunks[1].height);

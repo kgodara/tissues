@@ -47,32 +47,13 @@ pub enum IOEvent {
         team: Value,
         resp: Responder<Value>,
     },
-
-    UpdateIssueWorkflowState {
+    UpdateIssue {
+        op: IssueModificationOp,
         linear_config: LinearConfig,
         issue_id: String,
-        workflow_state_id: String,
-        resp: Responder<Value>,
-    },
-    UpdateIssueAssignee {
-        linear_config: LinearConfig,
-        issue_id: String,
-        assignee_id: String,
-        resp: Responder<Value>,
-    },
-    UpdateIssueProject {
-        linear_config: LinearConfig,
-        issue_id: String,
-        project_id: String,
-        resp: Responder<Value>,
-    },
-    UpdateIssueCycle {
-        linear_config: LinearConfig,
-        issue_id: String,
-        cycle_id: String,
+        ref_id: String,
         resp: Responder<Value>,
     }
-
 }
 
 type Responder<T> = oneshot::Sender<Option<T>>;
