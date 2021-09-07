@@ -3,12 +3,18 @@ use termion::{event::Key,};
 
 use std::sync::atomic::{ AtomicBool, Ordering };
 
-use crate::app::{App, Platform, Route};
+use crate::app::{App, Platform, Route, InputMode};
 use crate::network::IOEvent;
-use crate::util::{ state_table,
+use crate::util::{
+    state_table,
     dashboard::fetch_selected_view_panel_idx,
+    event::{Event, Events},
 };
+
+use crate::linear::config::LinearConfig;
+
 use crate::constants::{
+    LINEAR_TOKEN_LEN,
     IssueModificationOp
 };
 
@@ -30,6 +36,14 @@ pub enum Command {
     ScrollUp,
     Confirm,
 
+    // User Input related Commands
+    
+    EditorEnter,
+    EditorInput(char),
+    EditorDelete,
+    EditorSubmit,
+    EditorExit,
+
     // Char Commands
     Quit,
     Delete,
@@ -47,7 +61,20 @@ pub enum Command {
 }
 
 
-pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Option<Command> {
+pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mode: &InputMode) -> Option<Command> {
+
+    // Editor input/submit/exit commands
+    if *input_mode == InputMode::Editing {
+        match input {
+            Key::Esc => {return Some(Command::EditorExit);},
+            Key::Char('\n') => {return Some(Command::EditorSubmit);},
+            Key::Char(c) => {return Some(Command::EditorInput(c));},
+            Key::Backspace => {return Some(Command::EditorDelete);},
+            Key::Esc => {return Some(Command::EditorExit);}
+            _ => {return None}
+        }
+    }
+
     match input {
         // Navigation/Confirmation related inputs
         // These will always clear the command string
@@ -71,6 +98,10 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
                 // Quit Command
                 "q" => {
                     Some(Command::Quit)
+                },
+                // EditorEnter Command
+                "e" => {
+                    Some(Command::EditorEnter)
                 },
                 // Delete Command
                 "d" => {
@@ -133,10 +164,76 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route) -> Optio
                 }
             }
         },
+        Key::Esc => {
+            Some(Command::EditorExit)
+        }
 
         _ => { None }
     }
 }
+
+
+pub fn exec_editor_enter_cmd(app: &mut App<'_>, events: &mut Events) {
+    events.disable_exit_key();
+    app.input_mode = InputMode::Editing;
+}
+
+pub fn exec_editor_input_cmd(app: &mut App<'_>, ch: &char) {
+    // Verify user is enter access token
+    match app.route {
+        Route::ConfigInterface => {
+            if app.input_mode == InputMode::Editing {
+                app.config_interface_input.input.push(*ch);
+            }
+        }
+        _ => {}
+    }
+}
+
+pub fn exec_editor_delete_cmd(app: &mut App<'_>) {
+    // Verify user is editing access token
+    match app.route {
+        Route::ConfigInterface => {
+            if app.input_mode == InputMode::Editing {
+                app.config_interface_input.input.pop();
+            }
+        }
+        _ => {}
+    }
+}
+
+pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sender<IOEvent>) {
+
+    events.enable_exit_key();
+    app.input_mode = InputMode::Normal;
+
+    // Verify user is editing access token
+    match app.route {
+        Route::ConfigInterface => {
+            let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
+            // TODO: Verify length is satisfactory for linear access token
+            info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
+            if submission_len == LINEAR_TOKEN_LEN {
+                // save entered token to file
+                LinearConfig::save_access_token(&app.config_interface_input.input);
+                // change route
+                app.change_route(Route::ActionSelect, tx);
+            } else if submission_len > 0 {
+                app.config_interface_input.invalid_access_token_len = true;
+            } else {
+                app.config_interface_input.access_token_not_set = true;
+            }
+        }
+        _ => {}
+    }
+}
+
+pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sender<IOEvent>) {
+    events.enable_exit_key();
+    app.input_mode = InputMode::Normal;
+    // app.change_route(Route::ActionSelect, tx);
+}
+
 
 pub async fn exec_delete_cmd(app: &mut App<'_>) {
     info!("Executing 'delete' command");
@@ -309,6 +406,10 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
 pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
 
+        Route::ConfigInterface => {
+            // nowhere to move back to
+        },
+
         // Unselect from List of Actions
         Route::ActionSelect => {
 
@@ -323,6 +424,11 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             else if app.linear_dashboard_view_panel_selected.is_some() {
                 app.linear_dashboard_view_panel_selected = None;
                 app.actions.next();
+            }
+
+            // If none of above, move back to ConfigInterface
+            else  {
+                app.change_route(Route::ConfigInterface, &tx);
             }
         },
 
@@ -340,6 +446,12 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
 pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
     match app.route {
+        Route::ConfigInterface => {
+            // TODO: only allow progression if app.config_interface_input.loaded == true
+            if app.linear_client.config.loaded {
+                app.change_route(Route::ActionSelect, &tx);
+            }
+        },
         Route::ActionSelect => {
 
             // If a state change is confirmed, dispatch & reset
@@ -418,6 +530,11 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
 
 pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     match app.route {
+
+        Route::ConfigInterface => {
+            // nowhere to scroll
+        },
+
         // Select next Action
         Route::ActionSelect => {
             let mut load_paginated = false;
@@ -576,6 +693,9 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 pub fn exec_scroll_up_cmd(app: &mut App) {
 
     match app.route {
+        Route::ConfigInterface => {
+            // nothing to scroll
+        },
         Route::ActionSelect => {
 
 

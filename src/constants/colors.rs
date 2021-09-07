@@ -2,6 +2,8 @@ use tui::{
     style::{Color},
 };
 
+pub const RED: Color = Color::Rgb( 184u8, 4u8, 4u8 );
+
 // Component Colors
 // white
 pub const ISSUE_MODIFICATION_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u8);

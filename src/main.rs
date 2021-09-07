@@ -28,10 +28,11 @@ use crate::components::{
 
 use crate::linear::{
     client::LinearClient,
+    config::LinearConfig,
     view_resolver,
 };
 
-use app::Route as Route;
+use app::{ Route };
 
 use serde_json::Value;
 
@@ -62,6 +63,13 @@ use std::fs::File;
 
 use command::{ Command,
                 get_cmd,
+
+                exec_editor_enter_cmd,
+                exec_editor_input_cmd,
+                exec_editor_delete_cmd,
+                exec_editor_submit_cmd,
+                exec_editor_exit_cmd,
+
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
                 exec_refresh_view_panel_cmd,
@@ -103,6 +111,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     WriteLogger::init(LevelFilter::Debug, Config::default(), File::create("rust_cli.log").unwrap()).unwrap();
+
+    // Create default app state
+    let mut app = app::App::default();
+
+    if app.linear_client.config.load_config().is_some() {
+        app.route = Route::ActionSelect;
+    }
+  
+    // let config_paths = client_config.get_or_build_paths()?;
 
     // Create a new channel with a capacity of at most 8.
     let (tx, mut rx) = mpsc::channel(8);
@@ -163,11 +180,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
 
-
-    // Create default app state
-    let mut app = app::App::default();
-
-
     // Load Linear Team Timezones for all teams within organization and add to app.team_tz_map
 
     let tx2 = tx.clone();
@@ -176,6 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let team_tz_map_handle = app.team_tz_map.clone();
     let team_tz_load_done_handle = app.team_tz_load_done.clone();
 
+    /*
     let _time_zone_load = tokio::spawn(async move {
         let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -198,6 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             team_tz_load_done_handle.store(true, Ordering::Relaxed);
         }
     });
+    */
 
 
     // Terminal initialization
@@ -207,7 +221,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let events = Events::new();
+    let mut events = Events::new();
 
     terminal.clear()?;
 
@@ -216,20 +230,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
 
-        terminal.draw(|mut f| match app.route {
-            Route::ActionSelect => {
-              ui::draw_action_select(&mut f, &mut app);
-            },
-            Route::DashboardViewDisplay => {
-                ui::draw_dashboard_view_display(&mut f, &mut app);
-            }
+        terminal.draw(|mut f| {
+            match app.route {
+                Route::ConfigInterface => {
+                    ui::draw_config_interface(&mut f, &mut app);
+                },
+                Route::ActionSelect => {
+                    ui::draw_action_select(&mut f, &mut app);
+                },
+                Route::DashboardViewDisplay => {
+                    ui::draw_dashboard_view_display(&mut f, &mut app);
+                }
+            };
         })?;
         let event_next = events.next()?;
 
         match event_next {
             Event::Input(input) => {
                 // Update Command String / Get Command to apply
-                cmd_option = get_cmd(&mut app.cmd_str, input, & app.route);
+                cmd_option = get_cmd(&mut app.cmd_str, input, & app.route, &app.input_mode);
                 info!("cmd_option: {:?}", cmd_option);
 
                 if let Some(cmd) = cmd_option {
@@ -241,6 +260,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Command::Quit => {
                             break;
                         },
+
+
+                        // Editor-related Commands
+                        Command::EditorEnter => {
+                            exec_editor_enter_cmd(&mut app, &mut events);
+                        },
+                        Command::EditorInput(ch) => {
+                            exec_editor_input_cmd(&mut app, &ch);
+                        },
+                        Command::EditorDelete => {
+                            exec_editor_delete_cmd(&mut app);
+                        },
+                        Command::EditorSubmit => {
+                            exec_editor_submit_cmd(&mut app, &mut events, &tx);
+                        },
+                        Command::EditorExit => {
+                            exec_editor_exit_cmd(&mut app, &mut events, &tx);
+                        },
+
+
                         Command::Delete => {
                             exec_delete_cmd(&mut app).await;
                         },

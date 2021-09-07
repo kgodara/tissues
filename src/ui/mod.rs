@@ -6,9 +6,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::app;
 use crate::util;
 
-use app::App as App;
+use app::{ App, InputMode };
 
-use crate::components::{ 
+use crate::components::{
+    user_input::UserInput,
+
     dashboard_view_display::DashboardViewDisplay,
     dashboard_view_panel::DashboardViewPanel,
     linear_custom_view_select::LinearCustomViewSelect,
@@ -44,11 +46,47 @@ use serde_json::Value;
 
 
 
-
 pub const BASIC_VIEW_HEIGHT: u16 = 6;
 pub const SMALL_TERMINAL_WIDTH: u16 = 150;
 pub const SMALL_TERMINAL_HEIGHT: u16 = 45;
 
+pub fn draw_config_interface<B>(f: &mut Frame<B>, app: & mut App)
+where
+  B: Backend,
+{
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints(
+            [
+                Constraint::Length(2),
+                Constraint::Length(3),
+                // Constraint::Min(1),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+        f.render_widget(UserInput::render_help_msg(&app.input_mode, app.config_interface_input.access_token_not_set, app.config_interface_input.invalid_access_token_len), chunks[0]);
+        f.render_widget(UserInput::render_input_box(&app.config_interface_input.input, &app.input_mode), chunks[1]);
+
+        match app.input_mode {
+            InputMode::Normal =>
+                // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+                {}
+
+            InputMode::Editing => {
+                // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+                f.set_cursor(
+                    // Put cursor past the end of the input text
+                    chunks[1].x + unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16 + 1,
+                    // Move one line down, from the border to the input line
+                    chunks[1].y + 1,
+                )
+            }
+        }
+}
 
 
 pub fn draw_action_select<B>(f: &mut Frame<B>, app: & mut App)
@@ -308,7 +346,6 @@ where
     }
 
     // Update Command statuses
-    debug!("remove_view_cmd_active: {:?}", remove_view_cmd_active);
     app.dashboard_view_config_cmd_bar.set_remove_view_active(remove_view_cmd_active);
 
     // Render command bar

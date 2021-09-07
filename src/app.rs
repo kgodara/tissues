@@ -39,6 +39,8 @@ use crate::util::{
 use crate::components::{
     command_bar::{ CommandBar, CommandBarType },
 
+    user_input::{ UserInput },
+
     linear_custom_view_select::LinearCustomViewSelect,
 
     dashboard_view_display::DashboardViewDisplay,
@@ -68,8 +70,15 @@ pub struct ViewLoadBundle {
 
 #[derive(PartialEq)]
 pub enum Route {
+    ConfigInterface,
     ActionSelect,
     DashboardViewDisplay
+}
+
+#[derive(PartialEq)]
+pub enum InputMode {
+    Normal,
+    Editing,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +97,11 @@ pub struct App<'a> {
     pub cmd_str: String,
     // LinearClient
     pub linear_client: linear::client::LinearClient,
+
+    // Config Interface
+    pub config_interface_input: UserInput,
+    // Current input mode
+    pub input_mode: InputMode,
 
     // loader_tick is a looping index for loader_state
     pub loader_tick: u16,
@@ -138,10 +152,13 @@ pub struct App<'a> {
 impl<'a> Default for App<'a> {
     fn default() -> App<'a> {
         App {
-            route: Route::ActionSelect,
+            route: Route::ConfigInterface,
             cmd_str: String::new(),
 
             linear_client: linear::client::LinearClient::default(),
+
+            config_interface_input: UserInput::default(),
+            input_mode: InputMode::Normal,
 
             loader_tick: 0,
 
@@ -191,6 +208,10 @@ impl<'a> App<'a> {
 
     pub fn change_route(&mut self, route: Route, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
         match route {
+
+            Route::ConfigInterface => {
+
+            },
 
             // Create DashboardViewPanel components for each Some in app.linear_dashboard_view_list
             // and set app.linear_dashboard_view_panel_list
