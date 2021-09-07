@@ -85,7 +85,6 @@ fn get_platform() -> io::Result<String> {
 }
 
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 

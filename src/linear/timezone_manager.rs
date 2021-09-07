@@ -22,13 +22,12 @@ use crate::util::GraphQLCursor;
 const TIMEZONE_JSON_PATH: &str = "data/timezones.json";
 
 
+include!(concat!(env!("OUT_DIR"), "/tz_raw.rs"));
+
+
 pub fn parse_timezones_from_file() -> HashMap<String, f64> {
 
-    let mut query_contents = fs::read_to_string(&TIMEZONE_JSON_PATH).unwrap();
-
-    
-    query_contents = query_contents.as_str()
-                                    .replace("\n", "");
+    let query_contents = String::from(TIMEZONES);
     
     // Parse the string of data into serde_json::Value.
     let time_zone_array: serde_json::Value = serde_json::from_str(query_contents.as_str()).unwrap();
