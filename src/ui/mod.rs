@@ -16,6 +16,7 @@ use crate::components::{
     linear_custom_view_select::LinearCustomViewSelect,
 
     linear_issue_op_interface::LinearIssueOpInterface,
+    linear_issue_modal::render_and_layout,
 };
 
 use crate::util::{
@@ -105,7 +106,10 @@ where
     let mut modify_assignee_cmd_active = false;
     let mut modify_project_cmd_active = false;
     let mut modify_cycle_cmd_active = false;
+    let mut expand_issue_cmd_active = false;
+    
     let mut refresh_cmd_active = false;
+
 
     // If a View Panel is selected & it is not loading, allow Refresh command
     if let Some(selected_view_panel_idx) = fetch_selected_view_panel_num(app) {
@@ -118,12 +122,13 @@ where
         drop(view_panel_list_lock);
     }
 
-    // If a View Panel Issue is selected, allow ModifyWorkflowState command
+    // If a View Panel Issue is selected, allow following commands
     if fetch_selected_view_panel_issue(app).is_some() {
         modify_workflow_state_cmd_active = true;
         modify_assignee_cmd_active = true;
         modify_project_cmd_active = true;
         modify_cycle_cmd_active = true;
+        expand_issue_cmd_active = true;
     }
 
     // Update Command statuses
@@ -131,6 +136,7 @@ where
     app.view_panel_cmd_bar.set_modify_assignee_active(modify_assignee_cmd_active);
     app.view_panel_cmd_bar.set_modify_project_active(modify_project_cmd_active);
     app.view_panel_cmd_bar.set_modify_cycle_active(modify_cycle_cmd_active);
+    app.view_panel_cmd_bar.set_expand_issue_active(expand_issue_cmd_active);
 
 
     app.view_panel_cmd_bar.set_refresh_panel_active(refresh_cmd_active);
@@ -252,6 +258,20 @@ where
 
     f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
 
+    // Draw Issue Expanded Modal
+    if let Some(issue_obj) = &app.issue_to_expand {
+        let area = util::ui::centered_rect(40, 40, f.size());
+
+        let issue_modal_chunk = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(100),].as_ref())
+            .split(area);
+        
+        f.render_widget(Clear, area); //this clears out the background
+
+        render_and_layout(f, issue_modal_chunk[0], issue_obj, app.scroll_tick);
+    }
+
 
     // Draw Linear Issue Op Interface
     if app.modifying_issue {
@@ -260,7 +280,7 @@ where
 
         let issue_op_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(100), /*Constraint::Percentage(70)*/].as_ref())
+            .constraints([Constraint::Percentage(100),].as_ref())
             .split(area);
 
         f.render_widget(Clear, area); //this clears out the background

@@ -7,6 +7,7 @@ use crate::constants::colors;
 #[derive(Debug, Clone)]
 pub enum DashboardCommand {
     RefreshPanel,
+    ExpandIssue,
     ModifyWorkflowState,
     ModifyAssignee,
     ModifyProject,
@@ -51,9 +52,15 @@ impl Default for CommandList<'_> {
             dashboard: vec![
                 CommandValue { key_char: 'r',
                     cmd_type: Command::Dashboard(DashboardCommand::RefreshPanel),
-                    label: "Refresh",
+                    label: "Refresh Custom View",
                     active_color: colors::REFRESH_PANEL_CMD_ACTIVE,
                     inactive_color: colors::REFRESH_PANEL_CMD_INACTIVE
+                },
+                CommandValue { key_char: 'f',
+                    cmd_type: Command::Dashboard(DashboardCommand::ExpandIssue),
+                    label: "Expand Issue",
+                    active_color: colors::REFRESH_PANEL_CMD_ACTIVE,
+                    inactive_color: colors::REFRESH_PANEL_CMD_INACTIVE,
                 },
                 CommandValue { key_char: 'w',
                     cmd_type: Command::Dashboard(DashboardCommand::ModifyWorkflowState),

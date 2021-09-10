@@ -20,7 +20,7 @@ use crate::linear::{
 };
 
 use crate::util::{
-    table::{ values_to_str, format_cell_fields,
+    table::{ values_to_str_with_fallback, format_cell_fields,
         get_row_height, colored_cell,
         TableStyle, gen_table_title_spans,
     },
@@ -190,7 +190,7 @@ impl LinearIssueOpInterface {
         let cell_fields: Vec<String>;
         match op {
             IssueModificationOp::ModifyWorkflowState => {
-                cell_fields = values_to_str(
+                cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
                         row["type"].clone(),
@@ -203,7 +203,7 @@ impl LinearIssueOpInterface {
                 format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS)
             },
             IssueModificationOp::ModifyAssignee => {
-                cell_fields = values_to_str(
+                cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
                         row["displayName"].clone(),
@@ -214,7 +214,7 @@ impl LinearIssueOpInterface {
                 format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS)
             },
             IssueModificationOp::ModifyProject => {
-                cell_fields = values_to_str(
+                cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
                         row["state"].clone(),
@@ -225,7 +225,7 @@ impl LinearIssueOpInterface {
                 format_cell_fields(&cell_fields, widths, &PROJECT_SELECT_COLUMNS)
             },
             IssueModificationOp::ModifyCycle => {
-                cell_fields = values_to_str(
+                cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
                         row["number"].clone(),

@@ -11,7 +11,7 @@ use tui::{
 
 use crate::util::{
     table::{ TableStyle, gen_table_title_spans, 
-        values_to_str, format_cell_fields,
+        values_to_str_with_fallback, format_cell_fields,
         get_row_height, colored_cell 
     },
 };
@@ -53,7 +53,7 @@ impl DashboardViewDisplay {
 
                 let cell_fields: Vec<String> = match row_option {
                     Some(row) => {
-                        values_to_str(
+                        values_to_str_with_fallback(
                             &[row["name"].clone(),
                                 row["description"].clone(),
                                 row["organization"]["name"].clone(),

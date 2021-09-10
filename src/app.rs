@@ -106,6 +106,9 @@ pub struct App<'a> {
     // loader_tick is a looping index for loader_state
     pub loader_tick: u16,
 
+    // scroll_tick is an index which loops over 100 for paragraph scrolling 
+    pub scroll_tick: u64,
+
     // TimeZone Manager
     pub tz_name_offset_map: Arc<Mutex<HashMap<String, f64>>>,
 
@@ -138,6 +141,7 @@ pub struct App<'a> {
 
     pub view_panel_cmd_bar: CommandBar<'a>,
 
+    pub issue_to_expand: Option<Value>,
 
     // Issue Modification fields
     pub modifying_issue: bool,
@@ -161,6 +165,7 @@ impl<'a> Default for App<'a> {
             input_mode: InputMode::Normal,
 
             loader_tick: 0,
+            scroll_tick: 0,
 
             tz_name_offset_map: Arc::new(Mutex::new(linear::parse_timezones_from_file())),
 
@@ -186,12 +191,13 @@ impl<'a> Default for App<'a> {
 
             view_panel_cmd_bar: CommandBar::with_type(CommandBarType::Dashboard),
 
+            issue_to_expand: None,
+
             modifying_issue: false,
             linear_issue_op_interface: LinearIssueOpInterface::default(),
 
             actions: util::StatefulList::with_items(vec![
                 "Modify Dashboard",
-                "Create New Custom View",
             ]).selected(),
         }
     }

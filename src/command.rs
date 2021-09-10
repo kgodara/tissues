@@ -7,7 +7,7 @@ use crate::app::{App, Platform, Route, InputMode};
 use crate::network::IOEvent;
 use crate::util::{
     state_table,
-    dashboard::fetch_selected_view_panel_idx,
+    dashboard::{ fetch_selected_view_panel_issue, fetch_selected_view_panel_idx, },
     event::{Event, Events},
 };
 
@@ -50,6 +50,8 @@ pub enum Command {
     SelectViewPanel(usize),
 
     RefreshViewPanel,
+    ExpandIssue,
+
     SelectDashboardViewList,
     SelectCustomViewSelect,
 
@@ -70,7 +72,6 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mo
             Key::Char('\n') => {return Some(Command::EditorSubmit);},
             Key::Char(c) => {return Some(Command::EditorInput(c));},
             Key::Backspace => {return Some(Command::EditorDelete);},
-            Key::Esc => {return Some(Command::EditorExit);}
             _ => {return None}
         }
     }
@@ -110,6 +111,9 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mo
                 // Refresh Command
                 "r" => {
                     Some(Command::RefreshViewPanel)
+                },
+                "f" => {
+                    Some(Command::ExpandIssue)  
                 },
                 // Modify Command
                 "w" => {
@@ -386,6 +390,15 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             app.dispatch_event("paginate_dashboard_view", tx);
 
         }
+    }
+}
+
+pub fn exec_expand_issue_cmd(app: &mut App, tx: &Sender<IOEvent>) {
+    // Execute command if:
+    //     view panel issue is selected
+
+    if let Some(issue_obj) = fetch_selected_view_panel_issue(app) {
+        app.issue_to_expand = Some(issue_obj.clone());
     }
 }
 

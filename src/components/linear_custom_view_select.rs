@@ -20,7 +20,7 @@ use crate::linear::{
 };
 
 use crate::util::{
-    table::{ values_to_str, format_cell_fields,
+    table::{ values_to_str_with_fallback, format_cell_fields,
         get_row_height, colored_cell,
         TableStyle, gen_table_title_spans
     },
@@ -95,7 +95,7 @@ impl LinearCustomViewSelect {
         let mut rows: Vec<Row> = table_data.iter()
             .map(|row| {
 
-                let cell_fields: Vec<String> = values_to_str(
+                let cell_fields: Vec<String> = values_to_str_with_fallback(
                     &[row["name"].clone(),
                         row["description"].clone(),
                         row["organization"]["name"].clone(),
@@ -119,6 +119,8 @@ impl LinearCustomViewSelect {
                 // Insert new "name" cell, and remove unformatted version
                 cells.insert(0, colored_cell(name, color));
                 cells.remove(1);
+
+                // debug!("render - row: {:?}", Row::new(cells.clone()).bottom_margin(bottom_margin));
 
                 Row::new(cells)
                     .bottom_margin(bottom_margin)

@@ -13,6 +13,7 @@
                     estimate
                     team {
                         id
+                        name
                     }
                     state {
                         id
@@ -23,17 +24,27 @@
                     }
                     creator {
                         id
+                        displayName
                     }
                     assignee {
                         id
+                        displayName
                     }
                     labels {
                         nodes {
                             id
+                            name
+                            color
                         }
+                    }
+                    cycle {
+                        id
+                        name
                     }
                     project {
                         id
+                        name
+                        color
                     }
                     subscribers {
                         nodes {

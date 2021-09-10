@@ -54,6 +54,8 @@ use util::{
     loader::{ LOADER_STATE_MAX },
 };
 
+use crate::constants::{ SCROLL_TICK_MAX };
+
 #[macro_use] extern crate log;
 extern crate simplelog;
 
@@ -72,7 +74,10 @@ use command::{ Command,
 
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
+                
                 exec_refresh_view_panel_cmd,
+                exec_expand_issue_cmd,
+
                 exec_select_dashboard_view_list_cmd,
                 exec_select_custom_view_select_cmd,
                 exec_open_issue_op_interface_cmd,
@@ -287,9 +292,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // linear_dashboard_view_panel_selected
                             exec_select_view_panel_cmd(&mut app, idx).await;
                         },
+
                         Command::RefreshViewPanel => {
                             exec_refresh_view_panel_cmd(&mut app, &tx);
                         },
+                        Command::ExpandIssue => {
+                            exec_expand_issue_cmd(&mut app, &tx);
+                        },
+
                         Command::SelectDashboardViewList => {
                             exec_select_dashboard_view_list_cmd(&mut app);
                         },
@@ -327,6 +337,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if app.loader_tick == (LOADER_STATE_MAX-1) { app.loader_tick = 0; }
                 else { app.loader_tick += 1; }
+
+                if app.scroll_tick == ( SCROLL_TICK_MAX-1 ) { app.scroll_tick = 0; }
+                else { app.scroll_tick += 1; }
 
                 // avoid overflow
                 if tick_idx < 100 {

@@ -26,6 +26,13 @@ lazy_static! {
         ]
     };
 
+    pub static ref ISSUE_MODAL_HEADER_COLUMNS: Vec<TableColumn<'static>> = {
+        vec![
+            TableColumn { label: "Team", null_fallback: "", min_width: 8, max_height: 1, priority: 2 },
+            TableColumn { label: "createdAt", null_fallback: "", min_width: 10, max_height: 1, priority: 2 },
+        ]
+    };
+
     // Issue Modification Columns Start
     pub static ref WORKFLOW_STATE_SELECT_COLUMNS: Vec<TableColumn<'static>> = {
         vec![

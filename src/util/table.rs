@@ -87,7 +87,7 @@ pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
 }
 
 
-pub fn values_to_str(values: &[Value], columns: &[TableColumn]) -> Vec<String> {
+pub fn values_to_str_with_fallback(values: &[Value], columns: &[TableColumn]) -> Vec<String> {
     values.iter()
         .enumerate()
         .map(|(idx, field)| match field {
@@ -102,6 +102,19 @@ pub fn values_to_str(values: &[Value], columns: &[TableColumn]) -> Vec<String> {
             },
         })
         .collect()
+}
+
+pub fn value_to_str(value: &Value) -> String {
+    match value {
+        Value::String(x) => x.clone(),
+        Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
+        Value::Null => {
+            String::default()
+        },
+        _ => {
+            String::default()
+        },
+    }
 }
 
 pub fn format_cell_fields(cell_fields: &[String], widths: &[Constraint], columns: &[TableColumn]) -> Vec<String> {
