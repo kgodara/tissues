@@ -291,8 +291,10 @@ pub async fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize
     // User is attempting to select a View Panel
     if Route::ActionSelect == app.route {
         // Verify that view_panel_idx is within bounds of app.linear_dashboard_view_panel_list.len()
+        // &&
+        // Verify issue modification not in progress
         let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
-        if view_panel_idx <= view_panel_list_handle.len() {
+        if view_panel_idx <= view_panel_list_handle.len() && !app.modifying_issue {
 
             // if so, update app.linear_dashboard_view_panel_selected to Some(view_panel_idx)
             app.linear_dashboard_view_panel_selected = Some(view_panel_idx);
@@ -701,11 +703,13 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
             // If the issue op interface is open, scroll down on modal
             if app.modifying_issue {
-                debug!("Attempting to scroll up on IssueOpInterface");
                 
+
                 let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
                 let data_lock = data_handle.lock().unwrap();
                 let mut data_state = &mut app.linear_issue_op_interface.data_state;
+
+                debug!("Attempting to scroll up on IssueOpInterface - data_lock, data_state: {:?}, {:?}", *data_lock, data_state);
 
                 state_table::previous(&mut data_state, &*data_lock);
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();

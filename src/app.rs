@@ -210,13 +210,17 @@ impl<'a> App<'a> {
         match route {
 
             Route::ConfigInterface => {
-
+                // Unselect from actions list
+                self.actions.unselect();
             },
 
             // Create DashboardViewPanel components for each Some in app.linear_dashboard_view_list
             // and set app.linear_dashboard_view_panel_list
             // Load all Dashboard Views
             Route::ActionSelect => {
+                // Select first action
+                self.actions.next();
+
                 self.dispatch_event("load_dashboard_views", &tx);
             },
 
@@ -230,6 +234,9 @@ impl<'a> App<'a> {
 
                 self.dispatch_event("load_custom_views", tx);
                 */
+
+                // Unselect from actions list
+                self.actions.unselect();
 
                 // TODO: Clear any previous CustomViewSelect related values on self
                 self.linear_custom_view_select = LinearCustomViewSelect::default();

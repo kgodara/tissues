@@ -1,7 +1,7 @@
 use tui::widgets::TableState;
 // A set of utilities for working with a TableState and an Iterator
 
-pub fn next<T>(state: &mut TableState, items: &Vec<T>) {
+pub fn next<T>(state: &mut TableState, items: &[T]) {
     let i = match state.selected() {
         Some(i) => {
             if i >= items.len() - 1 {
@@ -15,7 +15,7 @@ pub fn next<T>(state: &mut TableState, items: &Vec<T>) {
     state.select(Some(i));
 }
 
-pub fn with_next<T>(state: &TableState, items: &Vec<T>) -> TableState {
+pub fn with_next<T>(state: &TableState, items: &[T]) -> TableState {
     let i = match state.selected() {
         Some(i) => {
             if i >= items.len() - 1 {
@@ -31,7 +31,7 @@ pub fn with_next<T>(state: &TableState, items: &Vec<T>) -> TableState {
     state 
 }
 
-pub fn with_previous<T>(state: &TableState, items: &Vec<T>) -> TableState {
+pub fn with_previous<T>(state: &TableState, items: &[T]) -> TableState {
     let i = match state.selected() {
         Some(i) => {
             if i == 0 {
@@ -69,19 +69,25 @@ pub fn is_last_element<T>(state: &TableState, items: &[T]) -> bool {
     false
 }
 
-pub fn previous<T>(state: &mut TableState, items: &Vec<T>) {
+pub fn previous<T>(state: &mut TableState, items: &[T]) {
 
-    let i = match state.selected() {
+    let to_select: Option<usize> = match state.selected() {
         Some(i) => {
             if i == 0 {
-                items.len() - 1
+                Some(items.len() - 1)
             } else {
-                i - 1
+                Some(i - 1)
             }
         }
-        None => 0,
+        None => {
+            if !items.is_empty() {
+                Some(0)
+            } else {
+                None
+            }
+        },
     };
-    state.select(Some(i));
+    state.select(to_select);
 }
 
 pub fn unselect(state: &mut TableState) {

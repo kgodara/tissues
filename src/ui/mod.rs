@@ -237,30 +237,21 @@ where
       .items
       .iter()
       .map(|i| {
-          let mut lines = vec![Spans::from(*i)];
-          /*
-          for _ in 0..i.1 {
-              lines.push(Spans::from(Span::styled(
-                  "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-                  Style::default().add_modifier(Modifier::ITALIC),
-              )));
-          }
-          */
-          ListItem::new(lines).style(Style::default().fg(Color::Black).bg(Color::White))
+          ListItem::new(vec![Spans::from(*i)])
       })
       .collect();
+
 
     // Create a List from all list items and highlight the currently selected one
     let items = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Action Select"))
         .highlight_style(
-            Style::default()
-                .bg(Color::LightGreen)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
+            // Style::default().add_modifier(Modifier::REVERSED);
+            Style::default().add_modifier(Modifier::REVERSED),
+        );
 
     f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
+
 
     // Draw Linear Issue Op Interface
     if app.modifying_issue {

@@ -374,7 +374,7 @@ impl LinearIssueOpInterface {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(if table_style.highlight_table { Color::Yellow } else { Color::White }))
             .title( gen_table_title_spans(table_style) );
-        
+
         let t = Table::new(rows)
             .header(header)
             .block(table_block)
