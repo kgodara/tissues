@@ -518,7 +518,7 @@ impl<'a> App<'a> {
                     // verify that we've got the results
                     for item in &items {
                         info!("LoadViewIssues Result: {:?}", item);
-                    }                    
+                    }
                 });
 
             },

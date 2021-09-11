@@ -615,10 +615,13 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             }
             // If a ViewPanel is selected, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
-                if let Some(table_state) = &app.view_panel_issue_selected {
-                    let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+                // debug!("exec_scroll_down_cmd() view panel is selected");
 
-                    let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+                let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+                let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+
+                if let Some(table_state) = &app.view_panel_issue_selected {
+                    // debug!("exec_scroll_down_cmd() view panel issue is selected");
                     let view_panel_loader_handle = view_panel_list_handle[view_panel_selected_idx-1].view_loader.lock().unwrap();
 
                     if !view_panel_issue_handle.is_empty() {
@@ -636,13 +639,25 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                             };
 
                         if is_last_element && !loader_is_exhausted {
+
+                            debug!("exec_scroll_down_cmd() at end of list with more to load, paginating");
                             app.view_panel_to_paginate = view_panel_selected_idx-1;
                             load_paginated = true;
                         }
+                        // Not at end of list, scroll down
                         else {
+                            // debug!("exec_scroll_down_cmd() attempting to scroll down");
                             app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_handle));
                         }
                     }
+                }
+                // If a View panel is selected && no issue is selected && panel has issues:
+                //     select next issue
+                else if !view_panel_issue_handle.is_empty() {
+                    let mut table_state = TableState::default();
+                    state_table::next(&mut table_state, &view_panel_issue_handle);
+
+                    app.view_panel_issue_selected = Some( table_state );
                 }
             }
             // No View Panel selected or issue modal open, scroll on actions
@@ -729,13 +744,22 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             }
             // If a ViewPanel is selected and no issue modal open, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
-                if let Some(table_state) = &app.view_panel_issue_selected {
-                    let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
-                    let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
 
+                let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
+                let view_panel_issue_handle = view_panel_list_handle[view_panel_selected_idx-1].issue_table_data.lock().unwrap();
+
+                if let Some(table_state) = &app.view_panel_issue_selected {
                     if !view_panel_issue_handle.is_empty() {
                         app.view_panel_issue_selected = Some(state_table::with_previous(table_state, &view_panel_issue_handle));
                     }
+                }
+                // If a View panel is selected && no issue is selected && panel has issues:
+                //     select next issue
+                else if !view_panel_issue_handle.is_empty() {
+                    let mut table_state = TableState::default();
+                    state_table::next(&mut table_state, &view_panel_issue_handle);
+
+                    app.view_panel_issue_selected = Some( table_state );
                 }
             }
             // No View Panel selected or issue modal open, scroll on actions

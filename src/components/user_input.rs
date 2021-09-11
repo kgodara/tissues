@@ -76,7 +76,7 @@ impl UserInput {
         text.patch_style(style);
         let help_message = Paragraph::new(text);
 
-        return help_message;
+        help_message
     }
 
     pub fn render_input_box<'a>(input: &'a str, input_mode: &InputMode) -> Paragraph<'a> {
