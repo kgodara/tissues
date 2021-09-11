@@ -107,23 +107,26 @@ where
     let mut modify_project_cmd_active = false;
     let mut modify_cycle_cmd_active = false;
     let mut expand_issue_cmd_active = false;
-    
+
     let mut refresh_cmd_active = false;
 
 
-    // If a View Panel is selected & it is not loading, allow Refresh command
+    // If a View Panel is selected && its not loading && issue is not expanded
+    //     allow Refresh command
     if let Some(selected_view_panel_idx) = fetch_selected_view_panel_num(app) {
         // Fetch selected ViewPanel
         let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
 
         if let Some(x) = view_panel_list_lock.get(selected_view_panel_idx-1) {
-            refresh_cmd_active = !x.loading.load(Ordering::Relaxed);
+            if !x.loading.load(Ordering::Relaxed) && app.issue_to_expand.is_none() {
+                refresh_cmd_active = true;
+            }
         }
         drop(view_panel_list_lock);
     }
 
-    // If a View Panel Issue is selected, allow following commands
-    if fetch_selected_view_panel_issue(app).is_some() {
+    // If a View Panel Issue is selected && issue is not expanded, allow following commands
+    if fetch_selected_view_panel_issue(app).is_some() && app.issue_to_expand.is_none() {
         modify_workflow_state_cmd_active = true;
         modify_assignee_cmd_active = true;
         modify_project_cmd_active = true;

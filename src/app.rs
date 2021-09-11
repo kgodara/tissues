@@ -276,7 +276,9 @@ impl<'a> App<'a> {
 
                 let tx2 = tx.clone();
 
-                let linear_config = self.linear_client.config.clone();
+                let linear_config_lock = self.linear_client.config.lock().unwrap();
+                let linear_config = linear_config_lock.clone();
+                drop(linear_config_lock);
 
                 let view_data_handle = self.linear_custom_view_select.view_table_data.clone();
 
@@ -402,6 +404,10 @@ impl<'a> App<'a> {
                 }
 
                 info!("change_route ActionSelect new self.linear_dashboard_view_panel_list: {:?}", view_panel_list_handle);
+                
+                let linear_config_lock = self.linear_client.config.lock().unwrap();
+                let linear_config = linear_config_lock.clone();
+                drop(linear_config_lock);
 
                 // Create 'view_load_bundles': Vec<ViewLoadBundle> from view_panel_list_handle
                 // Filter to only create ViewLoadBundles for ViewPanels where 
@@ -415,7 +421,7 @@ impl<'a> App<'a> {
                         }
                         else {
                             Some(ViewLoadBundle {
-                                            linear_config: self.linear_client.config.clone(),
+                                            linear_config: linear_config.clone(),
 
                                             tz_id_name_lookup: self.team_tz_map.lock()
                                                                                 .unwrap()
@@ -539,7 +545,9 @@ impl<'a> App<'a> {
                 is_loading.store(true, Ordering::Relaxed);
 
 
-                let config = self.linear_client.config.clone();
+                let linear_config_lock = self.linear_client.config.lock().unwrap();
+                let linear_config = linear_config_lock.clone();
+                drop(linear_config_lock);
 
                 let view_panel_view_obj = view_panel_list_handle[self.view_panel_to_paginate].filter.clone();
 
@@ -567,7 +575,7 @@ impl<'a> App<'a> {
                     let (resp_tx, resp_rx) = oneshot::channel();
 
 
-                    let cmd = IOEvent::LoadViewIssues { linear_config: config,
+                    let cmd = IOEvent::LoadViewIssues { linear_config,
                                                         team_tz_lookup: tz_id_name_lookup_dup,
                                                         tz_offset_lookup: tz_name_offset_lookup_dup,
                                                         issue_data: view_panel_issue_handle.clone(),
@@ -611,7 +619,12 @@ impl<'a> App<'a> {
                 op_interface_loading_handle.store(true, Ordering::Relaxed);
 
                 let issue_op_data_handle = self.linear_issue_op_interface.table_data_from_op();
-                let linear_config = self.linear_client.config.clone();
+                
+                let linear_config_lock = self.linear_client.config.lock().unwrap();
+                let linear_config = linear_config_lock.clone();
+                drop(linear_config_lock);
+
+
                 let current_op = self.linear_issue_op_interface.current_op;
 
                 let selected_issue_opt = fetch_selected_view_panel_issue(&self);
@@ -726,7 +739,10 @@ impl<'a> App<'a> {
 
                 debug!("update_issue - issue_id, selected_value_id: {:?}, {:?}", issue_id, selected_value_id);
 
-                let linear_config = self.linear_client.config.clone();
+                let linear_config_lock = self.linear_client.config.lock().unwrap();
+                let linear_config = linear_config_lock.clone();
+                drop(linear_config_lock);
+
                 let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();
 
                 let current_op = self.linear_issue_op_interface.current_op;

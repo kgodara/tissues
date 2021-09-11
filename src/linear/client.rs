@@ -24,6 +24,8 @@ use super::query::{
 
 use std::result::Result;
 
+use std::sync::{ Arc, Mutex };
+
 use super::error::LinearClientError;
 
 use serde_json::{ Value, json, Map};
@@ -45,20 +47,22 @@ use crate::constants::{
 type ClientResult = Result<Value, LinearClientError>;
 
 pub struct LinearClient {
-    pub config: LinearConfig,
+    pub config: Arc<Mutex<LinearConfig>>,
 }
 
 impl Default for LinearClient {
     fn default() -> LinearClient {
-        LinearClient { config: LinearConfig::default() }
+        LinearClient { config: Arc::new(Mutex::new(LinearConfig::default())) }
     }
 }
 
 impl LinearClient {
 
+    /*
     fn set_config(&mut self, new_config: LinearConfig) {
         self.config = new_config;
     }
+    */
 
     // type LinearClientResult<T> = Result<T, LinearClientError>;
 

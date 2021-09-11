@@ -212,23 +212,23 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
     app.input_mode = InputMode::Normal;
 
     // Verify user is editing access token
-    match app.route {
-        Route::ConfigInterface => {
-            let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
-            // TODO: Verify length is satisfactory for linear access token
-            info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
-            if submission_len == LINEAR_TOKEN_LEN {
-                // save entered token to file
-                LinearConfig::save_access_token(&app.config_interface_input.input);
-                // change route
-                app.change_route(Route::ActionSelect, tx);
-            } else if submission_len > 0 {
-                app.config_interface_input.invalid_access_token_len = true;
-            } else {
-                app.config_interface_input.access_token_not_set = true;
+    if app.route == Route::ConfigInterface {
+        let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
+        // TODO: Verify length is satisfactory for linear access token
+        info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
+        if submission_len == LINEAR_TOKEN_LEN {
+            // save entered token to file
+            {
+                let mut linear_config_lock = app.linear_client.config.lock().unwrap();
+                linear_config_lock.save_access_token(&app.config_interface_input.input);
             }
+            // change route
+            app.change_route(Route::ActionSelect, tx);
+        } else if submission_len > 0 {
+            app.config_interface_input.invalid_access_token_len = true;
+        } else {
+            app.config_interface_input.access_token_not_set = true;
         }
-        _ => {}
     }
 }
 
@@ -345,6 +345,7 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     // Execute command if:
     //     view panel is selected &&
     //     view panel is not loading
+    //     expanded issue modal not open
 
     if let Some(idx) = fetch_selected_view_panel_idx(app) {
         let view_panel_list_lock = app.linear_dashboard_view_panel_list.lock().unwrap();
@@ -357,7 +358,7 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         let is_panel_loading = &view_panel_list_lock[idx].loading;
 
 
-        if !is_panel_loading.load(Ordering::Relaxed) {
+        if !is_panel_loading.load(Ordering::Relaxed) && app.issue_to_expand.is_none() {
 
             // Reset visual selection
             app.view_panel_issue_selected = Some(TableState::default());
@@ -408,11 +409,14 @@ pub fn exec_expand_issue_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, tx: &Sender<IOEvent>) {
     if Route::ActionSelect == app.route {
 
-        // Enable drawing of issue op interface
-        app.linear_issue_op_interface.current_op = op;
-        app.modifying_issue = true;
 
-        app.dispatch_event("load_issue_op_data", tx);
+        // Enable drawing of issue op interface if expanded issue modal not open
+        if app.issue_to_expand.is_none() {
+            app.linear_issue_op_interface.current_op = op;
+            app.modifying_issue = true;
+
+            app.dispatch_event("load_issue_op_data", tx);
+        }
     }
 }
 
@@ -432,6 +436,11 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             if app.modifying_issue {
                 app.modifying_issue = false;
                 app.linear_issue_op_interface.reset_op();
+            }
+
+            // If expanded Issue view is open, close modal
+            else if app.issue_to_expand.is_some() {
+                app.issue_to_expand = None;
             }
 
             // If a View Panel is selected, unselect it, reset app.linear_dashboard_view_panel_selected to None and
@@ -463,7 +472,11 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
     match app.route {
         Route::ConfigInterface => {
             // TODO: only allow progression if app.config_interface_input.loaded == true
-            if app.linear_client.config.loaded {
+            let linear_config_lock = app.linear_client.config.lock().unwrap();
+            let linear_config = linear_config_lock.clone();
+            drop(linear_config_lock);
+
+            if linear_config.is_valid_token {
                 app.change_route(Route::ActionSelect, &tx);
             }
         },
@@ -613,6 +626,12 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
                 */
             }
+
+            // If expanded issue modal open, nothing to do
+            else if app.issue_to_expand.is_some() {
+                return;
+            }
+
             // If a ViewPanel is selected, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
                 // debug!("exec_scroll_down_cmd() view panel is selected");
@@ -742,6 +761,10 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                 state_table::previous(&mut data_state, &*data_lock);
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
             }
+
+            // If expanded issue modal open, nothing to do
+            else if app.issue_to_expand.is_some() { }
+
             // If a ViewPanel is selected and no issue modal open, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
 

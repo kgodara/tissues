@@ -7,7 +7,10 @@ extern crate lazy_static;
 
 use std::io;
 use std::fs;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 mod app;
 mod graphql;
@@ -37,11 +40,12 @@ use app::{ Route };
 use serde_json::Value;
 
 extern crate dotenv;
-
 use dotenv::dotenv;
 
-use tokio::sync::mpsc;
-use tokio::sync::oneshot;
+use tokio::{
+    sync::{ mpsc, oneshot },
+    time::{ sleep, Duration }
+};
 
 use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::{
@@ -120,8 +124,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create default app state
     let mut app = app::App::default();
 
-    if app.linear_client.config.load_config().is_some() {
-        app.route = Route::ActionSelect;
+    {
+        let mut linear_config_lock = app.linear_client.config.lock().unwrap();
+        // let linear_config = linear_config_lock.clone();
+        // drop(linear_config_lock);
+
+        if linear_config_lock.load_config().is_some() {
+            app.route = Route::ActionSelect;
+        }
     }
   
     // let config_paths = client_config.get_or_build_paths()?;
@@ -189,20 +199,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let tx2 = tx.clone();
 
-    let linear_config_dup = app.linear_client.config.clone();
+    let linear_config_handle = app.linear_client.config.clone();
+
+    
     let team_tz_map_handle = app.team_tz_map.clone();
     let team_tz_load_done_handle = app.team_tz_load_done.clone();
 
-    /*
+    
     let _time_zone_load = tokio::spawn(async move {
         let (resp_tx, resp_rx) = oneshot::channel();
 
+        loop {
+            sleep(Duration::from_millis(100)).await;
+            {
+                let linear_config_lock = linear_config_handle.lock().unwrap();
+                if linear_config_lock.is_valid_token {
+                    break;
+                }
+                drop(linear_config_lock);
+            }
+        }
 
-        let cmd = IOEvent::LoadLinearTeamTimeZones {    linear_config: linear_config_dup,
-                                                        resp: resp_tx };
+        let linear_config: LinearConfig;
+        {
+            let linear_config_lock = linear_config_handle.lock().unwrap();
+            linear_config = linear_config_lock.clone();
+        }
         
-        tx2.send(cmd).await.unwrap();
+        let cmd = IOEvent::LoadLinearTeamTimeZones {    linear_config,
+                                                        resp: resp_tx };
 
+        tx2.send(cmd).await.unwrap();
         let res = resp_rx.await.ok();
 
         info!("LoadLinearTeamTimeZones IOEvent returned: {:?}", res);
@@ -216,8 +243,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             team_tz_load_done_handle.store(true, Ordering::Relaxed);
         }
     });
-    */
-
 
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;

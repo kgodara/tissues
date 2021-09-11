@@ -4,6 +4,9 @@ use std::{
     env,
     io::{stdin, Write},
     path::{Path, PathBuf},
+    sync::{ Arc, 
+        atomic::{ AtomicBool, Ordering }
+    },
 };
 
 use crate::constants::LINEAR_TOKEN_LEN;
@@ -22,7 +25,7 @@ const DEFAULT_LINEAR_DUE_SOON_DAY_THRESHOLD: u32 = 5;
 
 #[derive(Debug, Clone)]
 pub struct LinearConfig {
-    pub loaded: bool,
+    pub is_valid_token: bool,
     pub api_key: Option<String>,
 
     pub issue_page_size: u32,
@@ -40,7 +43,7 @@ impl Default for LinearConfig {
         info!("{:?}", env::var("LINEAR_PERSONAL_API_KEY"));
 
         LinearConfig {
-            loaded: false,
+            is_valid_token: false,
             api_key: None/*env::var("LINEAR_PERSONAL_API_KEY").ok().map(String::from)*/,
             issue_page_size: match env::var("LINEAR_ISSUE_PAGE_SIZE").ok() {
                 Some(x) => *x.parse::<u32>().ok().get_or_insert(DEFAULT_LINEAR_ISSUE_PAGE_SIZE),
@@ -114,7 +117,7 @@ impl LinearConfig {
                 error!("load_config - fs::read_to_string() failed: {:?}", config_file_path);
                 panic!("load_config - fs::read_to_string() failed: {:?}", config_file_path);
             }
-    
+
             if let Ok(token_val) = token {
                 // verify token is correct len
                 let token_len: u16 = unicode_width::UnicodeWidthStr::width(token_val.as_str()) as u16;
@@ -122,7 +125,8 @@ impl LinearConfig {
                     return None;
                 }
 
-                self.loaded = true;
+                // self.is_valid_token.store(true, Ordering::Relaxed);
+                self.is_valid_token = true;
                 self.api_key = Some(token_val);
             }
 
@@ -132,9 +136,11 @@ impl LinearConfig {
         }
     }
 
-    pub fn save_access_token(token: &str) {
+    pub fn save_access_token(&mut self, token: &str) {
         let config_file_path = LinearConfig::get_or_build_paths();
         fs::write(&config_file_path, token).expect("Unable to write file");
+        self.is_valid_token = true;
+        // self.is_valid_token.store(true, Ordering::Relaxed);
     }
 
 
