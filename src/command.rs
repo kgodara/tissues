@@ -183,7 +183,7 @@ pub fn exec_editor_enter_cmd(app: &mut App<'_>, events: &mut Events) {
 }
 
 pub fn exec_editor_input_cmd(app: &mut App<'_>, ch: &char) {
-    // Verify user is enter access token
+    // Verify user is entering access token
     match app.route {
         Route::ConfigInterface => {
             if app.input_mode == InputMode::Editing {
@@ -285,6 +285,9 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
                 while app.linear_dashboard_view_list.len() < 6 {
                     app.linear_dashboard_view_list.push(None);
                 }
+
+                // Serialize new Custom View List
+                LinearConfig::save_view_list(app.linear_dashboard_view_list.clone());
             }
         }
     }
@@ -516,19 +519,11 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
                 info!("Got Custom View Data");
                 let selected_view = custom_view_data_lock[idx].clone();
 
-                // Attempt to add selected_view to first available slot in app.linear_dashboard_view_list
-                // If no empty slots, do nothing
+                // Attempt to add selected_view to selected slot in app.linear_dashboard_view_list
+                // sort after adding, so all filled slots are first
 
                 info!("linear_dashboard_view_list: {:?}", app.linear_dashboard_view_list);
 
-                /*
-                let slot_idx_option = app.linear_dashboard_view_list
-                                    .iter()
-                                    .position(|x| match x {
-                                        Some(_) => return true,
-                                        None => return false,
-                                    });
-                */
                 let slot_idx_option = app.linear_dashboard_view_idx;
                 info!("slot_idx_option: {:?}", slot_idx_option);
 
@@ -545,6 +540,9 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
                     while app.linear_dashboard_view_list.len() < 6 {
                         app.linear_dashboard_view_list.push(None);
                     }
+
+                    // Serialize new Custom View List
+                    LinearConfig::save_view_list(app.linear_dashboard_view_list.clone());
                 };
 
                 drop(custom_view_data_lock);

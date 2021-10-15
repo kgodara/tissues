@@ -9,11 +9,14 @@ use std::{
     },
 };
 
+use serde_json::Value;
+
 use crate::constants::LINEAR_TOKEN_LEN;
 
 const CONFIG_DIR: &str = ".config";
 const APP_CONFIG_DIR: &str = "rust-cli";
-const FILE_NAME: &str = "config.txt";
+const APP_CONFIG_FILE_NAME: &str = "config.txt";
+const APP_DASHBOARD_VIEW_LIST: &str = "view_list.txt";
 
 
 const DEFAULT_LINEAR_ISSUE_PAGE_SIZE: u32 = 50;
@@ -73,8 +76,13 @@ impl Default for LinearConfig {
     }
 }
 
+pub enum CachedDataFile {
+    AccessToken,
+    ViewList,
+}
+
 impl LinearConfig {
-    pub fn get_or_build_paths() -> PathBuf {
+    pub fn get_or_build_paths(data_file: CachedDataFile) -> PathBuf {
         match dirs::home_dir() {
             Some(home) => {
                 let path = Path::new(&home);
@@ -96,10 +104,11 @@ impl LinearConfig {
                         panic!("get_or_build_paths() fs::create_dir() failed: {:?}", app_config_dir);
                     }
                 }
-
-                let config_file_path = &app_config_dir.join(FILE_NAME);
-
-                config_file_path.to_path_buf()
+                let file_path = match data_file {
+                    CachedDataFile::AccessToken => app_config_dir.join(APP_CONFIG_FILE_NAME),
+                    CachedDataFile::ViewList => app_config_dir.join(APP_DASHBOARD_VIEW_LIST)
+                };
+                file_path.to_path_buf()
             }
             None => {
                 error!("No $HOME directory found for config");
@@ -110,7 +119,7 @@ impl LinearConfig {
 
 
     pub fn load_config(&mut self) -> Option<()> {
-        let config_file_path = LinearConfig::get_or_build_paths();
+        let config_file_path = LinearConfig::get_or_build_paths(CachedDataFile::AccessToken);
         if config_file_path.exists() {
             let token = fs::read_to_string(&config_file_path);
             if token.is_err() {
@@ -137,10 +146,16 @@ impl LinearConfig {
     }
 
     pub fn save_access_token(&mut self, token: &str) {
-        let config_file_path = LinearConfig::get_or_build_paths();
+        let config_file_path = LinearConfig::get_or_build_paths(CachedDataFile::AccessToken);
         fs::write(&config_file_path, token).expect("Unable to write file");
         self.is_valid_token = true;
         // self.is_valid_token.store(true, Ordering::Relaxed);
+    }
+
+    pub fn save_view_list(view_list: Vec<Option<Value>>) {
+        let view_list_file_path = LinearConfig::get_or_build_paths(CachedDataFile::ViewList);
+        let serialized = serde_json::to_string(&view_list).unwrap();
+        fs::write(&view_list_file_path, serialized);
     }
 
 
