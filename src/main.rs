@@ -124,20 +124,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create default app state
     let mut app = app::App::default();
 
-    {
-        let mut linear_config_lock = app.linear_client.config.lock().unwrap();
-        // let linear_config = linear_config_lock.clone();
-        // drop(linear_config_lock);
-
-        if linear_config_lock.load_config().is_some() {
-            app.route = Route::ActionSelect;
-        }
-    }
-  
-    // let config_paths = client_config.get_or_build_paths()?;
-
     // Create a new channel with a capacity of at most 8.
     let (tx, mut rx) = mpsc::channel(8);
+
+    // Attempt to load access token, if successful bypass access token entry route
+    {
+        let mut linear_config_lock = app.linear_client.config.lock().unwrap();
+
+        if linear_config_lock.load_config().is_some() {
+            drop(linear_config_lock);
+            app.change_route(Route::ActionSelect, &tx);
+        }
+    }
 
     let _manager = tokio::spawn(async move {
         // Establish a connection to the server

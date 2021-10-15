@@ -158,6 +158,42 @@ impl LinearConfig {
         fs::write(&view_list_file_path, serialized);
     }
 
+    // Attempt to read cached view list from file
+    pub fn read_view_list() -> Option<Vec<Option<Value>>> {
+        match dirs::home_dir() {
+            Some(home) => {
+                let path = Path::new(&home);
+                let home_config_dir = path.join(CONFIG_DIR);
+                let app_config_dir = home_config_dir.join(APP_CONFIG_DIR);
+                let view_list_file_path = app_config_dir.join(APP_DASHBOARD_VIEW_LIST);
+
+                let data = fs::read_to_string(view_list_file_path);
+
+                match data {
+                    Ok(data_str) => {
+                        let deserialized: Vec<Option<Value>> = serde_json::from_str(&data_str).unwrap();
+                        return Some(deserialized);
+                    },
+                    // Return None if file is not found, otherwise panic
+                    Err(io_err) => {
+                        // error!("read_view_list() error - {:?}", io_err);
+                        // panic!("read_view_list() error - {:?}", io_err);
+                        match io_err.kind() {
+                            std::io::ErrorKind::NotFound => {
+                                return None;
+                            },
+                            _ => {
+                                error!("read_view_list() error - {:?}", io_err);
+                                panic!("read_view_list() error - {:?}", io_err);
+                            }
+                        }
+                    }
+                }
+            },
+            None => { None }
+        }
+    }
+
 
 
 

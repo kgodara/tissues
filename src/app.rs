@@ -5,7 +5,10 @@ use crate::network;
 use network::IOEvent as IOEvent;
 
 
-use tokio::sync::oneshot;
+use tokio::{
+    time::{ sleep, Duration },
+    sync::oneshot
+};
 
 use std::sync::{
     Arc,
@@ -56,7 +59,6 @@ use tui::{
 pub struct ViewLoadBundle {
     pub linear_config: LinearConfig,
 
-    pub tz_id_name_lookup: HashMap<String, String>,
     pub tz_name_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
 
     pub item_filter: Value,
@@ -108,6 +110,9 @@ pub struct App<'a> {
 
     // scroll_tick is an index which loops over 100 for paragraph scrolling 
     pub scroll_tick: u64,
+
+    // has previously cached view list been checked for
+    pub view_list_cache_read_attempted: bool,
 
     // TimeZone Manager
     pub tz_name_offset_map: Arc<Mutex<HashMap<String, f64>>>,
@@ -166,6 +171,8 @@ impl<'a> Default for App<'a> {
 
             loader_tick: 0,
             scroll_tick: 0,
+
+            view_list_cache_read_attempted: false,
 
             tz_name_offset_map: Arc::new(Mutex::new(linear::parse_timezones_from_file())),
 
@@ -226,6 +233,13 @@ impl<'a> App<'a> {
             Route::ActionSelect => {
                 // Select first action
                 self.actions.next();
+
+                if !self.view_list_cache_read_attempted {
+                    let cached_read_option = LinearConfig::read_view_list();
+                    if let Some(cached_view_list) = cached_read_option {
+                        self.linear_dashboard_view_list = cached_view_list;
+                    }
+                }
 
                 self.dispatch_event("load_dashboard_views", &tx);
             },
@@ -423,9 +437,6 @@ impl<'a> App<'a> {
                             Some(ViewLoadBundle {
                                             linear_config: linear_config.clone(),
 
-                                            tz_id_name_lookup: self.team_tz_map.lock()
-                                                                                .unwrap()
-                                                                                .clone(),
                                             tz_name_offset_lookup: self.tz_name_offset_map.clone(),
                                             
                                             item_filter: e.filter,
@@ -444,77 +455,87 @@ impl<'a> App<'a> {
 
                 drop(view_panel_list_handle);
 
+                // timezone load completion bool handle
+                let team_tz_load_done_handle = self.team_tz_load_done.clone();
+                let team_tz_lookup_handle = self.team_tz_map.clone();
+
 
                 let _t1 = tokio::spawn(async move {
 
                     // Load all DashboardViewPanels
-
-                    /*
-                    let mut iter_data: Vec<components::dashboard_view_panel::DashboardViewPanel> = Vec::new() 
-                    {
-                        let view_panel_lock = view_panel_list_ref.lock().unwrap();
-                        iter_data = view_panel_lock.clone();
+                    
+                    // Loop here and wait for timezone load to complete
+                    loop {
+                        sleep(Duration::from_millis(10)).await;
+                        {
+                            if team_tz_load_done_handle.load(Ordering::Relaxed) {
+                                break;
+                            }
+                        }
                     }
-                    */
 
-
+                    // Fetch self.team_tz_map here
+                    let team_tz_lookup_parent: HashMap<String, String>;
+                    {
+                        let team_tz_lookup_lock = team_tz_lookup_handle.lock().unwrap();
+                        team_tz_lookup_parent = team_tz_lookup_lock.clone();
+                    }
+                    
 
                     // note the use of `into_iter()` to consume `items`
                     let tasks: Vec<_> = view_load_bundles
-                    .into_iter()
-                    .map(|item| {
-                        // item is: 
-                        /*
-                        pub struct DashboardViewPanel {
-                            pub filter: Value,
-                            pub issue_table_data: Arc<Mutex<Option<Value>>>,
-                        }
-                        */
-                        info!("Spawning Get View Panel Issues Task");
-                        // let tx2 = tx.clone();
-                        // let temp_config = self.linear_client.config.clone();
-                        // let view_panel_handle: Arc<_> = item.issue_table_data.clone();
-                        // let item_filter = item.filter.clone();
-
-                        let loader_handle = item.loader.lock().unwrap();
-                        let loader = loader_handle.clone();
-                        drop(loader_handle);
-
-                        // Set ViewPanel loading state to true
-                        item.loading.store(true, Ordering::Relaxed);
-
-                        tokio::spawn(async move {
-                            let (resp_tx, resp_rx) = oneshot::channel();
-
-
-                            let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(),
-                                                                team_tz_lookup: item.tz_id_name_lookup,
-                                                                tz_offset_lookup: item.tz_name_offset_lookup,
-                                                                issue_data: Arc::new(Mutex::new(Vec::new())),
-                                                                view: item.item_filter.clone(), 
-                                                                view_loader: loader,
-                                                                resp: resp_tx };
-                            
-                            item.tx.send(cmd).await.unwrap();
-        
-                            let res = resp_rx.await.ok();
-
-                            info!("LoadViewIssues IOEvent returned: {:?}", res);
-
-                            let mut view_panel_data_lock = item.table_data.lock().unwrap();
-                            let mut loader_handle = item.loader.lock().unwrap();
-                            let mut request_num_lock = item.request_num.lock().unwrap();
-
-                            if let Some(x) = res {
-                                *view_panel_data_lock = x.0;
-                                *loader_handle = Some(x.1);
-                                *request_num_lock += x.2;
-                                item.loading.store(false, Ordering::Relaxed);
+                        .into_iter()
+                        .map(|item| {
+                            // item is: 
+                            /*
+                            pub struct DashboardViewPanel {
+                                pub filter: Value,
+                                pub issue_table_data: Arc<Mutex<Option<Value>>>,
                             }
-                            info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
+                            */
+                            info!("Spawning Get View Panel Issues Task");
+
+                            let loader_handle = item.loader.lock().unwrap();
+                            let loader = loader_handle.clone();
+                            drop(loader_handle);
+
+                            let team_tz_lookup = team_tz_lookup_parent.clone();
+
+                            // Set ViewPanel loading state to true
+                            item.loading.store(true, Ordering::Relaxed);
+
+                            tokio::spawn(async move {
+                                let (resp_tx, resp_rx) = oneshot::channel();
+
+
+                                let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(),
+                                                                    team_tz_lookup: team_tz_lookup.clone(),
+                                                                    tz_offset_lookup: item.tz_name_offset_lookup,
+                                                                    issue_data: Arc::new(Mutex::new(Vec::new())),
+                                                                    view: item.item_filter.clone(), 
+                                                                    view_loader: loader,
+                                                                    resp: resp_tx };
+
+                                item.tx.send(cmd).await.unwrap();
+            
+                                let res = resp_rx.await.ok();
+
+                                info!("LoadViewIssues IOEvent returned: {:?}", res);
+
+                                let mut view_panel_data_lock = item.table_data.lock().unwrap();
+                                let mut loader_handle = item.loader.lock().unwrap();
+                                let mut request_num_lock = item.request_num.lock().unwrap();
+
+                                if let Some(x) = res {
+                                    *view_panel_data_lock = x.0;
+                                    *loader_handle = Some(x.1);
+                                    *request_num_lock += x.2;
+                                    item.loading.store(false, Ordering::Relaxed);
+                                }
+                                info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
+                            })
                         })
-                    })
-                    .collect();
+                        .collect();
 
                     // await the tasks for resolve's to complete and give back our items
                     let mut items = vec![];

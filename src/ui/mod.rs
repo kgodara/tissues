@@ -17,6 +17,9 @@ use crate::components::{
 
     linear_issue_op_interface::LinearIssueOpInterface,
     linear_issue_modal::render_and_layout,
+
+    task_status_modal,
+    task_status_modal::TaskStatus,
 };
 
 use crate::util::{
@@ -98,6 +101,8 @@ where
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(20), Constraint::Percentage(70), Constraint::Percentage(10)].as_ref())
         .split(f.size());
+
+
 
     // Render the View Panel Command Bar
 
@@ -260,6 +265,17 @@ where
         );
 
     f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
+
+    // If timezone load is occurring, draw task modal
+    if !app.team_tz_load_done.load(Ordering::Relaxed) {
+        let task_area = util::ui::centered_rect(40, 20, f.size());
+
+        f.render_widget(Clear, task_area); //this clears out the background
+
+        let task_p: Paragraph = task_status_modal::render(TaskStatus::LoadingTeamTimezones, app.loader_tick);
+
+        f.render_widget(task_p, task_area);
+    }
 
     // Draw Issue Expanded Modal
     if let Some(issue_obj) = &app.issue_to_expand {

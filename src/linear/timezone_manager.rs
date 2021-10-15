@@ -212,6 +212,8 @@ pub fn get_issue_due_date_category( team_tz_lookup: &HashMap<String, String>,
     let tz_name: String = match team_tz_lookup.get(&team_id_str) {
         Some(tz_name_str) => { tz_name_str.to_string() },
         None => {
+            info!("get_issue_due_date_category - team_id_str: {:?}", team_id_str);
+            info!("get_issue_due_date_category - team_tz_lookup: {:?}", team_tz_lookup);
             error!("get_issue_due_date_category no timezone name found for team_id {:?}", team_id_str);
             panic!("get_issue_due_date_category no timezone name found for team_id {:?}", team_id_str)
         }

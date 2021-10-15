@@ -490,11 +490,14 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
                 app.dispatch_event("update_issue", &tx);
                 app.modifying_issue = false;
             }
-
+            // If user has chosen the "Modify Dashboard" action
+            // only allow if timezone load is complete
             else if let Some(i) = app.actions.state.selected() {
-                match i {
-                    0 => { app.change_route( Route::DashboardViewDisplay, &tx) },
-                    _ => {}
+                if app.team_tz_load_done.load(Ordering::Relaxed) {
+                    match i {
+                        0 => { app.change_route( Route::DashboardViewDisplay, &tx) },
+                        _ => {}
+                    }
                 }
             }
         },
