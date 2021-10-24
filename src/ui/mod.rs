@@ -115,8 +115,39 @@ where
 {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(20), Constraint::Percentage(70), Constraint::Percentage(10)].as_ref())
+        .constraints([Constraint::Percentage(5), Constraint::Percentage(20), Constraint::Percentage(70), Constraint::Percentage(5)].as_ref())
         .split(f.size());
+
+    
+    // Render the viewer displayName and organization name
+
+    let linear_config_lock = app.linear_client.config.lock().unwrap();
+    if let Some(viewer_obj) = &linear_config_lock.viewer_object {
+        let display_name = &viewer_obj["displayName"];
+        let org_name = &viewer_obj["organization"]["name"];
+
+        if let Value::String(display_name_str) = display_name {
+            if let Value::String(org_name_str) = org_name {
+
+                let mut viewer_label: String = String::new();
+                viewer_label.push_str(display_name_str);
+                viewer_label.push_str(" - ");
+                viewer_label.push_str(org_name_str);
+
+                let viewer_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default());
+            
+                let viewer_p = Paragraph::new(Span::from(viewer_label))
+                    .block(viewer_block)
+                    .alignment(Alignment::Left)
+                    .wrap(Wrap { trim: true });
+                
+                f.render_widget(viewer_p, chunks[0]);
+            }
+        }
+    }
+
 
 
 
@@ -167,7 +198,7 @@ where
 
     // Render command bar
     if let Ok(cmd_items) = app.view_panel_cmd_bar.render() {
-        f.render_widget(cmd_items, chunks[0]);
+        f.render_widget(cmd_items, chunks[1]);
     } else {
         error!("draw_action_select - app.view_panel_cmd_bar.render() failed");
         panic!("draw_action_select - app.view_panel_cmd_bar.render() failed");
@@ -191,12 +222,12 @@ where
 
         // Get bounding-box for view panel
         let view_panel_rect = match num_views {
-            1 => { ui::single_view_layout(i, chunks[1]) },
-            2 => { ui::double_view_layout(i, chunks[1]) },
-            3 => { ui::three_view_layout(i, chunks[1]) },
-            4 => { ui::four_view_layout(i, chunks[1]) },
-            5 => { ui::five_view_layout(i, chunks[1]) },
-            6 => { ui::six_view_layout(i, chunks[1]) },
+            1 => { ui::single_view_layout(i, chunks[2]) },
+            2 => { ui::double_view_layout(i, chunks[2]) },
+            3 => { ui::three_view_layout(i, chunks[2]) },
+            4 => { ui::four_view_layout(i, chunks[2]) },
+            5 => { ui::five_view_layout(i, chunks[2]) },
+            6 => { ui::six_view_layout(i, chunks[2]) },
             _ => {continue;},
         };
 
@@ -280,7 +311,7 @@ where
             Style::default().add_modifier(Modifier::REVERSED),
         );
 
-    f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
+    f.render_stateful_widget(items, chunks[3], &mut app.actions.state);
 
     // If timezone load is occurring, draw task modal
     if app.team_tz_load_in_progress.load(Ordering::Relaxed) {

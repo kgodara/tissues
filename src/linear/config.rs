@@ -9,7 +9,7 @@ use std::{
     },
 };
 
-use serde_json::Value;
+use serde_json::{ Value, Map };
 
 use crate::constants::LINEAR_TOKEN_LEN;
 
@@ -32,7 +32,7 @@ const DEFAULT_LINEAR_DUE_SOON_DAY_THRESHOLD: u32 = 5;
 pub struct LinearConfig {
     pub is_valid_token: bool,
     pub api_key: Option<String>,
-    pub viewer_object: Option<Value>,
+    pub viewer_object: Option<Map<String, Value>>,
 
     pub issue_page_size: u32,
     pub view_panel_page_size: u32,
@@ -133,6 +133,7 @@ impl LinearConfig {
                 panic!("load_config - fs::read_to_string() failed: {:?}", config_file_path);
             }
 
+            // verify & set token fields
             if let Ok(token_val) = token {
                 // verify token is correct len
                 let token_len: u16 = unicode_width::UnicodeWidthStr::width(token_val.as_str()) as u16;
@@ -140,35 +141,54 @@ impl LinearConfig {
                     return None;
                 }
 
-                // self.is_valid_token.store(true, Ordering::Relaxed);
                 self.is_valid_token = true;
                 self.api_key = Some(token_val);
             }
-
-            Some(())
         } else {
-            None
+            return None;
         }
+
+        // load & set viewer_object
+        let viewer_obj_file_path = LinearConfig::get_or_build_paths(CachedDataFile::ViewerObject);
+        if viewer_obj_file_path.exists() {
+            let viewer_obj_result = fs::read_to_string(&viewer_obj_file_path);
+            if viewer_obj_result.is_err() {
+                error!("load_config - fs::read_to_string() failed: {:?}", viewer_obj_file_path);
+                panic!("load_config - fs::read_to_string() failed: {:?}", viewer_obj_file_path);
+            }
+
+            if let Ok(viewer_obj_val) = viewer_obj_result {
+                let viewer_obj = serde_json::from_str(&viewer_obj_val).unwrap();
+                if let Value::Object(viewer_map) = viewer_obj {
+                    self.viewer_object = Some(viewer_map);
+                }
+            }
+        }
+
+
+        Some(())
     }
 
     pub fn save_access_token(&mut self, token: &str) {
         let config_file_path = LinearConfig::get_or_build_paths(CachedDataFile::AccessToken);
         fs::write(&config_file_path, token).expect("Unable to write file");
+
         self.api_key = Some(String::from(token));
         self.is_valid_token = true;
-        // self.is_valid_token.store(true, Ordering::Relaxed);
     }
 
     pub fn save_viewer_object(&mut self, viewer_object: serde_json::Map<String, Value>) {
         let viewer_object_file_path = LinearConfig::get_or_build_paths(CachedDataFile::ViewerObject);
         let serialized = serde_json::to_string(&viewer_object).unwrap();
-        fs::write(&viewer_object_file_path, serialized);
+        fs::write(&viewer_object_file_path, serialized).unwrap();
+
+        self.viewer_object = Some(viewer_object);
     }
 
     pub fn save_view_list(view_list: Vec<Option<Value>>) {
         let view_list_file_path = LinearConfig::get_or_build_paths(CachedDataFile::ViewList);
         let serialized = serde_json::to_string(&view_list).unwrap();
-        fs::write(&view_list_file_path, serialized);
+        fs::write(&view_list_file_path, serialized).unwrap();
     }
 
     // Attempt to read cached view list from file
