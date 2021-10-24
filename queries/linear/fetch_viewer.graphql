@@ -1,0 +1,18 @@
+{   "query": "query fetchViewer {
+        viewer {
+            id
+            inviteHash
+    
+            name
+            displayName
+            organization {
+                id
+                createdAt
+                name
+                urlKey
+            }
+            email
+        }
+    }",
+    "operationName": "fetchViewer"
+}

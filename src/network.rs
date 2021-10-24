@@ -30,6 +30,10 @@ pub enum IOEvent {
         linear_cursor: GraphQLCursor,
         resp: Responder<Value>
     },
+    LoadViewer {
+        api_key: String,
+        resp: Responder<Value>,
+    },
     LoadViewIssues {
         linear_config: LinearConfig,
         view: Value,

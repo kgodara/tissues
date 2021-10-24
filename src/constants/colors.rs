@@ -3,6 +3,7 @@ use tui::{
 };
 
 pub const RED: Color = Color::Rgb( 184u8, 4u8, 4u8 );
+pub const GREEN: Color = Color::Rgb( 4u8, 184u8, 4u8 );
 
 // Component Colors
 // white

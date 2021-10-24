@@ -15,7 +15,9 @@ use crate::constants::LINEAR_TOKEN_LEN;
 
 const CONFIG_DIR: &str = ".config";
 const APP_CONFIG_DIR: &str = "rust-cli";
+
 const APP_CONFIG_FILE_NAME: &str = "config.txt";
+const APP_VIEWER_OBJECT_FILE_NAME: &str = "viewer.txt";
 const APP_DASHBOARD_VIEW_LIST: &str = "view_list.txt";
 
 
@@ -30,6 +32,7 @@ const DEFAULT_LINEAR_DUE_SOON_DAY_THRESHOLD: u32 = 5;
 pub struct LinearConfig {
     pub is_valid_token: bool,
     pub api_key: Option<String>,
+    pub viewer_object: Option<Value>,
 
     pub issue_page_size: u32,
     pub view_panel_page_size: u32,
@@ -47,7 +50,8 @@ impl Default for LinearConfig {
 
         LinearConfig {
             is_valid_token: false,
-            api_key: None/*env::var("LINEAR_PERSONAL_API_KEY").ok().map(String::from)*/,
+            api_key: None,
+            viewer_object: None,
             issue_page_size: match env::var("LINEAR_ISSUE_PAGE_SIZE").ok() {
                 Some(x) => *x.parse::<u32>().ok().get_or_insert(DEFAULT_LINEAR_ISSUE_PAGE_SIZE),
                 None => DEFAULT_LINEAR_ISSUE_PAGE_SIZE,
@@ -78,6 +82,7 @@ impl Default for LinearConfig {
 
 pub enum CachedDataFile {
     AccessToken,
+    ViewerObject,
     ViewList,
 }
 
@@ -106,6 +111,7 @@ impl LinearConfig {
                 }
                 let file_path = match data_file {
                     CachedDataFile::AccessToken => app_config_dir.join(APP_CONFIG_FILE_NAME),
+                    CachedDataFile::ViewerObject => app_config_dir.join(APP_VIEWER_OBJECT_FILE_NAME),
                     CachedDataFile::ViewList => app_config_dir.join(APP_DASHBOARD_VIEW_LIST)
                 };
                 file_path.to_path_buf()
@@ -148,8 +154,15 @@ impl LinearConfig {
     pub fn save_access_token(&mut self, token: &str) {
         let config_file_path = LinearConfig::get_or_build_paths(CachedDataFile::AccessToken);
         fs::write(&config_file_path, token).expect("Unable to write file");
+        self.api_key = Some(String::from(token));
         self.is_valid_token = true;
         // self.is_valid_token.store(true, Ordering::Relaxed);
+    }
+
+    pub fn save_viewer_object(&mut self, viewer_object: serde_json::Map<String, Value>) {
+        let viewer_object_file_path = LinearConfig::get_or_build_paths(CachedDataFile::ViewerObject);
+        let serialized = serde_json::to_string(&viewer_object).unwrap();
+        fs::write(&viewer_object_file_path, serialized);
     }
 
     pub fn save_view_list(view_list: Vec<Option<Value>>) {

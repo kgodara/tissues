@@ -18,6 +18,8 @@ use crate::constants::{
     IssueModificationOp
 };
 
+use crate::components::user_input::TokenValidationState;
+
 use tokio::sync::mpsc::Sender;
 
 use serde_json::Value;
@@ -214,20 +216,14 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
     // Verify user is editing access token
     if app.route == Route::ConfigInterface {
         let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
-        // TODO: Verify length is satisfactory for linear access token
+        // Verify length is satisfactory for linear access token
         info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
         if submission_len == LINEAR_TOKEN_LEN {
-            // save entered token to file
-            {
-                let mut linear_config_lock = app.linear_client.config.lock().unwrap();
-                linear_config_lock.save_access_token(&app.config_interface_input.input);
-            }
-            // change route
-            app.change_route(Route::ActionSelect, tx);
-        } else if submission_len > 0 {
-            app.config_interface_input.invalid_access_token_len = true;
-        } else {
-            app.config_interface_input.access_token_not_set = true;
+            app.dispatch_event("load_viewer", tx);
+        }
+        else {
+            let mut token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
+            *token_validation_state_lock = TokenValidationState::Invalid;
         }
     }
 }
@@ -293,7 +289,7 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
     }
 }
 
-pub async fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize) {
+pub fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize) {
 
     // User is attempting to select a View Panel
     if Route::ActionSelect == app.route {

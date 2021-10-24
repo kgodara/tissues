@@ -42,7 +42,7 @@ use crate::util::{
 use crate::components::{
     command_bar::{ CommandBar, CommandBarType },
 
-    user_input::{ UserInput },
+    user_input::{ UserInput, TokenValidationState },
 
     linear_custom_view_select::LinearCustomViewSelect,
 
@@ -104,6 +104,8 @@ pub struct App<'a> {
     pub config_interface_input: UserInput,
     // Current input mode
     pub input_mode: InputMode,
+    // Current submitted access token to validate
+    // pub access_token_to_validate: String,
 
     // loader_tick is a looping index for loader_state
     pub loader_tick: u16,
@@ -118,6 +120,7 @@ pub struct App<'a> {
     pub tz_name_offset_map: Arc<Mutex<HashMap<String, f64>>>,
 
     pub team_tz_map: Arc<Mutex<HashMap<String, String>>>,
+    pub team_tz_load_in_progress: Arc<AtomicBool>,
     pub team_tz_load_done: Arc<AtomicBool>,
 
     // Linear Custom View Select
@@ -168,6 +171,7 @@ impl<'a> Default for App<'a> {
 
             config_interface_input: UserInput::default(),
             input_mode: InputMode::Normal,
+            // access_token_to_validate: String::from(""),
 
             loader_tick: 0,
             scroll_tick: 0,
@@ -177,6 +181,7 @@ impl<'a> Default for App<'a> {
             tz_name_offset_map: Arc::new(Mutex::new(linear::parse_timezones_from_file())),
 
             team_tz_map: Arc::new(Mutex::new(HashMap::new())),
+            team_tz_load_in_progress: Arc::new(AtomicBool::new(false)),
             team_tz_load_done: Arc::new(AtomicBool::new(false)),
 
             linear_custom_view_select: LinearCustomViewSelect::default(),
@@ -274,6 +279,63 @@ impl<'a> App<'a> {
     pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
 
         match event_name {
+
+            "load_viewer" => {
+
+                let tx2 = tx.clone();
+
+                let token_validation_state_handle = self.config_interface_input.token_validation_state.clone();
+                {
+                    let mut token_validation_state_lock = token_validation_state_handle.lock().unwrap();
+                    *token_validation_state_lock = TokenValidationState::Validating;
+                }
+                
+
+                let token: String = self.config_interface_input.input.clone();
+
+                let linear_config_handle = self.linear_client.config.clone();
+
+                let _t1 = tokio::spawn(async move {
+
+                    let (resp_tx, resp_rx) = oneshot::channel();
+
+                    let cmd = IOEvent::LoadViewer { api_key: token.clone(),
+                                                            resp: resp_tx };
+                    tx2.send(cmd).await.unwrap();
+
+                    let res = resp_rx.await.ok();
+
+                    info!("LoadViewer IOEvent returned: {:?}", res);
+
+                    let mut token_validation_state_lock = token_validation_state_handle.lock().unwrap();
+
+                    // Check for "errors" field, if not found save access token
+                    if let Some(Some(resp_json)) = res {
+                        let req_failed: bool = match resp_json["error_node"] {
+                            Value::Null => {false},
+                            _ => {true}
+                        };
+
+                        if !req_failed {
+                            if let Value::Object(viewer) = &resp_json["viewer_node"] {
+                                // save entered token to file
+                                {
+                                    let mut linear_config_lock = linear_config_handle.lock().unwrap();
+                                    linear_config_lock.save_access_token(&token);
+                                    linear_config_lock.save_viewer_object(viewer.clone());
+
+                                    *token_validation_state_lock = TokenValidationState::Valid;
+                                }
+                            }
+                        } else {
+                            *token_validation_state_lock = TokenValidationState::Invalid;
+                        }
+                    } else {
+                        *token_validation_state_lock = TokenValidationState::Invalid;
+                    }
+
+                });
+            },
 
             "load_custom_views" => {
                 // TODO: Clear any previous CustomViewSelect related values on self
@@ -515,7 +577,7 @@ impl<'a> App<'a> {
                                                                     view: item.item_filter.clone(), 
                                                                     view_loader: loader,
                                                                     resp: resp_tx };
-
+ 
                                 item.tx.send(cmd).await.unwrap();
             
                                 let res = resp_rx.await.ok();

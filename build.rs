@@ -38,6 +38,7 @@ fn main() {
     let query_root_name_list = &[
         "fetch_custom_views",
         "fetch_team_timezones",
+        "fetch_viewer",
     ];
 
     let mod_target: PathBuf = base.join("queries").join("linear").join("issue_modifications");

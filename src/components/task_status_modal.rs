@@ -7,12 +7,14 @@ use tui::{
 
 pub enum TaskStatus {
     LoadingTeamTimezones,
+    ValidatingToken,
 }
 
 pub fn render<'a>(task: TaskStatus, loader_tick: u16 ) -> Paragraph<'a> {
 
     let mut task_text: String = match task {
-        TaskStatus::LoadingTeamTimezones => String::from("Loading Team Timezones")
+        TaskStatus::LoadingTeamTimezones => String::from("Loading Team Timezones"),
+        TaskStatus::ValidatingToken => String::from("Validating Token"),
     };
 
     match loader_tick%3 {

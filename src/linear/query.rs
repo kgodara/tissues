@@ -22,32 +22,6 @@ use crate::constants::{
     IssueModificationOp
 };
 
-/*
-const LINEAR_FETCH_CUSTOM_VIEWS_PATH: &str = "queries/linear/fetch_custom_views.graphql";
-const LINEAR_FETCH_TEAM_TIME_ZONES_PATH: &str = "queries/linear/fetch_team_timezones.graphql";
-
-const LINEAR_FETCH_ALL_ISSUES_PATH: &str = "queries/linear/issues/fetch_all_issues.graphql";
-const LINEAR_FETCH_ISSUES_BY_TEAM_PATH: &str = "queries/linear/issues/fetch_issues_by_team.graphql";
-const LINEAR_FETCH_ISSUES_BY_CONTENT_PATH: &str = "queries/linear/issues/fetch_issues_by_content.graphql";
-const LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE_PATH: &str = "queries/linear/issues/fetch_issues_by_workflow_state.graphql";
-const LINEAR_FETCH_ISSUES_BY_ASSIGNEE_PATH: &str = "queries/linear/issues/fetch_issues_by_assignee.graphql";
-const LINEAR_FETCH_ISSUES_BY_LABEL_PATH: &str = "queries/linear/issues/fetch_issues_by_label.graphql";
-const LINEAR_FETCH_ISSUES_BY_CREATOR_PATH: &str = "queries/linear/issues/fetch_issues_by_creator.graphql";
-const LINEAR_FETCH_ISSUES_BY_PROJECT_PATH: &str = "queries/linear/issues/fetch_issues_by_project.graphql";
-
-
-const LINEAR_GET_WORKFLOW_STATES_BY_TEAM: &str = "queries/linear/op_fetch/get_workflow_states_by_team.graphql";
-const LINEAR_GET_USERS_BY_TEAM: &str = "queries/linear/op_fetch/get_users_by_team.graphql";
-const LINEAR_GET_PROJECTS_BY_TEAM: &str = "queries/linear/op_fetch/get_projects_by_team.graphql";
-const LINEAR_GET_CYCLES_BY_TEAM: &str = "queries/linear/op_fetch/get_cycles_by_team.graphql";
-
-
-const LINEAR_SET_ISSUE_WORKFLOW_STATE: &str = "queries/linear/issue_modifications/set_issue_workflow_state.graphql";
-const LINEAR_SET_ISSUE_ASSIGNEE: &str = "queries/linear/issue_modifications/set_issue_assignee.graphql";
-const LINEAR_SET_ISSUE_PROJECT: &str = "queries/linear/issue_modifications/set_issue_project.graphql";
-const LINEAR_SET_ISSUE_CYCLE: &str = "queries/linear/issue_modifications/set_issue_cycle.graphql";
-*/
-
 include!(concat!(env!("OUT_DIR"), "/query_raw.rs"));
 
 lazy_static! {
@@ -55,6 +29,7 @@ lazy_static! {
 
     pub static ref LINEAR_FETCH_CUSTOM_VIEWS: Value = from_str(FETCH_CUSTOM_VIEWS).unwrap();
     pub static ref LINEAR_FETCH_TEAM_TIME_ZONES: Value = from_str(FETCH_TEAM_TIMEZONES).unwrap();
+    pub static ref LINEAR_FETCH_VIEWER: Value = from_str(FETCH_VIEWER).unwrap();
 
     pub static ref LINEAR_FETCH_ALL_ISSUES: Value = from_str(FETCH_ALL_ISSUES).unwrap();
     pub static ref LINEAR_FETCH_ISSUES_BY_TEAM: Value = from_str(FETCH_ISSUES_BY_TEAM).unwrap();
@@ -96,9 +71,6 @@ async fn dispatch_linear_req(api_key: &str, query: &Value) -> QueryResult {
 
 
 pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
-    // let mut query: Value;
-    // query = parse_graphql_from_file(&LINEAR_FETCH_CUSTOM_VIEWS_PATH)?;
-    // query = serde_json::from_str(fetch_custom_views).unwrap();
 
     let mut query = LINEAR_FETCH_CUSTOM_VIEWS.clone();
 
@@ -114,7 +86,6 @@ pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQL
 
 pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCursor>, team_tz_page_size: u32) -> QueryResult {
     let mut query = LINEAR_FETCH_TEAM_TIME_ZONES.clone();
-    // query = parse_graphql_from_file(&LINEAR_FETCH_TEAM_TIME_ZONES_PATH)?;
 
     query["variables"] = Value::Object(Map::default());
     query["variables"]["firstNum"] = Value::Number(Number::from(team_tz_page_size));
@@ -122,6 +93,12 @@ pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQ
     set_linear_after_cursor_from_opt(&mut query["variables"], team_cursor)?;
 
     info!("fetch_team_timezones variables: {:?}", query["variables"]);
+
+    dispatch_linear_req(api_key, &query).await
+}
+
+pub async fn exec_fetch_viewer(api_key: &str) -> QueryResult {
+    let mut query = LINEAR_FETCH_VIEWER.clone();
 
     dispatch_linear_req(api_key, &query).await
 }

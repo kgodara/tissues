@@ -9,7 +9,7 @@ use crate::util;
 use app::{ App, InputMode };
 
 use crate::components::{
-    user_input::UserInput,
+    user_input::{ UserInput, TokenValidationState },
 
     dashboard_view_display::DashboardViewDisplay,
     dashboard_view_panel::DashboardViewPanel,
@@ -71,25 +71,41 @@ where
             .as_ref(),
         )
         .split(f.size());
+    
+    {
+        let token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
 
-        f.render_widget(UserInput::render_help_msg(&app.input_mode, app.config_interface_input.access_token_not_set, app.config_interface_input.invalid_access_token_len), chunks[0]);
+        f.render_widget(UserInput::render_help_msg(&app.input_mode, &token_validation_state_lock.clone()), chunks[0]);
         f.render_widget(UserInput::render_input_box(&app.config_interface_input.input, &app.input_mode), chunks[1]);
+    }
 
-        match app.input_mode {
-            InputMode::Normal =>
-                // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
-                {}
+    match app.input_mode {
+        InputMode::Normal =>
+            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+            {}
 
-            InputMode::Editing => {
-                // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-                f.set_cursor(
-                    // Put cursor past the end of the input text
-                    chunks[1].x + unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16 + 1,
-                    // Move one line down, from the border to the input line
-                    chunks[1].y + 1,
-                )
-            }
+        InputMode::Editing => {
+            // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+            f.set_cursor(
+                // Put cursor past the end of the input text
+                chunks[1].x + unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16 + 1,
+                // Move one line down, from the border to the input line
+                chunks[1].y + 1,
+            )
         }
+    }
+
+    let token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
+    if *token_validation_state_lock == TokenValidationState::Validating {
+        let task_area = util::ui::centered_rect(40, 20, f.size());
+
+        f.render_widget(Clear, task_area); //this clears out the background
+
+        let task_p: Paragraph = task_status_modal::render(TaskStatus::ValidatingToken, app.loader_tick);
+
+        f.render_widget(task_p, task_area);
+    }
+
 }
 
 
@@ -267,7 +283,7 @@ where
     f.render_stateful_widget(items, chunks[2], &mut app.actions.state);
 
     // If timezone load is occurring, draw task modal
-    if !app.team_tz_load_done.load(Ordering::Relaxed) {
+    if app.team_tz_load_in_progress.load(Ordering::Relaxed) {
         let task_area = util::ui::centered_rect(40, 20, f.size());
 
         f.render_widget(Clear, task_area); //this clears out the background

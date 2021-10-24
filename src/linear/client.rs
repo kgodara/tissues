@@ -8,6 +8,7 @@ use super::config::LinearConfig;
 use super::query::{
     exec_fetch_custom_views,
     exec_fetch_team_timezones,
+    exec_fetch_viewer,
 
     exec_fetch_all_issues,
     exec_fetch_issues_by_team,
@@ -34,7 +35,7 @@ use crate::errors::ConfigError;
 
 use crate::util::{
     GraphQLCursor,
-    verify_linear_api_key
+    verify_linear_api_key_present
 };
 
 use crate::linear::view_resolver::FilterType;
@@ -68,7 +69,7 @@ impl LinearClient {
 
     pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_fetch_custom_views(&linear_api_key, linear_cursor, linear_config.custom_view_page_size).await?;
 
@@ -81,7 +82,7 @@ impl LinearClient {
 
     pub async fn fetch_team_timezones(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_fetch_team_timezones(&linear_api_key, linear_cursor, linear_config.team_timezone_page_size).await?;
 
@@ -92,12 +93,24 @@ impl LinearClient {
         Ok( json!( { "team_nodes": team_nodes, "cursor_info": cursor_info } ))
     }
 
+    // api_key here since hasn't been set to LinearConfig yet
+    pub async fn fetch_viewer(api_key: &str) -> ClientResult {
+
+        let query_response = exec_fetch_viewer(api_key).await?;
+
+        let viewer_node = &query_response["data"]["viewer"];
+        let error_node = &query_response["errors"];
+
+
+        Ok( json!( { "viewer_node": viewer_node, "error_node": error_node } ))
+    }
+
     // View Resolver Query Section Start -------
 
     // generic_issue_fetch Section Start -------
     pub async fn get_all_issues( linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, use_view_panel_config: bool ) -> ClientResult {
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
 
         let page_size: u32;
@@ -122,7 +135,7 @@ impl LinearClient {
 
         info!("Calling exec_fetch_issues_by_team - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
 
         let page_size: u32;
@@ -148,7 +161,7 @@ impl LinearClient {
     pub async fn get_issues_by_content(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
         info!("Calling exec_fetch_issues_by_content - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let page_size: u32;
         if use_view_panel_config {
@@ -171,7 +184,7 @@ impl LinearClient {
 
         info!("Calling exec_fetch_issues_by_workflow_state - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let page_size: u32;
         if use_view_panel_config {
@@ -195,7 +208,7 @@ impl LinearClient {
     pub async fn get_issues_by_assignee(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
         info!("Calling exec_fetch_issues_by_assignee - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let page_size: u32;
         if use_view_panel_config {
@@ -220,7 +233,7 @@ impl LinearClient {
     pub async fn get_issues_by_label(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool ) -> ClientResult {
         info!("Calling exec_fetch_issues_by_label - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let page_size: u32;
         if use_view_panel_config {
@@ -244,7 +257,7 @@ impl LinearClient {
     pub async fn get_issues_by_creator(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool) -> ClientResult {
         info!("Calling exec_fetch_issues_by_creator - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let page_size: u32;
         if use_view_panel_config {
@@ -267,7 +280,7 @@ impl LinearClient {
     pub async fn get_issues_by_project(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, use_view_panel_config: bool) -> ClientResult {
         info!("Calling exec_fetch_issues_by_assignee - variables: {:?}", variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
 
         let page_size: u32;
@@ -300,7 +313,7 @@ impl LinearClient {
 
         info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyWorkflowState, variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyWorkflowState, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
@@ -312,7 +325,7 @@ impl LinearClient {
     pub async fn get_users_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
         info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyAssignee, variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyAssignee, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
@@ -324,7 +337,7 @@ impl LinearClient {
     pub async fn get_projects_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
         info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyProject, variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyProject, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
@@ -336,7 +349,7 @@ impl LinearClient {
     pub async fn get_cycles_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
         info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyCycle, variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyCycle, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
@@ -350,7 +363,7 @@ impl LinearClient {
     pub async fn update_issue(op: &IssueModificationOp, linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
         debug!("update_issue - {:?} - variables: {:?}", op, variables);
 
-        let linear_api_key = verify_linear_api_key(&linear_config)?;
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_update_issue(op, &linear_api_key, variables).await?;
 

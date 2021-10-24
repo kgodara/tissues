@@ -138,25 +138,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let _manager = tokio::spawn(async move {
-        // Establish a connection to the server
-        // let mut client = client::connect("127.0.0.1:6379").await.unwrap();
-    
         // Start receiving messages
         while let Some(cmd) = rx.recv().await {
 
             info!("Manager received IOEvent::{:?}", cmd);
             match cmd {
                 IOEvent::LoadLinearTeamTimeZones { linear_config, resp } => {
-                    let tz_list_option = linear::load_linear_team_timezones(linear_config).await;
-                    info!("LoadLinearTeamTimeZones data: {:?}", tz_list_option);
+                    let tz_list = linear::load_linear_team_timezones(linear_config).await;
+                    info!("LoadLinearTeamTimeZones data: {:?}", tz_list);
 
-                    let _ = resp.send(tz_list_option);
+                    let _ = resp.send(tz_list);
                 },
                 IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
                     let option_stateful = LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
                     info!("LoadCustomViews data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
+                },
+                IOEvent::LoadViewer { api_key, resp } => {
+                    let viewer_resp = linear::client::LinearClient::fetch_viewer(&api_key).await;
+                    
+                    let _ = resp.send(viewer_resp.ok());
                 },
                 IOEvent::LoadViewIssues { linear_config, view, team_tz_lookup, tz_offset_lookup, issue_data, view_loader, resp } => {
                     let issue_list = view_resolver::optimized_view_issue_fetch(&view, view_loader,
@@ -202,6 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let team_tz_map_handle = app.team_tz_map.clone();
     let team_tz_load_done_handle = app.team_tz_load_done.clone();
+    let team_tz_load_in_progress_handle = app.team_tz_load_in_progress.clone();
 
     
     let _time_zone_load = tokio::spawn(async move {
@@ -217,6 +220,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 drop(linear_config_lock);
             }
         }
+
+        team_tz_load_in_progress_handle.store(true, Ordering::Relaxed);
 
         let linear_config: LinearConfig;
         {
@@ -238,6 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for pair in id_tz_pairs.iter() {
                 team_tz_map_lock.insert(pair.0.clone(), pair.1.clone());
             }
+            team_tz_load_in_progress_handle.store(false, Ordering::Relaxed);
             team_tz_load_done_handle.store(true, Ordering::Relaxed);
         }
     });
@@ -313,7 +319,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         Command::SelectViewPanel(idx) => {
                             // linear_dashboard_view_panel_selected
-                            exec_select_view_panel_cmd(&mut app, idx).await;
+                            exec_select_view_panel_cmd(&mut app, idx);
                         },
 
                         Command::RefreshViewPanel => {

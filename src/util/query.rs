@@ -28,7 +28,7 @@ pub fn set_linear_after_cursor_from_opt(variables: &mut Value, cursor_opt: Optio
     Ok(())
 }
 
-pub fn verify_linear_api_key(linear_config: &LinearConfig) -> Result<String, LinearClientError> {
+pub fn verify_linear_api_key_present(linear_config: &LinearConfig) -> Result<String, LinearClientError> {
     match &linear_config.api_key {
         Some(x) => Ok(x.to_string()),
         None => Err(LinearClientError::InvalidConfig(ConfigError::CredentialsNotFound{ platform: String::from("Linear") })),
