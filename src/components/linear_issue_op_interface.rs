@@ -5,6 +5,8 @@ use std::sync::{
     atomic::AtomicBool,
 };
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use tui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
@@ -77,16 +79,16 @@ impl LinearIssueOpInterface {
         debug!("load_op_data about to dispatch query");
 
         let data_result = match op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::WorkflowState => {
                 LinearClient::get_workflow_states_by_team(linear_config, linear_cursor, variables).await
             }
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 LinearClient::get_users_by_team(linear_config, linear_cursor, variables).await
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 LinearClient::get_projects_by_team(linear_config, linear_cursor, variables).await
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 LinearClient::get_cycles_by_team(linear_config, linear_cursor, variables).await
             },
             _ => {
@@ -127,59 +129,77 @@ impl LinearIssueOpInterface {
 
     pub fn table_data_from_op(&self) -> Arc<Mutex<Vec<Value>>> {
         match self.current_op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::WorkflowState => {
                 self.workflow_states_data.clone()
             },
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 self.users_data.clone()
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 self.projects_data.clone()
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 self.cycles_data.clone()
             }
-            _ => {panic!("Not ready")}
+            _ => {
+                error!("not ready");
+                panic!("not ready")
+            }
         }
     }
 
-    pub fn is_valid_selection_for_update(&self) -> bool {
+    pub fn is_valid_selection_for_update(&self, issue_title_input: &str) -> bool {
         match self.current_op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::Title => {
+                let grapheme_len: usize = issue_title_input
+                    .graphemes(true)
+                    .count();
+                grapheme_len > 0
+            },
+            IssueModificationOp::WorkflowState => {
                 self.selected_idx.is_some()
             },
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 self.selected_idx.is_some()
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 self.selected_idx.is_some()
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 self.selected_idx.is_some()
             },
-            _ => {panic!("not ready")}
+            _ => {
+                error!("not ready");
+                panic!("not ready")
+            }
         }
     }
 
     pub fn reset_op(&mut self) {
         match self.current_op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::Title => {
+
+            },
+            IssueModificationOp::WorkflowState => {
                 self.workflow_states_data = Arc::new(Mutex::new(vec![]));
                 self.selected_idx = None;
             },
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 self.users_data = Arc::new(Mutex::new(vec![]));
                 self.selected_idx = None;
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 self.projects_data = Arc::new(Mutex::new(vec![]));
                 self.selected_idx = None;
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 self.cycles_data = Arc::new(Mutex::new(vec![]));
                 self.selected_idx = None;
             },
-            _ => {panic!("Not ready")}
+            _ => {
+                error!("Not ready");
+                panic!("Not ready")
+            }
         };
         self.data_state = TableState::default();
         self.cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
@@ -189,7 +209,7 @@ impl LinearIssueOpInterface {
     fn cell_fields_from_row(op: IssueModificationOp, widths: &[Constraint], row: &Value) -> Vec<String> {
         let cell_fields: Vec<String>;
         match op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::WorkflowState => {
                 cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
@@ -202,7 +222,7 @@ impl LinearIssueOpInterface {
                 // Get the formatted Strings for each cell field
                 format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS)
             },
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
@@ -213,7 +233,7 @@ impl LinearIssueOpInterface {
 
                 format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS)
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
@@ -224,7 +244,7 @@ impl LinearIssueOpInterface {
 
                 format_cell_fields(&cell_fields, widths, &PROJECT_SELECT_COLUMNS)
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 cell_fields = values_to_str_with_fallback(
                     &[
                         row["name"].clone(),
@@ -245,16 +265,16 @@ impl LinearIssueOpInterface {
 
     pub fn widths_from_rect_op(bbox: &Rect, op: &IssueModificationOp) -> Vec<Constraint> {
         match op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::WorkflowState => {
                 widths_from_rect(bbox, &WORKFLOW_STATE_SELECT_COLUMNS)
             },
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 widths_from_rect(bbox, &ASSIGNEE_SELECT_COLUMNS)
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 widths_from_rect(bbox, &PROJECT_SELECT_COLUMNS)
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 widths_from_rect(bbox, &CYCLE_SELECT_COLUMNS)
             },
             _ => {panic!("Not ready")}
@@ -263,16 +283,16 @@ impl LinearIssueOpInterface {
 
     pub fn title_from_op(op: &IssueModificationOp) -> String {
         match op {
-            IssueModificationOp::ModifyWorkflowState => {
+            IssueModificationOp::WorkflowState => {
                 "Select New Workflow State".to_string()
             },
-            IssueModificationOp::ModifyAssignee => {
+            IssueModificationOp::Assignee => {
                 "Select New Assignee".to_string()
             },
-            IssueModificationOp::ModifyProject => {
+            IssueModificationOp::Project => {
                 "Select New Project".to_string()
             },
-            IssueModificationOp::ModifyCycle => {
+            IssueModificationOp::Cycle => {
                 "Select New Cycle".to_string()
             },
             _ => {
@@ -294,10 +314,10 @@ impl LinearIssueOpInterface {
 
 
         let header_cells: Vec<Cell> = match op {
-                IssueModificationOp::ModifyWorkflowState => { &*WORKFLOW_STATE_SELECT_COLUMNS },
-                IssueModificationOp::ModifyAssignee => { &*ASSIGNEE_SELECT_COLUMNS },
-                IssueModificationOp::ModifyProject => { &*PROJECT_SELECT_COLUMNS },
-                IssueModificationOp::ModifyCycle => { &*CYCLE_SELECT_COLUMNS },
+                IssueModificationOp::WorkflowState => { &*WORKFLOW_STATE_SELECT_COLUMNS },
+                IssueModificationOp::Assignee => { &*ASSIGNEE_SELECT_COLUMNS },
+                IssueModificationOp::Project => { &*PROJECT_SELECT_COLUMNS },
+                IssueModificationOp::Cycle => { &*CYCLE_SELECT_COLUMNS },
                 _ => { 
                     error!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
                     panic!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
@@ -328,7 +348,7 @@ impl LinearIssueOpInterface {
 
                 // gen relevant cell colored & replace uncolored edition with colored
                 match op {
-                    IssueModificationOp::ModifyWorkflowState => {
+                    IssueModificationOp::WorkflowState => {
         
                         let name: String = cell_fields_formatted[0].clone();
                         let color = row["color"].clone();
@@ -337,10 +357,10 @@ impl LinearIssueOpInterface {
                         cells.insert(0, colored_cell(name, color));
                         cells.remove(1);
                     },
-                    IssueModificationOp::ModifyAssignee => {
+                    IssueModificationOp::Assignee => {
                         // No colored cell for users
                     },
-                    IssueModificationOp::ModifyProject => {
+                    IssueModificationOp::Project => {
                         let name: String = cell_fields_formatted[0].clone();
                         let color = row["color"].clone();
         
@@ -348,7 +368,7 @@ impl LinearIssueOpInterface {
                         cells.insert(0, colored_cell(name, color));
                         cells.remove(1);
                     },
-                    IssueModificationOp::ModifyCycle => {
+                    IssueModificationOp::Cycle => {
                         // No colored cell for cycles
                     },
                     _ => {
@@ -389,7 +409,7 @@ impl LinearIssueOpInterface {
 impl Default for LinearIssueOpInterface {
     fn default() -> LinearIssueOpInterface {
         LinearIssueOpInterface {
-            current_op: IssueModificationOp::ModifyWorkflowState,
+            current_op: IssueModificationOp::WorkflowState,
             selected_idx: None,
             data_state: TableState::default(),
             loading: Arc::new(AtomicBool::new(false)),

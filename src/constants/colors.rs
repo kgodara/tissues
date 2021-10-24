@@ -34,6 +34,10 @@ pub const DELETE_VIEW_CMD_INACTIVE: Color = Color::Rgb( 138u8, 3u8, 3u8 );
 pub const REFRESH_PANEL_CMD_ACTIVE: Color = Color::Rgb( 81u8, 193u8, 177u8 );
 pub const REFRESH_PANEL_CMD_INACTIVE: Color = Color::Rgb( 53u8, 151u8, 137u8 );
 
+// Dark blue (25% darker for inactive) -- https://pinetools.com/darken-color
+pub const MODIFY_TITLE_CMD_ACTIVE: Color = Color::Rgb(11u8, 89u8, 112u8);
+pub const MODIFY_TITLE_CMD_INACTIVE: Color = Color::Rgb(8u8, 66u8, 84u8);
+
 // Orange (25% darker for inactive) -- https://pinetools.com/darken-color
 pub const MODIFY_WORKFLOW_STATE_CMD_ACTIVE: Color = Color::Rgb( 252u8, 132u8, 4u8 );
 pub const MODIFY_WORKFLOW_STATE_CMD_INACTIVE: Color = Color::Rgb( 189u8, 99u8, 2u8 );

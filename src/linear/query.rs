@@ -51,6 +51,7 @@ lazy_static! {
     pub static ref LINEAR_SET_ISSUE_ASSIGNEE: Value = from_str(SET_ISSUE_ASSIGNEE).unwrap();
     pub static ref LINEAR_SET_ISSUE_PROJECT: Value = from_str(SET_ISSUE_PROJECT).unwrap();
     pub static ref LINEAR_SET_ISSUE_CYCLE: Value = from_str(SET_ISSUE_CYCLE).unwrap();
+    pub static ref LINEAR_SET_ISSUE_TITLE: Value = from_str(SET_ISSUE_TITLE).unwrap();
 }
 
 
@@ -174,10 +175,10 @@ pub async fn exec_fetch_issue_by_direct_filter(filter_type: &FilterType, api_key
 pub async fn exec_get_issue_op_data(op: &IssueModificationOp, api_key: &str, cursor: Option<GraphQLCursor>, variables: Map<String, Value>, page_size: u32) -> QueryResult {
 
     let mut query: Value = match op {
-        IssueModificationOp::ModifyWorkflowState => LINEAR_GET_WORKFLOW_STATES_BY_TEAM.clone(),
-        IssueModificationOp::ModifyAssignee => LINEAR_GET_USERS_BY_TEAM.clone(),
-        IssueModificationOp::ModifyProject => LINEAR_GET_PROJECTS_BY_TEAM.clone(),
-        IssueModificationOp::ModifyCycle => LINEAR_GET_CYCLES_BY_TEAM.clone(),
+        IssueModificationOp::WorkflowState => LINEAR_GET_WORKFLOW_STATES_BY_TEAM.clone(),
+        IssueModificationOp::Assignee => LINEAR_GET_USERS_BY_TEAM.clone(),
+        IssueModificationOp::Project => LINEAR_GET_PROJECTS_BY_TEAM.clone(),
+        IssueModificationOp::Cycle => LINEAR_GET_CYCLES_BY_TEAM.clone(),
         _ => {
             error!("exec_get_issue_op_data - {:?} is unsupported", op);
             panic!("exec_get_issue_op_data - {:?} is unsupported", op);
@@ -196,10 +197,11 @@ pub async fn exec_get_issue_op_data(op: &IssueModificationOp, api_key: &str, cur
 pub async fn exec_update_issue(op: &IssueModificationOp, api_key: &str, variables: Map<String, Value>) -> QueryResult {
 
     let mut query: Value = match op {
-        IssueModificationOp::ModifyWorkflowState => LINEAR_SET_ISSUE_WORKFLOW_STATE.clone(),
-        IssueModificationOp::ModifyAssignee => LINEAR_SET_ISSUE_ASSIGNEE.clone(),
-        IssueModificationOp::ModifyProject => LINEAR_SET_ISSUE_PROJECT.clone(),
-        IssueModificationOp::ModifyCycle => LINEAR_SET_ISSUE_CYCLE.clone(),
+        IssueModificationOp::Title => LINEAR_SET_ISSUE_TITLE.clone(),
+        IssueModificationOp::WorkflowState => LINEAR_SET_ISSUE_WORKFLOW_STATE.clone(),
+        IssueModificationOp::Assignee => LINEAR_SET_ISSUE_ASSIGNEE.clone(),
+        IssueModificationOp::Project => LINEAR_SET_ISSUE_PROJECT.clone(),
+        IssueModificationOp::Cycle => LINEAR_SET_ISSUE_CYCLE.clone(),
         _ => {
             error!("exec_update_issue - {:?} is unsupported", op);
             panic!("exec_update_issue - {:?} is unsupported", op);

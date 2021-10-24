@@ -9,7 +9,7 @@ use crate::util;
 use app::{ App, InputMode };
 
 use crate::components::{
-    user_input::{ UserInput, TokenValidationState },
+    user_input::{ UserInput, InputContext, ValidationState, TitleValidationState, TokenValidationState },
 
     dashboard_view_display::DashboardViewDisplay,
     dashboard_view_panel::DashboardViewPanel,
@@ -34,6 +34,7 @@ use crate::constants::{
     colors,
     table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS, CUSTOM_VIEW_SELECT_COLUMNS,
         VIEW_PANEL_COLUMNS },
+    IssueModificationOp,
 };
 
 use tui::{
@@ -75,8 +76,8 @@ where
     {
         let token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
 
-        f.render_widget(UserInput::render_help_msg(&app.input_mode, &token_validation_state_lock.clone()), chunks[0]);
-        f.render_widget(UserInput::render_input_box(&app.config_interface_input.input, &app.input_mode), chunks[1]);
+        f.render_widget(UserInput::render_help_msg(&app.input_mode, InputContext::Token, &ValidationState::Token(token_validation_state_lock.clone())), chunks[0]);
+        f.render_widget(UserInput::render_input_box(&app.config_interface_input.input, InputContext::Token, &app.input_mode), chunks[1]);
     }
 
     match app.input_mode {
@@ -154,6 +155,7 @@ where
     // Render the View Panel Command Bar
 
     // Determine which Commands are allowed based on state of selection
+    let mut modify_title_cmd_active = false;
     let mut modify_workflow_state_cmd_active = false;
     let mut modify_assignee_cmd_active = false;
     let mut modify_project_cmd_active = false;
@@ -179,6 +181,7 @@ where
 
     // If a View Panel Issue is selected && issue is not expanded, allow following commands
     if fetch_selected_view_panel_issue(app).is_some() && app.issue_to_expand.is_none() {
+        modify_title_cmd_active = true;
         modify_workflow_state_cmd_active = true;
         modify_assignee_cmd_active = true;
         modify_project_cmd_active = true;
@@ -187,6 +190,7 @@ where
     }
 
     // Update Command statuses
+    app.view_panel_cmd_bar.set_modify_title_active(modify_title_cmd_active);
     app.view_panel_cmd_bar.set_modify_workflow_state_active(modify_workflow_state_cmd_active);
     app.view_panel_cmd_bar.set_modify_assignee_active(modify_assignee_cmd_active);
     app.view_panel_cmd_bar.set_modify_project_active(modify_project_cmd_active);
@@ -340,7 +344,49 @@ where
 
 
     // Draw Linear Issue Op Interface
-    if app.modifying_issue {
+
+    // IssueModificationOp::Title is not rendered with a table
+    if app.modifying_issue && app.linear_issue_op_interface.current_op == IssueModificationOp::Title {
+        let area = util::ui::centered_rect(50, 40, f.size());
+
+        let input_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(2)
+            .constraints(
+                [
+                    Constraint::Length(3),
+                    Constraint::Length(1),
+                ]
+                .as_ref(),
+            )
+            .split(area);
+
+        f.render_widget(Clear, area); //this clears out the background
+
+        f.render_widget(
+            UserInput::render_help_msg(&app.input_mode, InputContext::IssueTitle, &ValidationState::Title(app.issue_title_input.title_validation_state))
+                .block(Block::default().borders(Borders::ALL)),
+            input_chunks[0]);
+        f.render_widget(UserInput::render_input_box(&app.issue_title_input.input, InputContext::IssueTitle, &app.input_mode), input_chunks[1]);
+
+        match app.input_mode {
+            InputMode::Normal =>
+                // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+                {}
+    
+            InputMode::Editing => {
+                // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+                f.set_cursor(
+                    // Put cursor past the end of the input text
+                    input_chunks[1].x + unicode_width::UnicodeWidthStr::width(app.issue_title_input.input.as_str()) as u16 + 1,
+                    // Move one line down, from the border to the input line
+                    input_chunks[1].y + 1,
+                )
+            }
+        }
+    }
+
+    else if app.modifying_issue {
 
         let area = util::ui::centered_rect(40, 40, f.size());
 

@@ -5,15 +5,16 @@ pub mod colors;
 pub const LINEAR_TOKEN_LEN: u16=48;
 pub const SCROLL_TICK_MAX: u64 = u64::MAX;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IssueModificationOp {
     // implemented
-    ModifyWorkflowState,
-    ModifyAssignee,
-    ModifyProject,
-    ModifyCycle,
-    ModifyTeam,
+    Title,
+    WorkflowState,
+    Assignee,
+    Project,
+    Cycle,
+    Team,
 
     // unimplemented
-    ModifyLabels,
+    Labels,
 }

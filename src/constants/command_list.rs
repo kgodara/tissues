@@ -8,6 +8,8 @@ use crate::constants::colors;
 pub enum DashboardCommand {
     RefreshPanel,
     ExpandIssue,
+
+    ModifyTitle,
     ModifyWorkflowState,
     ModifyAssignee,
     ModifyProject,
@@ -61,6 +63,12 @@ impl Default for CommandList<'_> {
                     label: "Expand Issue",
                     active_color: colors::REFRESH_PANEL_CMD_ACTIVE,
                     inactive_color: colors::REFRESH_PANEL_CMD_INACTIVE,
+                },
+                CommandValue { key_char: 't',
+                    cmd_type: Command::Dashboard(DashboardCommand::ModifyTitle),
+                    label: "Modify Title",
+                    active_color: colors::MODIFY_WORKFLOW_STATE_CMD_ACTIVE,
+                    inactive_color: colors::MODIFY_WORKFLOW_STATE_CMD_INACTIVE
                 },
                 CommandValue { key_char: 'w',
                     cmd_type: Command::Dashboard(DashboardCommand::ModifyWorkflowState),

@@ -24,6 +24,8 @@ pub struct CommandBar<'a> {
     // Dashboard Command States
     refresh_panel_active: bool,
     expand_issue_active: bool,
+
+    modify_title_active: bool,
     modify_workflow_state_active: bool,
     modify_assignee_active: bool,
     modify_project_active: bool,
@@ -45,6 +47,7 @@ impl<'a> CommandBar<'a> {
             refresh_panel_active: false,
             expand_issue_active: false,
 
+            modify_title_active: false,
             modify_workflow_state_active: false,
             modify_assignee_active: false,
             modify_project_active: false,
@@ -76,6 +79,18 @@ impl<'a> CommandBar<'a> {
             _ => {
                 error!("'set_expand_issue_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
                 panic!("'set_expand_issue_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+            },
+        }
+    }
+
+    pub fn set_modify_title_active(&mut self, state: bool) {
+        match self.command_bar_type {
+            CommandBarType::Dashboard => {
+                self.modify_title_active = state;
+            },
+            _ => {
+                error!("'set_modify_title_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                panic!("'set_modify_title_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -161,6 +176,13 @@ impl<'a> CommandBar<'a> {
                                     Style::default().add_modifier(Modifier::BOLD).fg(colors::REFRESH_PANEL_CMD_ACTIVE)
                                 } else {
                                     Style::default().add_modifier(Modifier::DIM).fg(colors::REFRESH_PANEL_CMD_INACTIVE)
+                                }
+                            },
+                            DashboardCommand::ModifyTitle => {
+                                if self.expand_issue_active {
+                                    Style::default().add_modifier(Modifier::BOLD).fg(colors::MODIFY_TITLE_CMD_ACTIVE)
+                                } else {
+                                    Style::default().add_modifier(Modifier::DIM).fg(colors::MODIFY_TITLE_CMD_INACTIVE)
                                 }
                             },
                             DashboardCommand::ModifyWorkflowState => {

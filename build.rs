@@ -46,7 +46,8 @@ fn main() {
         "set_issue_workflow_state",
         "set_issue_assignee",
         "set_issue_project",
-        "set_issue_cycle"
+        "set_issue_cycle",
+        "set_issue_title",
     ];
 
     let issue_fetch_target: PathBuf = base.join("queries").join("linear").join("issues");

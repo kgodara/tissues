@@ -154,6 +154,7 @@ pub struct App<'a> {
     // Issue Modification fields
     pub modifying_issue: bool,
     pub linear_issue_op_interface: LinearIssueOpInterface,
+    pub issue_title_input: UserInput,
 
     // Available actions
     pub actions: StatefulList<&'a str>,
@@ -207,6 +208,7 @@ impl<'a> Default for App<'a> {
 
             modifying_issue: false,
             linear_issue_op_interface: LinearIssueOpInterface::default(),
+            issue_title_input: UserInput::default(),
 
             actions: util::StatefulList::with_items(vec![
                 "Modify Dashboard",
@@ -698,17 +700,25 @@ impl<'a> App<'a> {
                 if op_interface_loading_handle.load(Ordering::Relaxed) {
                     return;
                 }
+
+                let current_op = self.linear_issue_op_interface.current_op;
+
+                // If current_op is ModifyTitle, return since no data needs to be loaded
+                if current_op == IssueModificationOp::Title {
+                    return;
+                }
+
                 // Set Loading 'true' before fetch
                 op_interface_loading_handle.store(true, Ordering::Relaxed);
 
                 let issue_op_data_handle = self.linear_issue_op_interface.table_data_from_op();
-                
+
                 let linear_config_lock = self.linear_client.config.lock().unwrap();
                 let linear_config = linear_config_lock.clone();
                 drop(linear_config_lock);
 
 
-                let current_op = self.linear_issue_op_interface.current_op;
+                
 
                 let selected_issue_opt = fetch_selected_view_panel_issue(&self);
                 let selected_issue;
@@ -793,17 +803,14 @@ impl<'a> App<'a> {
 
                 let issue_id: String;
                 let selected_value_id: String;
-                let value_obj;
+                let mut value_obj: Value = Value::Null;
+                let current_op = self.linear_issue_op_interface.current_op;
 
                 // Get relevant issue and selected Value id, return if anything not found
                 {
                     let selected_issue_opt = fetch_selected_view_panel_issue(&self);
                     let issue_obj = if let Some(x) = selected_issue_opt { x } else { return; };
                     let issue_id_opt = issue_obj["id"].as_str();
-
-                    let selected_value_opt = fetch_selected_value(&self);
-                    value_obj = if let Some(x) = selected_value_opt { x } else { return; };
-                    let value_id_opt = value_obj["id"].as_str();
 
                     if let Some(x) = issue_id_opt {
                         issue_id = String::from(x);
@@ -812,11 +819,22 @@ impl<'a> App<'a> {
                         return;
                     }
 
-                    if let Some(x) = value_id_opt {
-                        selected_value_id = String::from(x);
+                    // IssueModificationOp::Title - fetch selected_value_id from app.issue_title_input.input
+                    if current_op == IssueModificationOp::Title {
+                        selected_value_id = self.issue_title_input.input.clone();
                     }
                     else {
-                        return;
+                        // Get selected value from tables
+                        let selected_value_opt: Option<Value> = fetch_selected_value(&self);
+                        value_obj = if let Some(x) = selected_value_opt { x } else { return; };
+                        let value_id_opt = value_obj["id"].as_str();
+
+                        if let Some(x) = value_id_opt {
+                            selected_value_id = String::from(x);
+                        }
+                        else {
+                            return;
+                        }
                     }
                 }
 
@@ -828,8 +846,6 @@ impl<'a> App<'a> {
 
                 let view_panel_list_arc = self.linear_dashboard_view_panel_list.clone();
 
-                let current_op = self.linear_issue_op_interface.current_op;
-
                 // Spawn task to issue command to update workflow state
                 let _t3 = tokio::spawn( async move {
                     let (resp2_tx, resp2_rx) = oneshot::channel();
@@ -838,7 +854,7 @@ impl<'a> App<'a> {
                         op: current_op,
                         linear_config,
                         issue_id: issue_id.clone(),
-                        ref_id: selected_value_id,
+                        ref_id: selected_value_id.clone(),
                         resp: resp2_tx
                     };
 
@@ -864,7 +880,7 @@ impl<'a> App<'a> {
 
                     
                     // If update succeeded, iterate over all Issues in all ViewPanels
-                    // and set issue["state"] = state_obj 
+                    // and set issue["state" | "assignee" | ...] = state_obj 
                     //     where id matches 'issue_id'
                     if update_succeeded {
                         let view_panel_list_handle = view_panel_list_arc.lock().unwrap();
@@ -877,10 +893,11 @@ impl<'a> App<'a> {
                                 if let Some(panel_issue_id) = issue_obj["id"].as_str() {
                                     if panel_issue_id == issue_id.as_str() {
                                         match current_op {
-                                            IssueModificationOp::ModifyWorkflowState => {issue_obj["state"] = value_obj.clone();},
-                                            IssueModificationOp::ModifyAssignee => {issue_obj["assignee"] = value_obj.clone();},
-                                            IssueModificationOp::ModifyProject => {issue_obj["project"] = value_obj.clone();},
-                                            IssueModificationOp::ModifyCycle => {issue_obj["cycle"] = value_obj.clone();},
+                                            IssueModificationOp::Title => { issue_obj["title"] = Value::String(selected_value_id.clone()) },
+                                            IssueModificationOp::WorkflowState => {issue_obj["state"] = value_obj.clone();},
+                                            IssueModificationOp::Assignee => {issue_obj["assignee"] = value_obj.clone();},
+                                            IssueModificationOp::Project => {issue_obj["project"] = value_obj.clone();},
+                                            IssueModificationOp::Cycle => {issue_obj["cycle"] = value_obj.clone();},
                                             _ => {}
                                         }
                                     }

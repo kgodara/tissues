@@ -18,7 +18,7 @@ use crate::constants::{
     IssueModificationOp
 };
 
-use crate::components::user_input::TokenValidationState;
+use crate::components::user_input::{ ValidationState, TitleValidationState, TokenValidationState };
 
 use tokio::sync::mpsc::Sender;
 
@@ -118,17 +118,20 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mo
                     Some(Command::ExpandIssue)  
                 },
                 // Modify Command
+                "t" => {
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::Title))
+                },
                 "w" => {
-                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyWorkflowState))
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::WorkflowState))
                 },
                 "a" => {
-                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyAssignee))
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::Assignee))
                 },
                 "p" => {
-                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyProject))
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::Project))
                 },
                 "c" => {
-                    Some(Command::OpenIssueOpInterface(IssueModificationOp::ModifyCycle))
+                    Some(Command::OpenIssueOpInterface(IssueModificationOp::Cycle))
                 },
 
                 // View Panel Selection Shortcuts
@@ -191,7 +194,12 @@ pub fn exec_editor_input_cmd(app: &mut App<'_>, ch: &char) {
             if app.input_mode == InputMode::Editing {
                 app.config_interface_input.input.push(*ch);
             }
-        }
+        },
+        Route::ActionSelect => {
+            if app.input_mode == InputMode::Editing {
+                app.issue_title_input.input.push(*ch);
+            }
+        },
         _ => {}
     }
 }
@@ -203,7 +211,12 @@ pub fn exec_editor_delete_cmd(app: &mut App<'_>) {
             if app.input_mode == InputMode::Editing {
                 app.config_interface_input.input.pop();
             }
-        }
+        },
+        Route::ActionSelect => {
+            if app.input_mode == InputMode::Editing {
+                app.issue_title_input.input.pop();
+            }
+        },
         _ => {}
     }
 }
@@ -214,17 +227,33 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
     app.input_mode = InputMode::Normal;
 
     // Verify user is editing access token
-    if app.route == Route::ConfigInterface {
-        let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
-        // Verify length is satisfactory for linear access token
-        info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
-        if submission_len == LINEAR_TOKEN_LEN {
-            app.dispatch_event("load_viewer", tx);
-        }
-        else {
-            let mut token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
-            *token_validation_state_lock = TokenValidationState::Invalid;
-        }
+    match app.route {
+        Route::ConfigInterface => {
+            let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
+            // Verify length is satisfactory for linear access token
+            info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
+            if submission_len == LINEAR_TOKEN_LEN {
+                app.dispatch_event("load_viewer", tx);
+            }
+            else {
+                let mut token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
+                *token_validation_state_lock = TokenValidationState::Invalid;
+            }
+        },
+        Route::ActionSelect => {
+            // If a state change is confirmed, dispatch & reset
+            if app.modifying_issue { 
+                if app.linear_issue_op_interface.is_valid_selection_for_update(&app.issue_title_input.input) {
+                    // TODO: Impl length check, invalid message, etc
+                    info!("exec_editor_submit_cmd - dispatching 'update_issue' event");
+                    app.dispatch_event("update_issue", tx);
+                    app.modifying_issue = false;
+                } else {
+                    app.issue_title_input.title_validation_state = TitleValidationState::Invalid;
+                }
+            }
+        },
+        _ => {},
     }
 }
 
@@ -414,6 +443,16 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
             app.linear_issue_op_interface.current_op = op;
             app.modifying_issue = true;
 
+            // If IssueModificationOp::Title, set app.issue_title_input.input to issue title
+            if op == IssueModificationOp::Title {
+                let issue_option = fetch_selected_view_panel_issue(app);
+                if let Some(issue_obj) = issue_option {
+                    if let Value::String(issue_title) = &issue_obj["title"] {
+                        app.issue_title_input.input = issue_title.to_string();
+                    }
+                }
+            }
+
             app.dispatch_event("load_issue_op_data", tx);
         }
     }
@@ -482,7 +521,7 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
         Route::ActionSelect => {
 
             // If a state change is confirmed, dispatch & reset
-            if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update() {
+            if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update(&app.issue_title_input.input) {
                 app.dispatch_event("update_issue", &tx);
                 app.modifying_issue = false;
             }
@@ -564,8 +603,13 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
         Route::ActionSelect => {
             let mut load_paginated = false;
 
+            // Don't scroll down if entering issue title
+            if app.modifying_issue && app.linear_issue_op_interface.current_op == IssueModificationOp::Title {
+                return;
+            }
             // If the issue op interface is open, scroll down on modal
-            if app.modifying_issue {
+            else if app.modifying_issue {
+
                 debug!("Attempting to scroll down on IssueOpInterface");
 
 
@@ -744,9 +788,10 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
         },
         Route::ActionSelect => {
 
-
+            // Don't scroll up if entering issue title
+            if app.modifying_issue && app.linear_issue_op_interface.current_op == IssueModificationOp::Title { }
             // If the issue op interface is open, scroll down on modal
-            if app.modifying_issue {
+            else if app.modifying_issue {
                 
 
                 let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();

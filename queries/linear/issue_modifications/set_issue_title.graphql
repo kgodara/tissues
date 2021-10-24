@@ -1,0 +1,13 @@
+{   "query": "mutation setIssueTitle($issueId: String!, $ref: String!) {
+        issueUpdate(id: $issueId, input: { title: $ref }) {
+            success
+            issue {
+                id
+                title
+                createdAt
+                number
+            }
+        }
+    }",
+    "operationName": "setIssueTitle"
+}

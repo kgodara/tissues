@@ -311,11 +311,11 @@ impl LinearClient {
 
     pub async fn get_workflow_states_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
 
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyWorkflowState, variables);
+        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::WorkflowState, variables);
 
         let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyWorkflowState, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
+        let query_response = exec_get_issue_op_data(&IssueModificationOp::WorkflowState, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let workflow_state_nodes = &query_response["data"]["team"]["states"]["nodes"];
         let cursor_info = &query_response["data"]["team"]["states"]["pageInfo"];
@@ -323,11 +323,11 @@ impl LinearClient {
         Ok( json!( { "data_nodes": workflow_state_nodes, "cursor_info": cursor_info } ))
     }
     pub async fn get_users_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyAssignee, variables);
+        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::Assignee, variables);
 
         let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyAssignee, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
+        let query_response = exec_get_issue_op_data(&IssueModificationOp::Assignee, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
         let cursor_info = &query_response["data"]["team"]["members"]["pageInfo"];
@@ -335,11 +335,11 @@ impl LinearClient {
         Ok( json!( { "data_nodes": user_nodes, "cursor_info": cursor_info } ))
     }
     pub async fn get_projects_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyProject, variables);
+        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::Project, variables);
 
         let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyProject, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
+        let query_response = exec_get_issue_op_data(&IssueModificationOp::Project, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let project_nodes = &query_response["data"]["team"]["projects"]["nodes"];
         let cursor_info = &query_response["data"]["team"]["projects"]["pageInfo"];
@@ -347,11 +347,11 @@ impl LinearClient {
         Ok( json!( { "data_nodes": project_nodes, "cursor_info": cursor_info } ))
     }
     pub async fn get_cycles_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::ModifyCycle, variables);
+        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::Cycle, variables);
 
         let linear_api_key = verify_linear_api_key_present(&linear_config)?;
 
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::ModifyCycle, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
+        let query_response = exec_get_issue_op_data(&IssueModificationOp::Cycle, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
 
         let cycle_nodes = &query_response["data"]["team"]["cycles"]["nodes"];
         let cursor_info = &query_response["data"]["team"]["cycles"]["pageInfo"];
