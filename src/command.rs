@@ -1,5 +1,6 @@
 
-use termion::{event::Key,};
+// use termion::{event::Key,};
+use crossterm::event::KeyCode;
 
 use std::sync::atomic::{ AtomicBool, Ordering };
 
@@ -8,7 +9,8 @@ use crate::network::IOEvent;
 use crate::util::{
     state_table,
     dashboard::{ fetch_selected_view_panel_issue, fetch_selected_view_panel_idx, },
-    event::{Event, Events},
+    // event::{Event, Events},
+    event_crossterm::{Event, Events},
 };
 
 use crate::linear::config::LinearConfig;
@@ -65,37 +67,41 @@ pub enum Command {
 }
 
 
-pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mode: &InputMode) -> Option<Command> {
+pub fn get_cmd(cmd_str: &mut String, input: KeyCode, current_route: &Route, input_mode: &InputMode) -> Option<Command> {
 
     // Editor input/submit/exit commands
     if *input_mode == InputMode::Editing {
         match input {
-            Key::Esc => {return Some(Command::EditorExit);},
-            Key::Char('\n') => {return Some(Command::EditorSubmit);},
-            Key::Char(c) => {return Some(Command::EditorInput(c));},
-            Key::Backspace => {return Some(Command::EditorDelete);},
-            _ => {return None}
+            KeyCode::Esc => {return Some(Command::EditorExit);},
+            KeyCode::Char('\n') => {return Some(Command::EditorSubmit);},
+            // windows
+            KeyCode::Enter => {return Some(Command::EditorSubmit);},
+            KeyCode::Char(c) => {return Some(Command::EditorInput(c));},
+            KeyCode::Backspace => {return Some(Command::EditorDelete);},
+            _ => {
+                debug!("unsupported editor KeyCode: {:?}", input);
+                return None;}
         }
     }
 
     match input {
         // Navigation/Confirmation related inputs
         // These will always clear the command string
-        Key::Left => {
+        KeyCode::Left => {
             Some(Command::MoveBack)
         },
-        Key::Down => {
+        KeyCode::Down => {
             Some(Command::ScrollDown)
         },
-        Key::Up => {
+        KeyCode::Up => {
             Some(Command::ScrollUp)
         },
-        Key::Right => {
+        KeyCode::Right => {
             Some(Command::Confirm)
         },
 
         // Contextual User commands
-        Key::Char(ch) => {
+        KeyCode::Char(ch) => {
             cmd_str.push(ch);
             match cmd_str.as_str() {
                 // Quit Command
@@ -173,7 +179,7 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mo
                 }
             }
         },
-        Key::Esc => {
+        KeyCode::Esc => {
             Some(Command::EditorExit)
         }
 
@@ -260,6 +266,14 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
 pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sender<IOEvent>) {
     events.enable_exit_key();
     app.input_mode = InputMode::Normal;
+
+    // If editing the title, close the modal as well
+    if app.modifying_issue {
+        app.modifying_issue = false;        
+        app.linear_issue_op_interface.reset_op();
+    }
+
+
     // app.change_route(Route::ActionSelect, tx);
 }
 
@@ -335,11 +349,20 @@ pub fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize) {
             // Verify Vec<Value>.len() > 0, and update app.view_panel_issue_selected to Some( table_state )
             let view_panel_handle = view_panel_list_handle[view_panel_idx-1].issue_table_data.lock().unwrap();
 
+            // select initial issue in newly selected view panel
             if !view_panel_handle.is_empty() {
                 let mut table_state = TableState::default();
                 state_table::next(&mut table_state, &view_panel_handle);
 
                 app.view_panel_issue_selected = Some( table_state );
+            }
+
+            drop(view_panel_handle);
+            drop(view_panel_list_handle);
+            
+            // updated expanded issue
+            if app.issue_to_expand.is_some() {
+                exec_expand_issue_cmd(app);
             }
 
             // Unselect from app.actions
@@ -422,12 +445,14 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
     }
 }
 
-pub fn exec_expand_issue_cmd(app: &mut App, tx: &Sender<IOEvent>) {
+pub fn exec_expand_issue_cmd(app: &mut App) {
     // Execute command if:
     //     view panel issue is selected
 
     if let Some(issue_obj) = fetch_selected_view_panel_issue(app) {
         app.issue_to_expand = Some(issue_obj.clone());
+    } else {
+        app.issue_to_expand = None;
     }
 }
 
@@ -443,12 +468,15 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
             app.linear_issue_op_interface.current_op = op;
             app.modifying_issue = true;
 
-            // If IssueModificationOp::Title, set app.issue_title_input.input to issue title
+            // If IssueModificationOp::Title,
+            // set app.issue_title_input.input to issue title
+            // 
             if op == IssueModificationOp::Title {
                 let issue_option = fetch_selected_view_panel_issue(app);
                 if let Some(issue_obj) = issue_option {
                     if let Value::String(issue_title) = &issue_obj["title"] {
                         app.issue_title_input.input = issue_title.to_string();
+                        app.input_mode = InputMode::Editing;
                     }
                 }
             }
@@ -668,11 +696,6 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 */
             }
 
-            // If expanded issue modal open, nothing to do
-            else if app.issue_to_expand.is_some() {
-                return;
-            }
-
             // If a ViewPanel is selected, scroll down on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
                 // debug!("exec_scroll_down_cmd() view panel is selected");
@@ -720,6 +743,13 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                     app.view_panel_issue_selected = Some( table_state );
                 }
             }
+
+            // updated expanded issue
+            if app.issue_to_expand.is_some() {
+                exec_expand_issue_cmd(app);
+            }
+
+
             // No View Panel selected or issue modal open, scroll on actions
             else {
                 app.actions.next();
@@ -804,10 +834,7 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
             }
 
-            // If expanded issue modal open, nothing to do
-            else if app.issue_to_expand.is_some() { }
-
-            // If a ViewPanel is selected and no issue modal open, scroll down on the View Panel
+            // If a ViewPanel is selected and no issue modal open, scroll up on the View Panel
             else if let Some(view_panel_selected_idx) = app.linear_dashboard_view_panel_selected {
 
                 let view_panel_list_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
@@ -830,6 +857,11 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             // No View Panel selected or issue modal open, scroll on actions
             else {
                 app.actions.next();
+            }
+
+            // updated expanded issue
+            if app.issue_to_expand.is_some() {
+                exec_expand_issue_cmd(app);
             }
         },
         // Select previous Custom View Slot

@@ -47,14 +47,20 @@ use tokio::{
     time::{ sleep, Duration }
 };
 
-use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
-use tui::{
-    backend::TermionBackend,
-    Terminal,
+// use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
+// use tui::{ backend::TermionBackend, Terminal, };
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use tui::{ backend::CrosstermBackend, Terminal };
+
+
 
 use util::{
-    event::{Event, Events},
+    // event::{Event, Events},
+    event_crossterm::{Event, Events},
     loader::{ LOADER_STATE_MAX },
 };
 
@@ -201,7 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let linear_config_handle = app.linear_client.config.clone();
 
-    
+
     let team_tz_map_handle = app.team_tz_map.clone();
     let team_tz_load_done_handle = app.team_tz_load_done.clone();
     let team_tz_load_in_progress_handle = app.team_tz_load_in_progress.clone();
@@ -249,10 +255,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Terminal initialization
-    let stdout = io::stdout().into_raw_mode()?;
-    let stdout = MouseTerminal::from(stdout);
-    let stdout = AlternateScreen::from(stdout);
-    let backend = TermionBackend::new(stdout);
+
+    // let stdout = io::stdout().into_raw_mode()?;
+    // let stdout = MouseTerminal::from(stdout);
+    // let stdout = AlternateScreen::from(stdout);
+    // let backend = TermionBackend::new(stdout);
+    // let mut terminal = Terminal::new(backend)?;
+
+    enable_raw_mode()?;
+
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
     let mut events = Events::new();
@@ -291,7 +305,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // Execute Command
                     match cmd {
+                        
                         Command::Quit => {
+                            disable_raw_mode()?;
+                            execute!(
+                                terminal.backend_mut(),
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )?;
+                            terminal.show_cursor()?;
                             break;
                         },
 
@@ -326,7 +348,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             exec_refresh_view_panel_cmd(&mut app, &tx);
                         },
                         Command::ExpandIssue => {
-                            exec_expand_issue_cmd(&mut app, &tx);
+                            exec_expand_issue_cmd(&mut app);
                         },
 
                         Command::SelectDashboardViewList => {
@@ -349,7 +371,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         Command::ScrollUp => {
                             exec_scroll_up_cmd(&mut app);
-                        }
+                        },
                     };
                 }
                 else {
@@ -375,6 +397,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tick_idx += 1;
                 }
             },
+            Event::Quit => {
+                disable_raw_mode()?;
+                execute!(
+                    terminal.backend_mut(),
+                    LeaveAlternateScreen,
+                    DisableMouseCapture
+                )?;
+                terminal.show_cursor()?;
+                break;
+            }
         };
     }
 

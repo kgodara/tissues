@@ -1,15 +1,11 @@
 use crate::app::InputMode;
 
-use crate::util::event::{Event, Events};
 use std::{error::Error, io};
-use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
+
 use tui::{
-    backend::TermionBackend,
-    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans, Text},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Terminal,
 };
 
 use std::sync::{
