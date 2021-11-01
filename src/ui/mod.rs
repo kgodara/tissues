@@ -16,7 +16,7 @@ use crate::components::{
     linear_custom_view_select::LinearCustomViewSelect,
 
     linear_issue_op_interface::LinearIssueOpInterface,
-    linear_issue_modal::render_and_layout,
+    linear_issue_modal,
 
     task_status_modal,
     task_status_modal::TaskStatus,
@@ -339,7 +339,7 @@ where
         
         f.render_widget(Clear, area); //this clears out the background
 
-        render_and_layout(f, issue_modal_chunk[0], issue_obj, app.scroll_tick);
+        linear_issue_modal::render_and_layout(f, issue_modal_chunk[0], issue_obj, app.scroll_tick);
     }
 
 

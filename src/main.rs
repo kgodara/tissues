@@ -279,7 +279,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
 
         terminal.draw(|mut f| {
-            debug!("terminal draw called");
             match app.route {
                 Route::ConfigInterface => {
                     ui::draw_config_interface(&mut f, &mut app);
@@ -349,7 +348,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             exec_refresh_view_panel_cmd(&mut app, &tx);
                         },
                         Command::ExpandIssue => {
-                            exec_expand_issue_cmd(&mut app, &tx);
+                            exec_expand_issue_cmd(&mut app);
                         },
 
                         Command::SelectDashboardViewList => {
