@@ -1,5 +1,6 @@
 
-use termion::{event::Key,};
+// use termion::{event::Key,};
+use crossterm::event::KeyCode;
 
 use std::sync::atomic::{ AtomicBool, Ordering };
 
@@ -8,7 +9,8 @@ use crate::network::IOEvent;
 use crate::util::{
     state_table,
     dashboard::{ fetch_selected_view_panel_issue, fetch_selected_view_panel_idx, },
-    event::{Event, Events},
+    // event::{Event, Events},
+    event_crossterm::{Event, Events},
 };
 
 use crate::linear::config::LinearConfig;
@@ -65,15 +67,15 @@ pub enum Command {
 }
 
 
-pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mode: &InputMode) -> Option<Command> {
+pub fn get_cmd(cmd_str: &mut String, input: KeyCode, current_route: &Route, input_mode: &InputMode) -> Option<Command> {
 
     // Editor input/submit/exit commands
     if *input_mode == InputMode::Editing {
         match input {
-            Key::Esc => {return Some(Command::EditorExit);},
-            Key::Char('\n') => {return Some(Command::EditorSubmit);},
-            Key::Char(c) => {return Some(Command::EditorInput(c));},
-            Key::Backspace => {return Some(Command::EditorDelete);},
+            KeyCode::Esc => {return Some(Command::EditorExit);},
+            KeyCode::Char('\n') => {return Some(Command::EditorSubmit);},
+            KeyCode::Char(c) => {return Some(Command::EditorInput(c));},
+            KeyCode::Backspace => {return Some(Command::EditorDelete);},
             _ => {return None}
         }
     }
@@ -81,21 +83,21 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mo
     match input {
         // Navigation/Confirmation related inputs
         // These will always clear the command string
-        Key::Left => {
+        KeyCode::Left => {
             Some(Command::MoveBack)
         },
-        Key::Down => {
+        KeyCode::Down => {
             Some(Command::ScrollDown)
         },
-        Key::Up => {
+        KeyCode::Up => {
             Some(Command::ScrollUp)
         },
-        Key::Right => {
+        KeyCode::Right => {
             Some(Command::Confirm)
         },
 
         // Contextual User commands
-        Key::Char(ch) => {
+        KeyCode::Char(ch) => {
             cmd_str.push(ch);
             match cmd_str.as_str() {
                 // Quit Command
@@ -173,7 +175,7 @@ pub fn get_cmd(cmd_str: &mut String, input: Key, current_route: &Route, input_mo
                 }
             }
         },
-        Key::Esc => {
+        KeyCode::Esc => {
             Some(Command::EditorExit)
         }
 
