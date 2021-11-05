@@ -1,5 +1,5 @@
 
-pub mod dashboard_view_display;
+pub mod dashboard_view_config_display;
 pub mod dashboard_view_panel;
 
 pub mod user_input;

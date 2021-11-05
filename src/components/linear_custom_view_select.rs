@@ -21,7 +21,7 @@ use crate::linear::{
 
 use crate::util::{
     table::{ values_to_str_with_fallback, format_cell_fields,
-        get_row_height, colored_cell,
+        row_min_render_height, get_row_height, colored_cell,
         TableStyle, gen_table_title_spans
     },
     GraphQLCursor
@@ -92,7 +92,15 @@ impl LinearCustomViewSelect {
 
         let mut max_seen_row_size: usize = 0;
 
-        let mut rows: Vec<Row> = table_data.iter()
+
+        // Get the maximum wrapped-field size that respects max_height across all rows this will be the final uniform row height
+        // e.g. max( .iter().enumerate() min( wrap(cell_fields[idx], widths[idx]).len(), columns[idx].max_height ) )
+        // pass this to all format_str_with_wrap() calls to enforce all fields take advantage of all available lines
+
+        let mut cell_fields_list: Vec<Vec<String>> = Vec::new();
+
+        let max_row_size_opt: Option<u16> = table_data
+            .iter()
             .map(|row| {
 
                 let cell_fields: Vec<String> = values_to_str_with_fallback(
@@ -104,8 +112,19 @@ impl LinearCustomViewSelect {
                     &CUSTOM_VIEW_SELECT_COLUMNS
                 );
 
+                cell_fields_list.push(cell_fields.clone());
+
+                row_min_render_height(&cell_fields, widths, &CUSTOM_VIEW_SELECT_COLUMNS)
+            })
+            .max();
+
+
+        let mut rows: Vec<Row> = table_data.iter()
+            .enumerate()
+            .map(|(idx, row)| {
+
                 // Get the formatted Strings for each cell field
-                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &CUSTOM_VIEW_SELECT_COLUMNS);
+                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields_list[idx], widths, &CUSTOM_VIEW_SELECT_COLUMNS, max_row_size_opt);
 
                 // debug!("get_rendered_view_data - cell_fields_formatted: {:?}", cell_fields_formatted);
 

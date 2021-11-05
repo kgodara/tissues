@@ -1,5 +1,5 @@
 
-use std::cmp::max;
+use std::cmp::{ max, min };
 
 use std::sync::{
     Arc,
@@ -16,11 +16,12 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table},
 };
 
+
 use crate::linear::view_resolver::ViewLoader;
 
 use crate::util::{
     table::{ values_to_str_with_fallback, format_cell_fields,
-        get_row_height, colored_cell,
+        row_min_render_height, get_row_height, colored_cell,
         TableStyle, gen_table_title_spans
     },
 };
@@ -67,7 +68,14 @@ impl DashboardViewPanel {
 
         let mut max_seen_row_size: usize = 0;
 
-        let mut rows: Vec<Row> = table_data.iter()
+        // Get the maximum wrapped-field size that respects max_height across all rows this will be the final uniform row height
+        // e.g. max( .iter().enumerate() min( wrap(cell_fields[idx], widths[idx]).len(), columns[idx].max_height ) )
+        // pass this to all format_str_with_wrap() calls to enforce all fields take advantage of all available lines
+
+        let mut cell_fields_list: Vec<Vec<String>> = Vec::new();
+
+        let max_row_size_opt: Option<u16> = table_data
+            .iter()
             .map(|row| {
 
                 let cell_fields: Vec<String> = 
@@ -81,8 +89,18 @@ impl DashboardViewPanel {
                         &VIEW_PANEL_COLUMNS
                     );
 
+                cell_fields_list.push(cell_fields.clone());
+
+                row_min_render_height(&cell_fields, widths, &VIEW_PANEL_COLUMNS)
+            })
+            .max();
+
+        let mut rows: Vec<Row> = table_data.iter()
+            .enumerate()
+            .map(|(idx, row)| {
+
                 // Get the formatted Strings for each cell field
-                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &VIEW_PANEL_COLUMNS);
+                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields_list[idx], widths, &VIEW_PANEL_COLUMNS, max_row_size_opt);
 
                 max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
 
@@ -103,7 +121,12 @@ impl DashboardViewPanel {
         // Set all row heights to max_seen_row_size
         rows = rows.into_iter()
             .map(|row| {
-                row.height(max_seen_row_size as u16)
+                // row.height(max_seen_row_size as u16)
+                if let Some(x) = max_row_size_opt {
+                    row.height(x)
+                } else {
+                    row.height(max_seen_row_size as u16)
+                }
             })
             .collect();
 

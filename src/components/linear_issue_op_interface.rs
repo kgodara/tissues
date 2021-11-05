@@ -23,7 +23,7 @@ use crate::linear::{
 
 use crate::util::{
     table::{ values_to_str_with_fallback, format_cell_fields,
-        get_row_height, colored_cell,
+        get_row_height, row_min_render_height, colored_cell,
         TableStyle, gen_table_title_spans,
     },
     layout::{
@@ -219,8 +219,10 @@ impl LinearIssueOpInterface {
                     &WORKFLOW_STATE_SELECT_COLUMNS
                 );
 
+                let row_height = row_min_render_height(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS);
+
                 // Get the formatted Strings for each cell field
-                format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS)
+                format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS, Some(row_height))
             },
             IssueModificationOp::Assignee => {
                 cell_fields = values_to_str_with_fallback(
@@ -231,7 +233,9 @@ impl LinearIssueOpInterface {
                     &ASSIGNEE_SELECT_COLUMNS
                 );
 
-                format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS)
+                let row_height = row_min_render_height(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS);
+
+                format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS, Some(row_height))
             },
             IssueModificationOp::Project => {
                 cell_fields = values_to_str_with_fallback(
@@ -242,7 +246,9 @@ impl LinearIssueOpInterface {
                     &PROJECT_SELECT_COLUMNS
                 );
 
-                format_cell_fields(&cell_fields, widths, &PROJECT_SELECT_COLUMNS)
+                let row_height = row_min_render_height(&cell_fields, widths, &PROJECT_SELECT_COLUMNS);
+
+                format_cell_fields(&cell_fields, widths, &PROJECT_SELECT_COLUMNS, Some(row_height))
             },
             IssueModificationOp::Cycle => {
                 cell_fields = values_to_str_with_fallback(
@@ -255,7 +261,9 @@ impl LinearIssueOpInterface {
                     &CYCLE_SELECT_COLUMNS
                 );
 
-                format_cell_fields(&cell_fields, widths, &CYCLE_SELECT_COLUMNS)
+                let row_height = row_min_render_height(&cell_fields, widths, &CYCLE_SELECT_COLUMNS);
+
+                format_cell_fields(&cell_fields, widths, &CYCLE_SELECT_COLUMNS, Some(row_height))
             },
             _ => {
                 panic!("Not ready yet");

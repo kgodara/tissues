@@ -11,7 +11,7 @@ use app::{ App, InputMode };
 use crate::components::{
     user_input::{ UserInput, InputContext, ValidationState, TitleValidationState, TokenValidationState },
 
-    dashboard_view_display::DashboardViewDisplay,
+    dashboard_view_config_display::DashboardViewConfigDisplay,
     dashboard_view_panel::DashboardViewPanel,
     linear_custom_view_select::LinearCustomViewSelect,
 
@@ -435,7 +435,7 @@ where
 }
 
 
-pub fn draw_dashboard_view_display<B>(f: &mut Frame<B>, app: &mut App)
+pub fn draw_dashboard_view_config<B>(f: &mut Frame<B>, app: &mut App)
 where
   B: Backend,
 {
@@ -475,12 +475,12 @@ where
     if let Ok(cmd_items) = app.dashboard_view_config_cmd_bar.render() {
         f.render_widget(cmd_items, chunks[0]);
     } else {
-        error!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
-        panic!("draw_dashboard_view_display - app.dashboard_view_config_cmd_bar.render() failed");
+        error!("draw_dashboard_view_config - app.dashboard_view_config_cmd_bar.render() failed");
+        panic!("draw_dashboard_view_config - app.dashboard_view_config_cmd_bar.render() failed");
     }
 
 
-    // Get Rects for DashboardViewDisplay & CustomViewSelect
+    // Get Rects for DashboardViewConfigDisplay & CustomViewSelect
     let bottom_row_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
@@ -494,7 +494,7 @@ where
 
 
 
-    // Draw Dashboard View Display
+    // Draw Dashboard View Config Display
 
     // Create TableStyle for Dashboard View List
     let view_list_table_style = TableStyle { 
@@ -517,7 +517,7 @@ where
     let widths: Vec<Constraint> = widths_from_rect( &view_display_content_rect, &*DASHBOARD_VIEW_CONFIG_COLUMNS);
 
     if let Ok(mut view_display_table) = 
-        DashboardViewDisplay::render(&app.linear_dashboard_view_list, &widths, view_list_table_style)
+        DashboardViewConfigDisplay::render(&app.linear_dashboard_view_list, &widths, view_list_table_style)
     {
 
         view_display_table = view_display_table.widths(&widths);
@@ -528,8 +528,8 @@ where
 
         f.render_stateful_widget(view_display_table, bottom_row_chunks[0], &mut table_state);
     } else {
-        error!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
-        panic!("draw_dashboard_view_display - DashboardViewDisplay::get_rendered_view_table failed");
+        error!("draw_dashboard_view_config - DashboardViewConfigDisplay::get_rendered_view_table failed");
+        panic!("draw_dashboard_view_config - DashboardViewConfigDisplay::get_rendered_view_table failed");
     }
 
 
@@ -568,8 +568,8 @@ where
 
         f.render_stateful_widget(view_select_table, bottom_row_chunks[1], &mut custom_view_table_state);
     } else {
-        error!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
-        panic!("draw_dashboard_view_display - LinearCustomViewSelect::get_rendered_view_data failed");
+        error!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
+        panic!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
     }
 
   /*

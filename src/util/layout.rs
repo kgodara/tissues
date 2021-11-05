@@ -1,11 +1,12 @@
 
+use std::borrow::Cow;
 use std::cmp;
 
 use tui::{
     layout::{ Constraint, Rect }
 };
 
-use textwrap::{ fill, wrap };
+use textwrap::{ wrap };
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::constants::table_columns::{ TableColumn };
@@ -146,8 +147,65 @@ pub fn widths_from_rect(bbox: &Rect, columns: &[TableColumn]) -> Vec<Constraint>
 //         & ellipses appended in case of truncation
 pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
 
-    let wrapped_str = wrap(content, width as usize);
+    let mut wrapped_str = wrap(content, width as usize);
+    // debug!("height, width, wrapped_str: {:?}, {:?}, {:?}", height, width, wrapped_str);
+    let wrapped_len = wrapped_str.len();
     // debug!("format_str_with_wrap - width, height, wrapped_str: {:?}, {:?}, {:?}", width, height, wrapped_str);
+
+    // For all lines beyond wrapped_str[height-1], merge into wrapped_str[height-1]? to improve truncation output
+
+    // Thought: iterate backwards through input string,
+    // matching against the wrapped_str[idx] line and cutting sections to the right of match index from matching (copy of original) string
+    // this should allow for finding the true index of the original string that is beyond wrapped_str[height-1]
+    // merge everything from [idx..] into wrapped_str[height-1]
+
+    let mut compact_search_success: bool = false;
+    let mut boundary_idx: usize = 0;
+    if wrapped_len as u16 > height {
+        compact_search_success = true;
+
+        let mut remaining: &str = content;
+
+        // for i in height..(wrapped_len as u16) {
+        for i in 0..(wrapped_len as u16 - height) {
+
+            // let temp = &*wrapped_str[((wrapped_len-1) - (i-height) as usize)].to_owned();
+            let temp = &*wrapped_str[((wrapped_len-1) - i as usize)].to_owned();
+            let find_opt = remaining.rfind(temp);
+            if let Some(x) = find_opt {
+                boundary_idx = x;
+                // debug!("boundary_idx: {:?}", boundary_idx);
+                remaining = &content[..x];
+            } else {
+                // debug!("rfind() failed");
+                compact_search_success = false;
+                break;
+            }
+        }
+    }
+
+    if compact_search_success {
+        // debug!("original_line_idx: {:?}", (height-1));
+        let original_line = wrapped_str[(height as usize)-1].to_mut();
+
+        // get index of final line to be rendered in original string
+        if let Some(original_line_end) = content[..boundary_idx].rfind(&original_line.to_owned()) {
+            // can't just merge from this point,
+            // can still be spaces in the original string that are between boundary_idx & original_line
+            // need to use content[ content.rfind(original_line) + original_line.len() .. boundary_idx ] for original line
+            // debug!("middle[x..y] - x, y: {:?}, {:?}", original_line_end + original_line.len(), boundary_idx);
+            let middle = &content[ original_line_end + original_line.len() .. boundary_idx ];
+
+            let to_compact: &str = &content[boundary_idx..];
+
+            original_line.push_str(middle);
+            original_line.push_str(to_compact);
+            // debug!("compacted string: {:?}", original_line);
+
+            // wrapped_str[(height as usize)-1] = Cow::Borrowed();
+
+        }
+    }
 
     let mut result: String = "".to_owned();
 
@@ -158,9 +216,11 @@ pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
     // set last str characters to ellipsis
     if wrapped_str.len() as u16 > height {
         // if possible, add ellipsis to the end of the last line that will be rendered
-        if let Some(modified_line) = set_str_end_as_ellipsis(&wrapped_str[(height as usize)-1]) {
+        // debug!("set_str_end_as_ellipsis() -- arg, wrapped_str: {:?}, {:?}", &wrapped_str[(height as usize)-1], wrapped_str);
+        if let Some(modified_line) = set_str_end_as_ellipsis(&wrapped_str[(height as usize)-1], width as usize) {
             ellipsis_added = true;
             final_line = modified_line;
+            // debug!("format_str_with_wrap - width, final_line: {:?}, {:?}", width, final_line);
         }
     }
 
@@ -174,9 +234,7 @@ pub fn format_str_with_wrap(content: &str, width: u16, height: u16) -> String {
 
         if idx == (height as usize)-1 && ellipsis_added {
             result.push_str(&final_line);
-        } /*else if idx == (height as usize)-1 {
-            result.push_str(line);
-        }*/ else {
+        } else {
             result.push_str(line);
             result.push('\n');
         }

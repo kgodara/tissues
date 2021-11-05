@@ -46,7 +46,7 @@ use crate::components::{
 
     linear_custom_view_select::LinearCustomViewSelect,
 
-    dashboard_view_display::DashboardViewDisplay,
+    dashboard_view_config_display::DashboardViewConfigDisplay,
     dashboard_view_panel::DashboardViewPanel,
 
     linear_issue_op_interface::LinearIssueOpInterface,
@@ -131,7 +131,7 @@ pub struct App<'a> {
     pub linear_custom_view_cursor: Arc<Mutex<GraphQLCursor>>,
 
     // Linear Dashboard Custom View List Display
-    pub dashboard_view_display: DashboardViewDisplay,
+    pub dashboard_view_display: DashboardViewConfigDisplay,
     pub dashboard_view_config_cmd_bar: CommandBar<'a>,
 
     // Linear Dashboard Custom View List
@@ -189,7 +189,7 @@ impl<'a> Default for App<'a> {
             linear_selected_custom_view_idx: None,
             linear_custom_view_cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
 
-            dashboard_view_display: DashboardViewDisplay::default(),
+            dashboard_view_display: DashboardViewConfigDisplay::default(),
             dashboard_view_config_cmd_bar: CommandBar::with_type(CommandBarType::ViewList),
 
 

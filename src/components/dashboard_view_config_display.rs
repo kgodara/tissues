@@ -12,18 +12,18 @@ use tui::{
 use crate::util::{
     table::{ TableStyle, gen_table_title_spans, 
         values_to_str_with_fallback, format_cell_fields,
-        get_row_height, colored_cell 
+        get_row_height, colored_cell, row_min_render_height
     },
 };
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
 
 
-pub struct DashboardViewDisplay {
+pub struct DashboardViewConfigDisplay {
     pub view_table_state: TableState,
 }
 
-impl DashboardViewDisplay {
+impl DashboardViewConfigDisplay {
 
     pub fn render<'a>(view_list: &'a [Option<Value>],
         widths: &[Constraint],
@@ -46,11 +46,13 @@ impl DashboardViewDisplay {
 
         let mut max_seen_row_size: usize = 0;
 
-        let mut rows: Vec<Row> = view_list.iter()
+        let mut cell_fields_list: Vec<Vec<String>> = Vec::new();
+
+        let max_row_size_opt: Option<u16> = view_list
+            .iter()
             .map(|row_option| {
 
                 // Get the String representations of each cell field
-
                 let cell_fields: Vec<String> = match row_option {
                     Some(row) => {
                         values_to_str_with_fallback(
@@ -65,8 +67,18 @@ impl DashboardViewDisplay {
                     None => vec![String::default(), String::default(), String::default()],
                 };
 
+                cell_fields_list.push(cell_fields.clone());
+
+                row_min_render_height(&cell_fields, widths, &DASHBOARD_VIEW_CONFIG_COLUMNS)
+            })
+            .max();
+
+        let mut rows: Vec<Row> = view_list.iter()
+            .enumerate()
+            .map(|(idx, row_option)| {
+
                 // Get the formatted Strings for each cell field
-                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, widths, &DASHBOARD_VIEW_CONFIG_COLUMNS);
+                let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields_list[idx], widths, &DASHBOARD_VIEW_CONFIG_COLUMNS, max_row_size_opt);
 
                 // debug!("get_rendered_view_table - cell_fields_formatted: {:?}", cell_fields_formatted);
                 
@@ -114,10 +126,10 @@ impl DashboardViewDisplay {
     }
 }
 
-impl Default for DashboardViewDisplay {
+impl Default for DashboardViewConfigDisplay {
 
-    fn default() -> DashboardViewDisplay {
-        DashboardViewDisplay {
+    fn default() -> DashboardViewConfigDisplay {
+        DashboardViewConfigDisplay {
             view_table_state: TableState::default(),
         }
     }

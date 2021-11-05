@@ -287,7 +287,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ui::draw_action_select(&mut f, &mut app);
                 },
                 Route::DashboardViewDisplay => {
-                    ui::draw_dashboard_view_display(&mut f, &mut app);
+                    ui::draw_dashboard_view_config(&mut f, &mut app);
                 }
             };
         })?;

@@ -58,12 +58,7 @@ use tui::{
     Frame
 };
 
-use serde_json::{ Value, json};
-
-use crate::linear::{
-    client::LinearClient,
-    LinearConfig
-};
+use serde_json::{ Value };
 
 use crate::util::{
     table::{ value_to_str, values_to_str_with_fallback,
@@ -73,14 +68,13 @@ use crate::util::{
     },
     ui::{ style_color_from_hex_str },
     layout::{ widths_from_rect },
-    GraphQLCursor
 };
 
 use crate::constants::{ 
     table_columns::{ ISSUE_MODAL_HEADER_COLUMNS }
 };
 
-pub fn render_and_layout<'a, B>(f: &mut Frame<B>, chunk: Rect, issue: &Value, scroll_tick: u64 )
+pub fn render_and_layout<B>(f: &mut Frame<B>, chunk: Rect, issue: &Value, scroll_tick: u64 )
 where
   B: Backend,
 {
@@ -117,7 +111,8 @@ where
     );
 
     // Get the formatted Strings for each cell field
-    let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, &widths, &ISSUE_MODAL_HEADER_COLUMNS);
+    // no need to use row_min_render_height() here, ISSUE_MODAL_HEADER_COLUMNS all have max_height = 1
+    let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields, &widths, &ISSUE_MODAL_HEADER_COLUMNS, None);
     let row_size: usize = get_row_height(&cell_fields_formatted);
     let cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 

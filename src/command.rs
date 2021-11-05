@@ -744,15 +744,15 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 }
             }
 
-            // updated expanded issue
-            if app.issue_to_expand.is_some() {
-                exec_expand_issue_cmd(app);
-            }
-
 
             // No View Panel selected or issue modal open, scroll on actions
             else {
                 app.actions.next();
+            }
+
+            // updated expanded issue
+            if app.issue_to_expand.is_some() {
+                exec_expand_issue_cmd(app);
             }
 
             if load_paginated {
