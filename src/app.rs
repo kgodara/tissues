@@ -102,8 +102,12 @@ pub struct App<'a> {
 
     // Config Interface
     pub config_interface_input: UserInput,
+
     // Current input mode
     pub input_mode: InputMode,
+    // is an editor available to edit
+    pub editor_available: bool,
+
     // Current submitted access token to validate
     // pub access_token_to_validate: String,
 
@@ -171,7 +175,9 @@ impl<'a> Default for App<'a> {
             linear_client: linear::client::LinearClient::default(),
 
             config_interface_input: UserInput::default(),
+
             input_mode: InputMode::Normal,
+            editor_available: false,
             // access_token_to_validate: String::from(""),
 
             loader_tick: 0,
@@ -230,6 +236,9 @@ impl<'a> App<'a> {
         match route {
 
             Route::ConfigInterface => {
+                // currently, config interface always has editor availability
+                self.editor_available = true;
+
                 // Unselect from actions list
                 self.actions.unselect();
             },
@@ -238,6 +247,10 @@ impl<'a> App<'a> {
             // and set app.linear_dashboard_view_panel_list
             // Load all Dashboard Views
             Route::ActionSelect => {
+
+                // no editor available
+                self.editor_available = false;
+
                 // Select first action
                 self.actions.next();
 
@@ -253,14 +266,8 @@ impl<'a> App<'a> {
 
             Route::DashboardViewDisplay => {
 
-                /*
-                // TODO: Clear any previous CustomViewSelect related values on self
-                self.linear_custom_view_select = components::linear_custom_view_select::LinearCustomViewSelect::default();
-                self.linear_selected_custom_view_idx = None;
-                self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
-
-                self.dispatch_event("load_custom_views", tx);
-                */
+                // no editor available
+                self.editor_available = false;
 
                 // Unselect from actions list
                 self.actions.unselect();

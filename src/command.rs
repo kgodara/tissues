@@ -189,8 +189,10 @@ pub fn get_cmd(cmd_str: &mut String, input: KeyCode, current_route: &Route, inpu
 
 
 pub fn exec_editor_enter_cmd(app: &mut App<'_>, events: &mut Events) {
-    events.disable_exit_key();
-    app.input_mode = InputMode::Editing;
+    if app.editor_available {
+        events.disable_exit_key();
+        app.input_mode = InputMode::Editing;
+    }
 }
 
 pub fn exec_editor_input_cmd(app: &mut App<'_>, ch: &char) {
@@ -269,7 +271,8 @@ pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sender<
 
     // If editing the title, close the modal as well
     if app.modifying_issue {
-        app.modifying_issue = false;        
+        app.editor_available = false;
+        app.modifying_issue = false;
         app.linear_issue_op_interface.reset_op();
     }
 
@@ -475,6 +478,9 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
                 let issue_option = fetch_selected_view_panel_issue(app);
                 if let Some(issue_obj) = issue_option {
                     if let Value::String(issue_title) = &issue_obj["title"] {
+                        // enable editor
+                        app.editor_available = true;
+
                         app.issue_title_input.input = issue_title.to_string();
                         app.input_mode = InputMode::Editing;
                     }
@@ -502,6 +508,9 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             if app.modifying_issue {
                 app.modifying_issue = false;
                 app.linear_issue_op_interface.reset_op();
+
+                // disable editor, only relevant if op was title modification
+                app.editor_available = false;
             }
 
             // If expanded Issue view is open, close modal
