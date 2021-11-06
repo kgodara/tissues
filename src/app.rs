@@ -174,7 +174,7 @@ impl<'a> Default for App<'a> {
 
             linear_client: linear::client::LinearClient::default(),
 
-            config_interface_input: UserInput::default(),
+            config_interface_input: UserInput::with_input(String::from("")),// UserInput::default(),
 
             input_mode: InputMode::Normal,
             editor_available: false,

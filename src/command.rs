@@ -44,7 +44,12 @@ pub enum Command {
     
     EditorEnter,
     EditorInput(char),
+
+    EditorMoveBackward,
+    EditorMoveForward,
+
     EditorDelete,
+
     EditorSubmit,
     EditorExit,
 
@@ -74,8 +79,13 @@ pub fn get_cmd(cmd_str: &mut String, input: KeyCode, current_route: &Route, inpu
         match input {
             KeyCode::Esc => {return Some(Command::EditorExit);},
             KeyCode::Char('\n') => {return Some(Command::EditorSubmit);},
-            // windows
+
+            // windows support
             KeyCode::Enter => {return Some(Command::EditorSubmit);},
+
+            KeyCode::Right => {return Some(Command::EditorMoveForward)},
+            KeyCode::Left => {return Some(Command::EditorMoveBackward)},
+
             KeyCode::Char(c) => {return Some(Command::EditorInput(c));},
             KeyCode::Backspace => {return Some(Command::EditorDelete);},
             _ => {
@@ -200,29 +210,62 @@ pub fn exec_editor_input_cmd(app: &mut App<'_>, ch: &char) {
     match app.route {
         Route::ConfigInterface => {
             if app.input_mode == InputMode::Editing {
-                app.config_interface_input.input.push(*ch);
+                app.config_interface_input.insert(*ch);
             }
         },
         Route::ActionSelect => {
             if app.input_mode == InputMode::Editing {
-                app.issue_title_input.input.push(*ch);
+                app.issue_title_input.insert(*ch);
             }
         },
         _ => {}
     }
 }
 
+pub fn exec_editor_move_forward_cmd(app: &mut App<'_>) {
+        match app.route {
+            Route::ConfigInterface => {
+                if app.input_mode == InputMode::Editing {
+                    app.config_interface_input.move_cursor_forwards();
+                }
+            },
+            Route::ActionSelect => {
+                if app.input_mode == InputMode::Editing {
+                    app.issue_title_input.move_cursor_forwards();
+                }
+            },
+            _ => {}
+        }
+}
+
+pub fn exec_editor_move_back_cmd(app: &mut App<'_>) {
+    match app.route {
+        Route::ConfigInterface => {
+            if app.input_mode == InputMode::Editing {
+                app.config_interface_input.move_cursor_back();
+            }
+        },
+        Route::ActionSelect => {
+            if app.input_mode == InputMode::Editing {
+                app.issue_title_input.move_cursor_back();
+            }
+        },
+        _ => {}
+    }
+}
+
+
 pub fn exec_editor_delete_cmd(app: &mut App<'_>) {
     // Verify user is editing access token
     match app.route {
         Route::ConfigInterface => {
             if app.input_mode == InputMode::Editing {
-                app.config_interface_input.input.pop();
+                app.config_interface_input.delete();
             }
         },
         Route::ActionSelect => {
             if app.input_mode == InputMode::Editing {
-                app.issue_title_input.input.pop();
+                app.issue_title_input.delete();
             }
         },
         _ => {}
@@ -481,7 +524,8 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
                         // enable editor
                         app.editor_available = true;
 
-                        app.issue_title_input.input = issue_title.to_string();
+                        app.issue_title_input.set_input(issue_title.to_string());
+                        // app.issue_title_input.input = issue_title.to_string();
                         app.input_mode = InputMode::Editing;
                     }
                 }

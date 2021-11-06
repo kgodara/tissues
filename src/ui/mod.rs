@@ -89,7 +89,7 @@ where
             // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
             f.set_cursor(
                 // Put cursor past the end of the input text
-                chunks[1].x + unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16 + 1,
+                chunks[1].x + app.config_interface_input.cursor_offset as u16,
                 // Move one line down, from the border to the input line
                 chunks[1].y + 1,
             )
@@ -378,7 +378,7 @@ where
                 // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
                 f.set_cursor(
                     // Put cursor past the end of the input text
-                    input_chunks[1].x + unicode_width::UnicodeWidthStr::width(app.issue_title_input.input.as_str()) as u16 + 1,
+                    input_chunks[1].x + app.issue_title_input.cursor_offset as u16,
                     // Move one line down, from the border to the input line
                     input_chunks[1].y + 1,
                 )

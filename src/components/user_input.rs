@@ -46,6 +46,8 @@ pub enum ValidationState {
 
 pub struct UserInput {
     pub input: String,
+    pub cursor_offset: usize,
+
     pub token_validation_state: Arc<Mutex<TokenValidationState>>,
     pub title_validation_state: TitleValidationState,
 }
@@ -55,6 +57,8 @@ impl Default for UserInput {
     fn default() -> UserInput {
         UserInput {
             input: String::new(),
+            cursor_offset: 0,
+
             token_validation_state: Arc::new(Mutex::new(TokenValidationState::Null)),
             title_validation_state: TitleValidationState::Null,
         }
@@ -177,5 +181,75 @@ impl UserInput {
                 InputMode::Editing => Style::default().fg(Color::Yellow),
             })
             .block(Block::default().borders(Borders::ALL).title("Input"))
+    }
+
+    pub fn unicode_width(&self) -> usize {
+        unicode_width::UnicodeWidthStr::width(self.input.as_str())
+    }
+
+    pub fn set_input(&mut self, input_init: String) {
+        self.input = input_init;
+        // set initial cursor pos to end of input str
+        self.cursor_offset = self.unicode_width() + 1;
+        debug!("set_input() - cursor_offset: {}", self.cursor_offset);
+    }
+
+    pub fn with_input(input_init: String) -> UserInput {
+        UserInput {
+            input: input_init.clone(),
+            cursor_offset: unicode_width::UnicodeWidthStr::width(input_init.as_str())+1,
+
+            token_validation_state: Arc::new(Mutex::new(TokenValidationState::Null)),
+            title_validation_state: TitleValidationState::Null,
+        }
+    }
+
+    pub fn insert(&mut self, ch: char) {
+        let gr_inds = self.input.grapheme_indices(true)
+              .collect::<Vec<(usize, &str)>>();
+
+        // debug!("user_input::insert() - self.input: {:?}", self.input);
+        // debug!("user_input::insert() - gr_ind: {:?}", gr_inds);
+        // debug!("user_input::insert() - idx: {:?}", self.cursor_offset);
+
+        let insert_byte_idx: usize;
+
+        // if pushing to end of self.input use push
+        if (self.cursor_offset-1) == gr_inds.len() {
+            self.input.push(ch);
+        } else {
+            insert_byte_idx = gr_inds[self.cursor_offset-1].0;
+            drop(gr_inds);
+            self.input.insert(insert_byte_idx, ch);
+        }
+
+        self.cursor_offset += 1;
+    }
+
+    pub fn delete(&mut self) {
+        let gr_inds = self.input.grapheme_indices(true)
+            .collect::<Vec<(usize, &str)>>();
+
+        // do nothing if at start of line
+        if self.cursor_offset < 2 {
+            return;
+        } else if (self.cursor_offset-1) == gr_inds.len() {
+            // pop if at end of line
+            self.input.pop();
+        } else {
+            let delete_byte_idx: usize = gr_inds[self.cursor_offset-2].0;
+            drop(gr_inds);
+            self.input.remove(delete_byte_idx);
+        }
+        self.cursor_offset -= 1;
+    }
+
+    pub fn move_cursor_back(&mut self) {
+        if self.cursor_offset > 1 { self.cursor_offset -= 1; }
+        debug!("move_cursor_back() - cursor_offset: {}", self.cursor_offset);
+    }
+
+    pub fn move_cursor_forwards(&mut self) {
+        if self.cursor_offset <= self.unicode_width() { self.cursor_offset += 1; }
     }
 }

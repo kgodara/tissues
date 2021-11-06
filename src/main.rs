@@ -79,6 +79,8 @@ use command::{ Command,
                 exec_editor_enter_cmd,
                 exec_editor_input_cmd,
                 exec_editor_delete_cmd,
+                exec_editor_move_forward_cmd,
+                exec_editor_move_back_cmd,
                 exec_editor_submit_cmd,
                 exec_editor_exit_cmd,
 
@@ -327,6 +329,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         Command::EditorDelete => {
                             exec_editor_delete_cmd(&mut app);
+                        },
+                        Command::EditorMoveForward => {
+                            exec_editor_move_forward_cmd(&mut app);            
+                        },
+                        Command::EditorMoveBackward => {
+                            exec_editor_move_back_cmd(&mut app);
                         },
                         Command::EditorSubmit => {
                             exec_editor_submit_cmd(&mut app, &mut events, &tx);
