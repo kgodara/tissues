@@ -11,10 +11,11 @@ edition = "2018"
 clap = "3.0.0-beta.2"
 ureq = { version = "2.0.1", features = ["json", "charset"] }
 serde_json = "1.0"
-# tui = { version = "0.14.0", features = ["termion", "crossterm"], default-features = false }
 tui = { version = "0.14.0", features = ["crossterm"], default-features = false }
 crossterm = "0.21.0"
-# termion = "1.5.6"
+sled = "0.34.7"
+futures = "0.3.19"
+tokio-test = "0.4.2"
 log = "0.4"
 simplelog = "^0.7.6"
 colorsys = "0.6.3"

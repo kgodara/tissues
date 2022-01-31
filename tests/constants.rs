@@ -42,6 +42,45 @@ lazy_static! {
         ]);
 
 
+        // Due Date Views
+
+        // OverDue
+        m.insert("52719a63-d7aa-4f1b-8157-91103ba51e0f", vec![
+            "a1d909f3-21c1-4654-af2b-5a3daadd5ee3",
+            "ae0b7451-c176-4bec-a09a-f52e824ead11",
+            "eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3",
+            "63234ed0-035a-4aec-914b-19802c066b5a",
+            "13bfaa1c-4cf0-40d6-9d70-6c76b948261b",
+        ]);
+
+        // NoDueDate
+        m.insert("3dfa04a4-ce78-45cd-882b-866774faee50", vec![
+            "ace38e69-8a64-46f8-ad57-dc70c61f5599",
+            "f8a8309b-bc06-4c87-a19f-282aa7bff614",
+            "9ec131be-f97e-4110-b9f1-39a3b61723ef",
+            "1872404c-c3be-4938-a259-43ba8deb511e",
+        ]);
+
+        // DueDateBefore
+        m.insert("ee372cb9-6e3d-4da4-b7b7-003013293491", vec![
+            "a1d909f3-21c1-4654-af2b-5a3daadd5ee3",
+            "ae0b7451-c176-4bec-a09a-f52e824ead11",
+            "eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3",
+            "63234ed0-035a-4aec-914b-19802c066b5a",
+            "13bfaa1c-4cf0-40d6-9d70-6c76b948261b",
+        ]);
+
+        // DueDateAfter
+        m.insert("2a19d661-73ca-4208-8fe0-5f3554892a60", vec![
+            "a1d909f3-21c1-4654-af2b-5a3daadd5ee3",
+            "ae0b7451-c176-4bec-a09a-f52e824ead11",
+            "eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3",
+            "63234ed0-035a-4aec-914b-19802c066b5a",
+            "13bfaa1c-4cf0-40d6-9d70-6c76b948261b",
+        ]);
+
+
+
         // Workflow State Views
 
         // SelectedState

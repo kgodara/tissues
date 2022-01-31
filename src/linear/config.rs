@@ -21,6 +21,8 @@ const APP_VIEWER_OBJECT_FILE_NAME: &str = "viewer.txt";
 const APP_DASHBOARD_VIEW_LIST: &str = "view_list.txt";
 
 
+pub const MAX_PAGE_SIZE: u32 = 50;
+
 const DEFAULT_LINEAR_ISSUE_PAGE_SIZE: u32 = 50;
 const DEFAULT_LINEAR_VIEW_PANEL_PAGE_SIZE: u32 = 50;
 const DEFAULT_LINEAR_ISSUE_OP_PAGE_SIZE: u32 = 50;

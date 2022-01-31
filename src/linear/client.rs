@@ -1,6 +1,6 @@
-use super::config::LinearConfig;
+use super::config::{ LinearConfig, MAX_PAGE_SIZE };
 
-//Timezone query
+// Timezone query
 
 
 // Custom View Resolver Queries
@@ -9,11 +9,13 @@ use super::query::{
     exec_fetch_custom_views,
     exec_fetch_team_timezones,
     exec_fetch_viewer,
+    exec_fetch_workflow_states,
 
     exec_fetch_all_issues,
     exec_fetch_issues_by_team,
 
     exec_fetch_issue_by_direct_filter,
+    exec_fetch_issue_single_endpoint,
 
     // Non Custom View Resolver Queries
     // exec_get_teams,
@@ -45,7 +47,7 @@ use crate::constants::{
 };
 
 
-type ClientResult = Result<Value, LinearClientError>;
+pub type ClientResult = Result<Value, LinearClientError>;
 
 pub struct LinearClient {
     pub config: Arc<Mutex<LinearConfig>>,
@@ -69,7 +71,7 @@ impl LinearClient {
 
     pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
 
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
+        let linear_api_key = &verify_linear_api_key_present(&linear_config)?;
 
         let query_response = exec_fetch_custom_views(&linear_api_key, linear_cursor, linear_config.custom_view_page_size).await?;
 
@@ -103,6 +105,34 @@ impl LinearClient {
 
 
         Ok( json!( { "viewer_node": viewer_node, "error_node": error_node } ))
+    }
+
+    pub async fn get_issues_by_filter_data(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
+
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
+
+        let query_response = exec_fetch_issue_single_endpoint(&linear_api_key, linear_cursor, variables, linear_config.issue_page_size).await?;
+
+        let issue_nodes = &query_response["data"]["issues"]["nodes"];
+        let cursor_info = &query_response["data"]["issues"]["pageInfo"];
+
+        Ok( json!( { "issue_nodes": issue_nodes, "cursor_info": cursor_info } ))
+
+    }
+
+    // view_resolver 'filter_data' support query (workflow state name case-sensitivity)
+    pub async fn fetch_workflow_states(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
+        debug!("fetch_workflow_states initalized");
+
+        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
+
+        let query_response = exec_fetch_workflow_states(&linear_api_key, linear_cursor, MAX_PAGE_SIZE).await?;
+
+        let state_nodes = &query_response["data"]["workflowStates"]["nodes"];
+        let cursor_info = &query_response["data"]["workflowStates"]["pageInfo"];
+
+        Ok( json!( { "state_nodes": state_nodes, "cursor_info": cursor_info } ))
+
     }
 
     // View Resolver Query Section Start -------

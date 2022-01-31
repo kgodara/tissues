@@ -247,7 +247,53 @@ pub fn selected_assignee_view() {
     assert!(validate_view_issues(&view_issues, view_id));
 }
 
+#[test]
+pub fn due_date_views() {
+    initialize();
 
+    let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
+    let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
+
+    let over_due_view: &Value = custom_views_lock.iter().find(|view| {
+        view["id"].as_str().unwrap() == "52719a63-d7aa-4f1b-8157-91103ba51e0f"
+    }).expect("Failed to find OverDue view");
+
+    let no_due_date_view: &Value = custom_views_lock.iter().find(|view| {
+        view["id"].as_str().unwrap() == "3dfa04a4-ce78-45cd-882b-866774faee50"
+    }).expect("Failed to find NoDueDate view");
+
+    let due_date_before_view: &Value = custom_views_lock.iter().find(|view| {
+        view["id"].as_str().unwrap() == "ee372cb9-6e3d-4da4-b7b7-003013293491"
+    }).expect("Failed to find DueDateBefore view");
+
+    let due_date_after_view: &Value = custom_views_lock.iter().find(|view| {
+        view["id"].as_str().unwrap() == "2a19d661-73ca-4208-8fe0-5f3554892a60"
+    }).expect("Failed to find DueDateAfter view");
+
+    // OverDue
+    let mut view_id = over_due_view["id"].as_str().expect("OverDue view id not found");
+    let mut view_issues: Vec<Value> = aw!(view_resolver_single_endpoint::optimized_view_issue_fetch(&over_due_view.clone(), None, linear_config_lock.clone())).0;
+    debug!("OverDue view issues: {:?}", view_issues);
+    assert!(validate_view_issues(&view_issues, view_id));
+
+    // NoDueDate
+    view_id = no_due_date_view["id"].as_str().expect("NoDueDate view id not found");
+    view_issues = aw!(view_resolver_single_endpoint::optimized_view_issue_fetch(&no_due_date_view.clone(), None, linear_config_lock.clone())).0;
+    debug!("NoDueDate view issues: {:?}", view_issues);
+    assert!(validate_view_issues(&view_issues, view_id));
+
+    // DueDateBefore
+    view_id = due_date_before_view["id"].as_str().expect("DueDateBefore view id not found");
+    view_issues = aw!(view_resolver_single_endpoint::optimized_view_issue_fetch(&due_date_before_view.clone(), None, linear_config_lock.clone())).0;
+    debug!("DueDateBefore view issues: {:?}", view_issues);
+    assert!(validate_view_issues(&view_issues, view_id));
+
+    // DueDateAfter
+    view_id = due_date_after_view["id"].as_str().expect("DueDateAfter view id not found");
+    view_issues = aw!(view_resolver_single_endpoint::optimized_view_issue_fetch(&due_date_after_view.clone(), None, linear_config_lock.clone())).0;
+    debug!("DueDateAfter view issues: {:?}", view_issues);
+    assert!(validate_view_issues(&view_issues, view_id));
+}
 
 
 #[test]

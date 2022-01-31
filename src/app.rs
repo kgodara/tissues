@@ -7,15 +7,22 @@ use network::IOEvent as IOEvent;
 
 use tokio::{
     time::{ sleep, Duration },
-    sync::oneshot
+    sync::oneshot,
+    task,
+    runtime::{ Handle },
 };
 
-use std::sync::{
-    Arc,
-    Mutex,
-    atomic::{
-        AtomicBool,
-        Ordering
+
+use std::{
+    thread, 
+    sync::{
+        Arc,
+        Mutex,
+        Once,
+        atomic::{
+            AtomicBool,
+            Ordering
+        }
     }
 };
 
@@ -25,6 +32,7 @@ use crate::constants::{
 
 use crate::linear::{
     LinearConfig,
+    client::{ LinearClient, ClientResult },
     view_resolver::ViewLoader
 };
 
@@ -89,7 +97,104 @@ pub enum Platform {
     Linear,
     Github,
 }
-// linear_team_select
+
+// impl workflow state fetching
+static INIT_WORKFLOW_STATES: Once = Once::new();
+
+lazy_static!{
+    pub static ref ALL_WORKFLOW_STATES: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
+}
+
+pub fn init_workflow_states(linear_config: LinearConfig, handle: Handle) {
+    INIT_WORKFLOW_STATES.call_once(|| {
+    
+        // fetch all workflow states
+        let mut state_fetch_result: Arc<Mutex<ClientResult>> = Arc::new(Mutex::new(Ok(Value::Null)));
+        let mut state_cursor: Option<GraphQLCursor> = None;
+    
+        let mut all_states: Vec<Value> = Vec::new();
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create Tokio runtime");
+    
+        loop {
+            debug!("init_workflow_states loop iter");
+    
+            let mut states: Value;
+            let cursor_info: Value;
+    
+            if let Some(ref cursor) = state_cursor {
+                if !cursor.has_next_page {
+                    break;
+                }
+            }
+
+            let config_to_move = linear_config.clone();
+            let state_fetch_result_ptr = state_fetch_result.clone();
+
+            /*
+            thread::spawn(|| async move {
+                *state_fetch_result_ptr.lock().unwrap() = LinearClient::fetch_workflow_states(config_to_move, state_cursor).await;
+            }).join().expect("Thread panicked");
+            */
+
+            debug!("about to init futures executor task");
+            // futures::executor::block_on(async {
+            rt.block_on(async {
+                rt
+                    .spawn( async move {
+                        *state_fetch_result_ptr.lock().unwrap() = LinearClient::fetch_workflow_states(config_to_move, state_cursor).await;
+                    })
+                    .await
+                    .expect("Task spawned in Tokio executor panicked")
+
+                /*
+                handle
+                    .spawn(async move {
+                        *state_fetch_result_ptr.lock().unwrap() = LinearClient::fetch_workflow_states(config_to_move, state_cursor).await;
+                    })
+                    .await
+                    .expect("Task spawned in Tokio executor panicked")
+                */
+            });
+
+            debug!("futures executor task completed");
+    
+            match &*state_fetch_result.lock().unwrap() {
+                Ok(x) => {
+                    states = x["state_nodes"].clone();
+                    cursor_info = x["cursor_info"].clone();
+                },
+                Err(y) => {
+                    error!("Get Workflow States failed: {:?}", y);
+                    panic!("Get Workflow States failed: {:?}", y);
+                },
+            }
+            
+            if let Some(new_states_vec) = states.as_array_mut() {
+                all_states.append(new_states_vec);
+            }
+    
+            match GraphQLCursor::linear_cursor_from_page_info(cursor_info.clone()) {
+                Some(z) => {
+                    // debug!("Updating view_cursor_data_lock to: {:?}", z);
+                    state_cursor = Some(z);
+                },
+                None => {
+                    error!("'init_workflow_states' linear_cursor_from_page_info() failed for cursor_info: {:?}", cursor_info);
+                    panic!("'init_workflow_states' linear_cursor_from_page_info() failed for cursor_info: {:?}", cursor_info);
+                },
+            }
+        }
+    
+        debug!("init_workflow_states() - fetched {} states", all_states.len());
+        let mut all_states_lock = ALL_WORKFLOW_STATES.lock().unwrap();
+        *all_states_lock = all_states;
+        debug!("INTERIOR - init_workflow_states complete");
+    });
+}
 
 // App holds the state of the application
 pub struct App<'a> {
@@ -535,6 +640,7 @@ impl<'a> App<'a> {
 
                     // Load all DashboardViewPanels
                     
+                    // TODO: This is a bit of a hack, remove when std::sync::Once properly implemented
                     // Loop here and wait for timezone load to complete
                     loop {
                         sleep(Duration::from_millis(10)).await;

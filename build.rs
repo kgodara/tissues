@@ -39,6 +39,7 @@ fn main() {
         "fetch_custom_views",
         "fetch_team_timezones",
         "fetch_viewer",
+        "fetch_workflow_states",
     ];
 
     let mod_target: PathBuf = base.join("queries").join("linear").join("issue_modifications");
@@ -59,7 +60,8 @@ fn main() {
         "fetch_issues_by_label",
         "fetch_issues_by_project",
         "fetch_issues_by_team",
-        "fetch_issues_by_workflow_state"
+        "fetch_issues_by_workflow_state",
+        "fetch_issues_single_query",
     ];
 
     let op_fetch_target: PathBuf = base.join("queries").join("linear").join("op_fetch");

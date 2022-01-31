@@ -2,7 +2,9 @@
 pub mod client;
 pub mod config;
 pub mod error;
+
 pub mod view_resolver;
+pub mod view_resolver_single_endpoint;
 
 mod query;
 

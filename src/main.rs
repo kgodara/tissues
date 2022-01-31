@@ -32,7 +32,7 @@ use crate::components::{
 use crate::linear::{
     client::LinearClient,
     config::LinearConfig,
-    view_resolver,
+    view_resolver_single_endpoint,
 };
 
 use app::{ Route };
@@ -86,7 +86,7 @@ use command::{ Command,
 
                 exec_delete_cmd,
                 exec_select_view_panel_cmd,
-                
+
                 exec_refresh_view_panel_cmd,
                 exec_expand_issue_cmd,
 
@@ -169,11 +169,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = resp.send(viewer_resp.ok());
                 },
                 IOEvent::LoadViewIssues { linear_config, view, team_tz_lookup, tz_offset_lookup, issue_data, view_loader, resp } => {
+                    let issue_list = view_resolver_single_endpoint::optimized_view_issue_fetch(&view, view_loader, linear_config).await;
+                    /*
                     let issue_list = view_resolver::optimized_view_issue_fetch(&view, view_loader,
                                                                                         team_tz_lookup,
                                                                                         tz_offset_lookup,
                                                                                         issue_data,
                                                                                         linear_config).await;
+                    */
                     info!("LoadViewIssues data: {:?}", issue_list);
 
                     let _ = resp.send(issue_list);

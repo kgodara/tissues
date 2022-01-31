@@ -31,6 +31,10 @@ lazy_static! {
     pub static ref LINEAR_FETCH_TEAM_TIME_ZONES: Value = from_str(FETCH_TEAM_TIMEZONES).unwrap();
     pub static ref LINEAR_FETCH_VIEWER: Value = from_str(FETCH_VIEWER).unwrap();
 
+    pub static ref LINEAR_FETCH_ISSUES_SINGLE_QUERY: Value = from_str(FETCH_ISSUES_SINGLE_QUERY).unwrap();
+    pub static ref LINEAR_FETCH_WORKFLOW_STATES: Value = from_str(FETCH_WORKFLOW_STATES).unwrap();
+
+
     pub static ref LINEAR_FETCH_ALL_ISSUES: Value = from_str(FETCH_ALL_ISSUES).unwrap();
     pub static ref LINEAR_FETCH_ISSUES_BY_TEAM: Value = from_str(FETCH_ISSUES_BY_TEAM).unwrap();
     pub static ref LINEAR_FETCH_ISSUES_BY_CONTENT: Value = from_str(FETCH_ISSUES_BY_CONTENT).unwrap();
@@ -163,6 +167,36 @@ pub async fn exec_fetch_issue_by_direct_filter(filter_type: &FilterType, api_key
 
 
     info!("exec_fetch_issue_by_direct_filter - {:?} - variables: {:?}", filter_type, query["variables"]);
+
+    dispatch_linear_req(api_key, &query).await
+}
+
+pub async fn exec_fetch_issue_single_endpoint(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
+    let mut query = LINEAR_FETCH_ISSUES_SINGLE_QUERY.clone();
+
+    query["variables"] = Value::Object(variables);
+    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
+
+
+    set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
+
+
+    info!("fetch_issue_single_endpoint variables: {:?}", query["variables"]);
+    debug!("fetch_issue_single_endpoint query: {:?}", query);
+
+    dispatch_linear_req(api_key, &query).await
+}
+
+// filter_data -- workflow state case-sensitivity support function
+pub async fn exec_fetch_workflow_states(api_key: &str, issue_cursor: Option<GraphQLCursor>, page_size: u32) -> QueryResult {
+    let mut query = LINEAR_FETCH_WORKFLOW_STATES.clone();
+
+    query["variables"] = Value::Object(Map::new());
+    query["variables"]["firstNum"] = Value::Number(Number::from(page_size));
+
+    set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
+
+    info!("exec_fetch_workflow_states variables: {:?}", query["variables"]);
 
     dispatch_linear_req(api_key, &query).await
 }

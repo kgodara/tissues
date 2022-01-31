@@ -173,7 +173,7 @@ pub fn create_loader_from_view( filters: &Value ) -> ViewLoader {
         // Add 'team' filters to 'indirect_filter_list' &
         // 'filter_type_groups.get("team")'
         match &filters["team"]["id"] {
-            Value::String(team_id) => { 
+            Value::String(team_id) => {
                 indirect_filter_list.push( Filter { filter_type: FilterType::SelectedTeam, ref_id: Some(team_id.to_string()) } );
 
                 if let Some(x) = filter_type_groups.get_mut("team") {
