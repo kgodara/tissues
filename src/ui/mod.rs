@@ -1,7 +1,4 @@
-
-
-use std::fmt::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{ Ordering };
 
 use crate::app;
 use crate::util;
@@ -9,13 +6,13 @@ use crate::util;
 use app::{ App, InputMode };
 
 use crate::components::{
-    user_input::{ UserInput, InputContext, ValidationState, TitleValidationState, TokenValidationState },
+    user_input::{ UserInput, InputContext, ValidationState, TokenValidationState },
 
     dashboard_view_config_display::DashboardViewConfigDisplay,
     dashboard_view_panel::DashboardViewPanel,
     linear_custom_view_select::LinearCustomViewSelect,
 
-    linear_issue_op_interface::LinearIssueOpInterface,
+    linear_issue_op_interface::{ LinearIssueOpInterface, ModificationOpData },
     linear_issue_modal,
 
     task_status_modal,
@@ -37,10 +34,12 @@ use crate::constants::{
     IssueModificationOp,
 };
 
+use crate::linear::types::{ CustomView };
+
 use tui::{
   backend::Backend,
   layout::{Alignment, Constraint, Direction, Layout, Rect},
-  style::{Color, Modifier, Style},
+  style::{ Modifier, Style },
   text::{Span, Spans},
   widgets::{Block, Borders, Clear, List, ListItem, Paragraph, TableState, Wrap},
   Frame,
@@ -254,7 +253,7 @@ where
         let loading_state: bool = e.loading.load(Ordering::Relaxed);
 
 
-        let view_panel_table_style = TableStyle { title_style: Some(( e.filter["name"].clone(), e.filter["color"].clone() )),
+        let view_panel_table_style = TableStyle { title_style: Some(( e.view.name.clone(), e.view.color.clone() )),
             row_bottom_margin: Some(0),
             view_idx: Some((i as u16)+1),
             highlight_table,
@@ -400,8 +399,8 @@ where
         let issue_op_widths: Vec<Constraint> = LinearIssueOpInterface::widths_from_rect_op(&issue_op_chunks[0], &app.linear_issue_op_interface.current_op);
 
         let issue_op_table_style = TableStyle {
-            title_style: Some(( Value::String(LinearIssueOpInterface::title_from_op(&app.linear_issue_op_interface.current_op)),
-                Value::String(hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")))
+            title_style: Some(( LinearIssueOpInterface::title_from_op(&app.linear_issue_op_interface.current_op),
+                hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000"))
             )),
             row_bottom_margin: Some(0),
             view_idx: None,
@@ -411,14 +410,13 @@ where
             loader_state: app.loader_tick
         };
 
-        let data_handle = app.linear_issue_op_interface.table_data_from_op();
-        let data_lock = data_handle.lock().unwrap();
+        let data_lock = app.linear_issue_op_interface.obj_data.lock().unwrap();
 
-        let cloned_data_vec: Vec<Value> = data_lock.clone();
+        let cloned_data: ModificationOpData = data_lock.clone();
         drop(data_lock);
 
         let mut issue_op_table = LinearIssueOpInterface::render(app.linear_issue_op_interface.current_op,
-                &cloned_data_vec,
+                &cloned_data,
                 &issue_op_widths,
                 issue_op_table_style
             )
@@ -450,7 +448,7 @@ where
 
     // Get Selected Custom View from app.linear_dashboard_view_list using app.linear_dashboard_view_idx
     let mut view_is_selected = false;
-    let mut selected_view: Option<Value> = None;
+    let mut selected_view: Option<CustomView> = None;
 
     if let Some(view_idx) = app.linear_dashboard_view_idx {
         view_is_selected = true;
@@ -500,8 +498,8 @@ where
     let view_list_table_style = TableStyle { 
         title_style: 
         Some((
-            Value::String(String::from("Dashboard View Configuration")),
-            Value::String( hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
+            String::from("Dashboard View Configuration"),
+            hex_str_from_style_color(&colors::DASHBOARD_VIEW_LIST_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) ),
         row_bottom_margin: Some(0),
         view_idx: Some(1),
         highlight_table: app.linear_dashboard_view_list_selected,
@@ -541,8 +539,8 @@ where
     let custom_view_select_table_style = TableStyle { 
         title_style: 
         Some((
-            Value::String(String::from("Custom View Select")), 
-            Value::String( hex_str_from_style_color(&colors::CUSTOM_VIEW_SELECT_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) )),
+            String::from("Custom View Select"),
+            hex_str_from_style_color(&colors::CUSTOM_VIEW_SELECT_TABLE_TITLE).unwrap_or_else(|| String::from("#000000")) ) ),
         row_bottom_margin: Some(0),
         view_idx: Some(2),
         highlight_table: !app.linear_dashboard_view_list_selected,
@@ -571,21 +569,5 @@ where
         error!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
         panic!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
     }
-
-  /*
-    if None == app.linear_custom_view_select.view_table_state.selected() {
-        let custom_view_select_handle = app.linear_custom_view_select.view_table_data.lock().unwrap();
-
-        if let Some(custom_view_data) = &*custom_view_select_handle {
-        if let Value::Array(custom_view_vec) = custom_view_data {
-            if custom_view_vec.len() > 0 {
-                let mut table_state = TableState::default();
-                state_table::next(&mut table_state, &custom_view_vec);
-                app.linear_custom_view_select.view_table_state = table_state.clone();
-            }
-        }
-        }
-    }
-  */
 
 }

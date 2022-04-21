@@ -37,6 +37,7 @@ fn main() {
     let root_target: PathBuf = base.join("queries").join("linear");
     let query_root_name_list = &[
         "fetch_custom_views",
+        "fetch_issues_by_filter_data",
         "fetch_team_timezones",
         "fetch_viewer",
         "fetch_workflow_states",
@@ -49,19 +50,6 @@ fn main() {
         "set_issue_project",
         "set_issue_cycle",
         "set_issue_title",
-    ];
-
-    let issue_fetch_target: PathBuf = base.join("queries").join("linear").join("issues");
-    let query_issue_fetch_name_list = &[
-        "fetch_all_issues",
-        "fetch_issues_by_assignee",
-        "fetch_issues_by_content",
-        "fetch_issues_by_creator",
-        "fetch_issues_by_label",
-        "fetch_issues_by_project",
-        "fetch_issues_by_team",
-        "fetch_issues_by_workflow_state",
-        "fetch_issues_single_query",
     ];
 
     let op_fetch_target: PathBuf = base.join("queries").join("linear").join("op_fetch");
@@ -86,12 +74,6 @@ fn main() {
     for x in query_issue_mod_name_list.iter() {
         let query_file_name = format!("{}.graphql", x);
         let query_target = root_target.join("issue_modifications").join(query_file_name);
-        query_result_str.push_str(&gen_file_str_const(query_target.into_os_string().into_string().unwrap().as_str(), x));
-    }
-
-    for x in query_issue_fetch_name_list.iter() {
-        let query_file_name = format!("{}.graphql", x);
-        let query_target = root_target.join("issues").join(query_file_name);
         query_result_str.push_str(&gen_file_str_const(query_target.into_os_string().into_string().unwrap().as_str(), x));
     }
 

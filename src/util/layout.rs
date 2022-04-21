@@ -1,5 +1,4 @@
 
-use std::borrow::Cow;
 use std::cmp;
 
 use tui::{
@@ -7,7 +6,6 @@ use tui::{
 };
 
 use textwrap::{ wrap };
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::constants::table_columns::{ TableColumn };
 use crate::util::str::{ set_str_end_as_ellipsis };

@@ -8,13 +8,11 @@ use network::IOEvent as IOEvent;
 use tokio::{
     time::{ sleep, Duration },
     sync::oneshot,
-    task,
     runtime::{ Handle },
 };
 
 
 use std::{
-    thread, 
     sync::{
         Arc,
         Mutex,
@@ -33,10 +31,10 @@ use crate::constants::{
 use crate::linear::{
     LinearConfig,
     client::{ LinearClient, ClientResult },
-    view_resolver::ViewLoader
+    types::{ CustomView, IssueRelatableObject, Issue, },
 };
 
-use serde_json::Value;
+use serde_json::{ Error, Value };
 
 use std::collections::{HashSet, HashMap};
 
@@ -69,9 +67,9 @@ pub struct ViewLoadBundle {
 
     pub tz_name_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
 
-    pub item_filter: Value,
-    pub table_data: Arc<Mutex<Vec<Value>>>,
-    pub loader: Arc<Mutex<Option<ViewLoader>>>,
+    pub item_filter: CustomView,
+    pub table_data: Arc<Mutex<Vec<Issue>>>,
+    pub cursor: Arc<Mutex<Option<GraphQLCursor>>>,
     pub request_num: Arc<Mutex<u32>>,
     pub loading: Arc<AtomicBool>,
 
@@ -91,6 +89,15 @@ pub enum InputMode {
     Editing,
 }
 
+pub enum AppEvent {
+    LoadViewer,
+    LoadCustomViews,
+    LoadDashboardViews,
+    PaginateDashboardView,
+    LoadIssueOpData,
+    UpdateIssue,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Platform {
     Na,
@@ -105,11 +112,11 @@ lazy_static!{
     pub static ref ALL_WORKFLOW_STATES: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
 }
 
-pub fn init_workflow_states(linear_config: LinearConfig, handle: Handle) {
+pub fn init_workflow_states(linear_config: LinearConfig, _handle: Handle) {
     INIT_WORKFLOW_STATES.call_once(|| {
     
         // fetch all workflow states
-        let mut state_fetch_result: Arc<Mutex<ClientResult>> = Arc::new(Mutex::new(Ok(Value::Null)));
+        let state_fetch_result: Arc<Mutex<ClientResult>> = Arc::new(Mutex::new(Ok(Value::Null)));
         let mut state_cursor: Option<GraphQLCursor> = None;
     
         let mut all_states: Vec<Value> = Vec::new();
@@ -134,14 +141,8 @@ pub fn init_workflow_states(linear_config: LinearConfig, handle: Handle) {
             let config_to_move = linear_config.clone();
             let state_fetch_result_ptr = state_fetch_result.clone();
 
-            /*
-            thread::spawn(|| async move {
-                *state_fetch_result_ptr.lock().unwrap() = LinearClient::fetch_workflow_states(config_to_move, state_cursor).await;
-            }).join().expect("Thread panicked");
-            */
 
             debug!("about to init futures executor task");
-            // futures::executor::block_on(async {
             rt.block_on(async {
                 rt
                     .spawn( async move {
@@ -149,15 +150,6 @@ pub fn init_workflow_states(linear_config: LinearConfig, handle: Handle) {
                     })
                     .await
                     .expect("Task spawned in Tokio executor panicked")
-
-                /*
-                handle
-                    .spawn(async move {
-                        *state_fetch_result_ptr.lock().unwrap() = LinearClient::fetch_workflow_states(config_to_move, state_cursor).await;
-                    })
-                    .await
-                    .expect("Task spawned in Tokio executor panicked")
-                */
             });
 
             debug!("futures executor task completed");
@@ -244,7 +236,7 @@ pub struct App<'a> {
     pub dashboard_view_config_cmd_bar: CommandBar<'a>,
 
     // Linear Dashboard Custom View List
-    pub linear_dashboard_view_list: Vec<Option<Value>>,
+    pub linear_dashboard_view_list: Vec<Option<CustomView>>,
     pub linear_dashboard_view_idx: Option<usize>,
     pub linear_dashboard_view_list_selected: bool,
 
@@ -258,7 +250,7 @@ pub struct App<'a> {
 
     pub view_panel_cmd_bar: CommandBar<'a>,
 
-    pub issue_to_expand: Option<Value>,
+    pub issue_to_expand: Option<Issue>,
 
     // Issue Modification fields
     pub modifying_issue: bool,
@@ -366,7 +358,7 @@ impl<'a> App<'a> {
                     }
                 }
 
-                self.dispatch_event("load_dashboard_views", &tx);
+                self.dispatch_event(AppEvent::LoadDashboardViews, tx);
             },
 
             Route::DashboardViewDisplay => {
@@ -377,24 +369,24 @@ impl<'a> App<'a> {
                 // Unselect from actions list
                 self.actions.unselect();
 
-                // TODO: Clear any previous CustomViewSelect related values on self
+                // Clear any previous CustomViewSelect related values on self
                 self.linear_custom_view_select = LinearCustomViewSelect::default();
                 self.linear_selected_custom_view_idx = None;
                 self.linear_custom_view_cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
 
                 self.linear_dashboard_view_list_selected = true;
 
-                self.dispatch_event("load_custom_views", tx);
+                self.dispatch_event(AppEvent::LoadCustomViews, tx);
             }
         }
         self.route = route;
     }
 
-    pub fn dispatch_event(&mut self, event_name: &str, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
+    pub fn dispatch_event(&mut self, event: AppEvent, tx: &tokio::sync::mpsc::Sender<IOEvent>) {
 
-        match event_name {
+        match event {
 
-            "load_viewer" => {
+            AppEvent::LoadViewer => {
 
                 let tx2 = tx.clone();
 
@@ -451,7 +443,7 @@ impl<'a> App<'a> {
                 });
             },
 
-            "load_custom_views" => {
+            AppEvent::LoadCustomViews => {
                 // TODO: Clear any previous CustomViewSelect related values on self
 
 
@@ -497,12 +489,20 @@ impl<'a> App<'a> {
 
                     let mut current_views = view_data_lock.clone();
 
-                    if let Some(Some(mut y)) = res {
+                    if let Some(Some(y)) = res {
 
-                        if let Some(new_views_vec) = y["views"].as_array_mut() {
-                            current_views.append(new_views_vec);
-                            *view_data_lock = current_views;
-                            view_select_loading_handle.store(false, Ordering::Relaxed);
+                        let mut view_vec_result: Result<Vec<CustomView>, Error> = serde_json::from_value(y["views"].clone());
+
+                        match view_vec_result {
+                            Ok(ref mut view_vec) => {
+                                current_views.append(view_vec);
+                                *view_data_lock = current_views;
+                                view_select_loading_handle.store(false, Ordering::Relaxed);
+                            },
+                            Err(_err) => {
+                                error!("'load_custom_views' from_value() failed for custom view vec");
+                                panic!("'load_custom_views' from_value() failed for custom view vec");
+                            }
                         }
 
                         match GraphQLCursor::linear_cursor_from_page_info(y["cursor_info"].clone()) {
@@ -521,10 +521,10 @@ impl<'a> App<'a> {
                 });
             },
 
-            "load_dashboard_views" => {
+            AppEvent::LoadDashboardViews => {
                 // Reset app.linear_dashboard_view_panel_list
-                let view_panel_list_ref = self.linear_dashboard_view_panel_list.clone();
-                let mut view_panel_list_handle = view_panel_list_ref.lock().unwrap();
+                let view_panel_list_handle = self.linear_dashboard_view_panel_list.clone();
+                let mut view_panel_list_lock = view_panel_list_handle.lock().unwrap();
 
                 // view_panel_list_handle.clear();
 
@@ -532,7 +532,7 @@ impl<'a> App<'a> {
 
                 debug!("dispatch_event::load_dashboard_views - self.linear_dashboard_view_list: {:?}", self.linear_dashboard_view_list);
 
-                for (i, filter_opt) in self.linear_dashboard_view_list.iter().enumerate() {
+                for (i, view_opt) in self.linear_dashboard_view_list.iter().enumerate() {
                     //  If a View Panel for the filter is present within self.linear_dashboard_view_panel_list
                     //  and self.linear_dashboard_view_panel_list[x].is_loading == false,
                     //      if the index doesn't match:
@@ -540,60 +540,56 @@ impl<'a> App<'a> {
                     //      else:
                     //          do not insert a new view panel
 
-                    if let Some(filter) = filter_opt {
+                    if let Some(view) = view_opt {
                         // Create DashboardViewPanels for each filter
 
-                        let filter_id = filter["id"].clone();
-                        let filter_view_panel_exists = view_panel_list_handle
+                        let view_id = view.id.clone();
+                        let custom_view_view_panel_exists = view_panel_list_lock
                                                         .iter()
                                                         .position(|e| { 
-                                                            debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
-                                                            e.filter["id"] == filter_id
+                                                            debug!("filter_view_panel_exists comparing {:?} == {:?}", e.view.id, view_id);   
+                                                            e.view.id == view_id
                                                         });
-                        debug!("i: {:?}, filter_view_panel_exists: {:?}", i, filter_view_panel_exists);
+                        debug!("i: {:?}, filter_view_panel_exists: {:?}", i, custom_view_view_panel_exists);
 
 
-                        match filter_view_panel_exists {
+                        match custom_view_view_panel_exists {
                             Some(filter_view_panel_idx) => {
 
                                 //  if the index doesn't match:
                                 //      clone the view panel and replace into the correct index
                                 //      within self.linear_dashboard_view_panel_list
+                                //  if the index does match:
+                                //      then a ViewPanel already exists for this filter
 
                                 if i != filter_view_panel_idx {
-                                    let dup_view_panel = view_panel_list_handle[filter_view_panel_idx].clone();
-                                    // view_panel_list_handle.insert(i, dup_view_panel);
-                                    if i < view_panel_list_handle.len() {
-                                        let _got = std::mem::replace(&mut view_panel_list_handle[i], dup_view_panel);
+                                    let dup_view_panel = view_panel_list_lock[filter_view_panel_idx].clone();
+                                    if i < view_panel_list_lock.len() {
+                                        let _got = std::mem::replace(&mut view_panel_list_lock[i], dup_view_panel);
                                     }
                                     else {
-                                        view_panel_list_handle.insert(i, dup_view_panel);
+                                        view_panel_list_lock.insert(i, dup_view_panel);
                                     }
                                 }
 
-                                // TODO: Why is this not in an else?
-                                // if the index does match, then a ViewPanel already exists for this filter, skip
                                 existing_panel_set.insert(i);
 
                             },
                             // Need to create a new View Panel
                             None => {
-                                debug!("Attempting to use insert for i: {:?}", i);
-                                // view_panel_list_handle.insert(i, DashboardViewPanel::with_filter(filter.clone()));
-                                // let got = std::mem::replace(&mut view_panel_list_handle[i], DashboardViewPanel::with_filter(filter.clone()));
 
-                                if i < view_panel_list_handle.len() {
-                                    let _got = std::mem::replace(&mut view_panel_list_handle[i], DashboardViewPanel::with_filter(filter.clone()));
+                                if i < view_panel_list_lock.len() {
+                                    let _got = std::mem::replace(&mut view_panel_list_lock[i], DashboardViewPanel::with_view(view.clone()));
                                 }
                                 else {
-                                    view_panel_list_handle.insert(i, DashboardViewPanel::with_filter(filter.clone()));
+                                    view_panel_list_lock.insert(i, DashboardViewPanel::with_view(view.clone()));
                                 }
                             }
                         };
                     }
                 }
 
-                info!("change_route ActionSelect new self.linear_dashboard_view_panel_list: {:?}", view_panel_list_handle);
+                info!("change_route ActionSelect new self.linear_dashboard_view_panel_list: {:?}", view_panel_list_lock);
                 
                 let linear_config_lock = self.linear_client.config.lock().unwrap();
                 let linear_config = linear_config_lock.clone();
@@ -601,7 +597,7 @@ impl<'a> App<'a> {
 
                 // Create 'view_load_bundles': Vec<ViewLoadBundle> from view_panel_list_handle
                 // Filter to only create ViewLoadBundles for ViewPanels where 
-                let view_load_bundles: Vec<ViewLoadBundle> = view_panel_list_handle
+                let view_load_bundles: Vec<ViewLoadBundle> = view_panel_list_lock
                     .iter()
                     .cloned()
                     .enumerate()
@@ -615,9 +611,9 @@ impl<'a> App<'a> {
 
                                             tz_name_offset_lookup: self.tz_name_offset_map.clone(),
                                             
-                                            item_filter: e.filter,
+                                            item_filter: e.view,
                                             table_data: e.issue_table_data.clone(),
-                                            loader: e.view_loader.clone(),
+                                            cursor: e.view_cursor.clone(),
                                             request_num: e.request_num.clone(),
                                             loading: e.loading.clone(),
 
@@ -629,12 +625,10 @@ impl<'a> App<'a> {
 
 
 
-                drop(view_panel_list_handle);
+                drop(view_panel_list_lock);
 
                 // timezone load completion bool handle
                 let team_tz_load_done_handle = self.team_tz_load_done.clone();
-                let team_tz_lookup_handle = self.team_tz_map.clone();
-
 
                 let _t1 = tokio::spawn(async move {
 
@@ -649,15 +643,7 @@ impl<'a> App<'a> {
                                 break;
                             }
                         }
-                    }
-
-                    // Fetch self.team_tz_map here
-                    let team_tz_lookup_parent: HashMap<String, String>;
-                    {
-                        let team_tz_lookup_lock = team_tz_lookup_handle.lock().unwrap();
-                        team_tz_lookup_parent = team_tz_lookup_lock.clone();
-                    }
-                    
+                    }                    
 
                     // note the use of `into_iter()` to consume `items`
                     let tasks: Vec<_> = view_load_bundles
@@ -672,11 +658,9 @@ impl<'a> App<'a> {
                             */
                             info!("Spawning Get View Panel Issues Task");
 
-                            let loader_handle = item.loader.lock().unwrap();
-                            let loader = loader_handle.clone();
-                            drop(loader_handle);
-
-                            let team_tz_lookup = team_tz_lookup_parent.clone();
+                            let cursor_handle = item.cursor.lock().unwrap();
+                            let cursor = cursor_handle.clone();
+                            drop(cursor_handle);
 
                             // Set ViewPanel loading state to true
                             item.loading.store(true, Ordering::Relaxed);
@@ -686,11 +670,8 @@ impl<'a> App<'a> {
 
 
                                 let cmd = IOEvent::LoadViewIssues { linear_config: item.linear_config.clone(),
-                                                                    team_tz_lookup: team_tz_lookup.clone(),
-                                                                    tz_offset_lookup: item.tz_name_offset_lookup,
-                                                                    issue_data: Arc::new(Mutex::new(Vec::new())),
                                                                     view: item.item_filter.clone(), 
-                                                                    view_loader: loader,
+                                                                    view_cursor: cursor,
                                                                     resp: resp_tx };
  
                                 item.tx.send(cmd).await.unwrap();
@@ -700,12 +681,20 @@ impl<'a> App<'a> {
                                 info!("LoadViewIssues IOEvent returned: {:?}", res);
 
                                 let mut view_panel_data_lock = item.table_data.lock().unwrap();
-                                let mut loader_handle = item.loader.lock().unwrap();
+                                let mut cursor_handle = item.cursor.lock().unwrap();
                                 let mut request_num_lock = item.request_num.lock().unwrap();
 
                                 if let Some(x) = res {
-                                    *view_panel_data_lock = x.0;
-                                    *loader_handle = Some(x.1);
+
+                                    // Deserialize Vec<Value> -> Vec<Issue>
+                                    let issues: Vec<Issue> = serde_json::from_value(Value::Array(x.0)).unwrap();
+
+                                    *view_panel_data_lock = issues;
+
+                                    *cursor_handle = Some(x.1);
+                                    
+                                    
+                                    
                                     *request_num_lock += x.2;
                                     item.loading.store(false, Ordering::Relaxed);
                                 }
@@ -726,7 +715,7 @@ impl<'a> App<'a> {
                 });
 
             },
-            "paginate_dashboard_view" => {
+            AppEvent::PaginateDashboardView => {
 
                 let tx2 = tx.clone();
 
@@ -747,25 +736,19 @@ impl<'a> App<'a> {
                 let linear_config = linear_config_lock.clone();
                 drop(linear_config_lock);
 
-                let view_panel_view_obj = view_panel_list_handle[self.view_panel_to_paginate].filter.clone();
+                let view_panel_view_obj = view_panel_list_handle[self.view_panel_to_paginate].view.clone();
 
-                let loader_lock = view_panel_list_handle[self.view_panel_to_paginate].view_loader.lock().unwrap();
-                let loader = loader_lock.clone();
+                let cursor_lock = view_panel_list_handle[self.view_panel_to_paginate].view_cursor.lock().unwrap();
+                let cursor = cursor_lock.clone();
 
                 let view_panel_issue_handle = view_panel_list_handle[self.view_panel_to_paginate].issue_table_data.clone();
-                let loader_handle = view_panel_list_handle[self.view_panel_to_paginate].view_loader.clone();
+                let cursor_handle = view_panel_list_handle[self.view_panel_to_paginate].view_cursor.clone();
                 let request_num_handle = view_panel_list_handle[self.view_panel_to_paginate].request_num.clone();
 
 
                 let loading_handle = view_panel_list_handle[self.view_panel_to_paginate].loading.clone();
 
-                let tz_id_name_lookup_dup = self.team_tz_map.lock()
-                                                            .unwrap()
-                                                            .clone();
-                let tz_name_offset_lookup_dup = self.tz_name_offset_map.clone();
-
-
-                drop(loader_lock);
+                drop(cursor_lock);
                 drop(view_panel_list_handle);
 
 
@@ -774,13 +757,10 @@ impl<'a> App<'a> {
 
 
                     let cmd = IOEvent::LoadViewIssues { linear_config,
-                                                        team_tz_lookup: tz_id_name_lookup_dup,
-                                                        tz_offset_lookup: tz_name_offset_lookup_dup,
-                                                        issue_data: view_panel_issue_handle.clone(),
                                                         view: view_panel_view_obj, 
-                                                        view_loader: loader,
+                                                        view_cursor: cursor,
                                                         resp: resp_tx };
-                    
+
                     tx2.send(cmd).await.unwrap();
 
                     let res = resp_rx.await.ok();
@@ -788,16 +768,17 @@ impl<'a> App<'a> {
                     info!("LoadViewIssues IOEvent returned: {:?}", res);
                     
                     let mut view_panel_data_lock = view_panel_issue_handle.lock().unwrap();
-                    let mut loader = loader_handle.lock().unwrap();
+                    let mut cursor = cursor_handle.lock().unwrap();
                     let mut request_num_lock = request_num_handle.lock().unwrap();
 
                     let mut current_view_issues = view_panel_data_lock.clone();
 
-                    if let Some(mut x) = res {
+                    if let Some(x) = res {
 
-                        current_view_issues.append(&mut x.0);
+                        let mut issues: Vec<Issue> = serde_json::from_value(Value::Array(x.0)).unwrap();
+                        current_view_issues.append(&mut issues);
                         *view_panel_data_lock = current_view_issues.clone();
-                        *loader = Some(x.1);
+                        *cursor = Some(x.1);
                         *request_num_lock += x.2;
                         loading_handle.store(false, Ordering::Relaxed);
 
@@ -805,7 +786,7 @@ impl<'a> App<'a> {
                     info!("New dashboard_view_panel.issue_table_data: {:?}", view_panel_data_lock);
                 });
             },
-            "load_issue_op_data" => {
+            AppEvent::LoadIssueOpData => {
                 let tx2 = tx.clone();
 
                 let op_interface_loading_handle = self.linear_issue_op_interface.loading.clone();
@@ -824,34 +805,30 @@ impl<'a> App<'a> {
                 // Set Loading 'true' before fetch
                 op_interface_loading_handle.store(true, Ordering::Relaxed);
 
-                let issue_op_data_handle = self.linear_issue_op_interface.table_data_from_op();
+                let issue_op_data_handle = self.linear_issue_op_interface.obj_data.clone();
 
                 let linear_config_lock = self.linear_client.config.lock().unwrap();
                 let linear_config = linear_config_lock.clone();
                 drop(linear_config_lock);
-
-
                 
 
-                let selected_issue_opt = fetch_selected_view_panel_issue(&self);
-                let selected_issue;
-                let selected_team;
+                let selected_issue_opt = fetch_selected_view_panel_issue(self);
 
                 // Check that an Issue is selected, if not return
-                if let Some(x) = selected_issue_opt {
-                    selected_issue = x;
-                }
-                else {
-                    return;
-                }
+                let selected_issue = if let Some(x) = selected_issue_opt {
+                        x
+                    }
+                    else {
+                        return;
+                    };
 
                 // Get the Issue's team,
                 // panic if not found since every Issue should have a value for ['team']['id']
-                selected_team = selected_issue["team"]["id"].clone();
+                let selected_team = selected_issue.team.id.clone();
 
-                if selected_team.is_null() {
-                    error!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
-                    panic!("['team']['id'] returned Value::Null for Issue: {:?}", selected_issue);
+                if selected_team.is_empty() {
+                    error!(".team.id is_empty() for Issue: {:?}", selected_issue);
+                    panic!(".team.id is_empty() for Issue: {:?}", selected_issue);
                 }
 
                 // Get Cursor
@@ -871,7 +848,7 @@ impl<'a> App<'a> {
                     let cmd = IOEvent::LoadOpData { op: current_op,
                         linear_config,
                         linear_cursor: issue_op_cursor,
-                        team: selected_team,
+                        team_id: selected_team,
                         resp: resp_tx 
                     };
 
@@ -887,14 +864,53 @@ impl<'a> App<'a> {
 
                     let mut issue_op_data_lock = issue_op_data_handle.lock().unwrap();
 
-                    let mut current_issue_op_data = issue_op_data_lock.clone();
+                    // let mut current_issue_op_data = issue_op_data_lock.clone();
+
+
+
+
+
 
                     if let Some(Some(ref mut x)) = res {
+
+                        let mut op_obj_vec_result: Result<Vec<IssueRelatableObject>, Error> = serde_json::from_value(x["data"].clone());
+
+                        
+
+                        // Modify correct data vec & extract Object from IssueRelatableObject
+                        match op_obj_vec_result {
+                            Ok(ref mut op_obj_vec) => {
+
+                                for op_obj in op_obj_vec {
+                                    match op_obj {
+                                        IssueRelatableObject::WorkflowState(workflow_state) => {
+                                            issue_op_data_lock.workflow_states.push(workflow_state.clone());
+                                        },
+                                        IssueRelatableObject::Assignee(assignee) => {
+                                            issue_op_data_lock.users.push(assignee.clone());
+                                        },
+                                        IssueRelatableObject::Project(project) => {
+                                            issue_op_data_lock.projects.push(project.clone());
+                                        },
+                                        IssueRelatableObject::Cycle(cycle) => {
+                                            issue_op_data_lock.cycles.push(cycle.clone());
+                                        },
+                                    }
+                                }
+                            },
+                            Err(err) => {
+                                error!("'load_issue_op_data' from_value() failed for custom view vec - {:?}", err);
+                                panic!("'load_issue_op_data' from_value() failed for custom view vec - {:?}", err);
+                            }
+                        }
+
+                        /*
                         debug!("x - {:?}", x);
                         if let Some(values_vec) = x["data"].as_array_mut() {
                             current_issue_op_data.append(&mut values_vec.to_vec());
                             *issue_op_data_lock = current_issue_op_data;
                         }
+                        */
 
                         match GraphQLCursor::linear_cursor_from_page_info(x["cursor_info"].clone()) {
                             Some(z) => {
@@ -911,26 +927,19 @@ impl<'a> App<'a> {
                     // info!("New self.linear_workflow_select.workflow_states_data: {:?}", workflow_data_lock);
                 });
             }
-            "update_issue" => {
+            AppEvent::UpdateIssue => {
                 let tx3 = tx.clone();
 
                 let issue_id: String;
                 let selected_value_id: String;
-                let mut value_obj: Value = Value::Null;
+                let mut issue_obj_opt: Option<IssueRelatableObject> = None;
                 let current_op = self.linear_issue_op_interface.current_op;
 
                 // Get relevant issue and selected Value id, return if anything not found
                 {
-                    let selected_issue_opt = fetch_selected_view_panel_issue(&self);
+                    let selected_issue_opt = fetch_selected_view_panel_issue(self);
                     let issue_obj = if let Some(x) = selected_issue_opt { x } else { return; };
-                    let issue_id_opt = issue_obj["id"].as_str();
-
-                    if let Some(x) = issue_id_opt {
-                        issue_id = String::from(x);
-                    }
-                    else {
-                        return;
-                    }
+                    issue_id = issue_obj.id;
 
                     // IssueModificationOp::Title - fetch selected_value_id from app.issue_title_input.input
                     if current_op == IssueModificationOp::Title {
@@ -938,16 +947,17 @@ impl<'a> App<'a> {
                     }
                     else {
                         // Get selected value from tables
-                        let selected_value_opt: Option<Value> = fetch_selected_value(&self);
-                        value_obj = if let Some(x) = selected_value_opt { x } else { return; };
-                        let value_id_opt = value_obj["id"].as_str();
-
-                        if let Some(x) = value_id_opt {
-                            selected_value_id = String::from(x);
-                        }
-                        else {
+                        issue_obj_opt = fetch_selected_value(self);
+                        selected_value_id = if let Some(obj) = &issue_obj_opt {
+                            match obj {
+                                IssueRelatableObject::WorkflowState(state) => { state.id.clone() },
+                                IssueRelatableObject::Assignee(assignee) => { assignee.id.clone() },
+                                IssueRelatableObject::Project(project) => { project.id.clone() },
+                                IssueRelatableObject::Cycle(cycle) => { cycle.id.clone() },
+                            }
+                        } else {
                             return;
-                        }
+                        };
                     }
                 }
 
@@ -1003,15 +1013,18 @@ impl<'a> App<'a> {
                             let mut issue_list_handle = view_panel.issue_table_data.lock().unwrap();
 
                             for issue_obj in issue_list_handle.iter_mut() {
-                                if let Some(panel_issue_id) = issue_obj["id"].as_str() {
-                                    if panel_issue_id == issue_id.as_str() {
-                                        match current_op {
-                                            IssueModificationOp::Title => { issue_obj["title"] = Value::String(selected_value_id.clone()) },
-                                            IssueModificationOp::WorkflowState => {issue_obj["state"] = value_obj.clone();},
-                                            IssueModificationOp::Assignee => {issue_obj["assignee"] = value_obj.clone();},
-                                            IssueModificationOp::Project => {issue_obj["project"] = value_obj.clone();},
-                                            IssueModificationOp::Cycle => {issue_obj["cycle"] = value_obj.clone();},
-                                            _ => {}
+                                if issue_obj.id == issue_id {
+                                    match current_op {
+                                        IssueModificationOp::Title => { issue_obj.title = selected_value_id.clone() },
+                                        _ => {
+                                            if let Some(issue_related_obj) = &issue_obj_opt {
+                                                match issue_related_obj {
+                                                    IssueRelatableObject::WorkflowState(state) => { issue_obj.state = state.clone(); },
+                                                    IssueRelatableObject::Assignee(assignee) => { issue_obj.assignee = Some(assignee.clone()); },
+                                                    IssueRelatableObject::Project(project) => { issue_obj.project = Some(project.clone()); },
+                                                    IssueRelatableObject::Cycle(cycle) => { issue_obj.cycle = cycle.clone(); },
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1020,10 +1033,7 @@ impl<'a> App<'a> {
                     }
                 });
             },
-
             _ => {},
         }
-
     }
-
 }

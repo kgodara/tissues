@@ -1,11 +1,9 @@
 use crate::app::InputMode;
 
-use std::{error::Error, io};
-
 use tui::{
     style::{Color, Modifier, Style},
     text::{Span, Spans, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Paragraph},
 };
 
 use std::sync::{
@@ -151,9 +149,8 @@ impl UserInput {
     
         let mut text = Text::from(Spans::from(msg));
         text.patch_style(style);
-        let help_message = Paragraph::new(text);
 
-        help_message
+        Paragraph::new(text)
     }
 
     pub fn render_input_box<'a>(input: &'a str, input_context: InputContext, input_mode: &InputMode) -> Paragraph<'a> {

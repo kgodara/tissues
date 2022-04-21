@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::linear::{
     LinearConfig as LinearConfig,
-    view_resolver::ViewLoader,
+    types::{ CustomView },
 };
 
 use crate::constants::{
@@ -14,10 +14,6 @@ use crate::constants::{
 };
 
 use crate::util::GraphQLCursor as GraphQLCursor;
-
-use std::collections::HashMap;
-
-use std::sync::{ Arc, Mutex };
 
 #[derive(Debug)]
 pub enum IOEvent {
@@ -36,19 +32,16 @@ pub enum IOEvent {
     },
     LoadViewIssues {
         linear_config: LinearConfig,
-        view: Value,
-        team_tz_lookup: HashMap<String, String>,
-        tz_offset_lookup: Arc<Mutex<HashMap<String, f64>>>,
-        issue_data: Arc<Mutex<Vec<Value>>>,
-        view_loader: Option<ViewLoader>,
-        resp: oneshot::Sender<(Vec<Value>, ViewLoader, u32)>,
+        view: CustomView,
+        view_cursor: Option<GraphQLCursor>,
+        resp: oneshot::Sender<(Vec<Value>, GraphQLCursor, u32)>,
     },
 
     LoadOpData {
         op: IssueModificationOp,
         linear_config: LinearConfig,
         linear_cursor: GraphQLCursor,
-        team: Value,
+        team_id: String,
         resp: Responder<Value>,
     },
     UpdateIssue {

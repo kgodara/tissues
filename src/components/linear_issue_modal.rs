@@ -58,23 +58,22 @@ use tui::{
     Frame
 };
 
-use serde_json::{ Value };
-
 use crate::util::{
-    table::{ value_to_str, values_to_str_with_fallback,
+    table::{ empty_str_to_fallback,
         format_cell_fields,
-        get_row_height, colored_cell,
-        TableStyle, gen_table_title_spans
+        get_row_height,
     },
     ui::{ style_color_from_hex_str },
     layout::{ widths_from_rect },
 };
 
+use crate::linear::types::{ Label, Issue };
+
 use crate::constants::{ 
     table_columns::{ ISSUE_MODAL_HEADER_COLUMNS }
 };
 
-pub fn render_and_layout<B>(f: &mut Frame<B>, chunk: Rect, issue: &Value, scroll_tick: u64 )
+pub fn render_and_layout<B>(f: &mut Frame<B>, chunk: Rect, issue: &Issue, scroll_tick: u64 )
 where
   B: Backend,
 {
@@ -102,10 +101,10 @@ where
     // render team and createdAt fields in header
     let widths: Vec<Constraint> = widths_from_rect( &header_div[0], &*ISSUE_MODAL_HEADER_COLUMNS);
 
-    let cell_fields: Vec<String> = values_to_str_with_fallback(
+    let cell_fields: Vec<String> = empty_str_to_fallback(
         &[
-            issue["team"]["name"].clone(),
-            issue["createdAt"].clone(),
+            issue.team.name.as_deref().unwrap_or(""),
+            &issue.created_at.clone(),
         ],
         &ISSUE_MODAL_HEADER_COLUMNS
     );
@@ -154,34 +153,28 @@ where
             .title(Span::styled(title, Style::default().add_modifier(Modifier::BOLD)))
     };
 
-    let create_colored_p = |data: String, title_str: String, hex_str_opt: Option<&Value>| {
+    let create_colored_p = |data: String, title_str: String, hex_str_opt: Option<String>| {
         let mut p = Paragraph::new(data)
             .block(create_block(title_str))
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true });
         if let Some(hex_str) = hex_str_opt {
-            if let Some(fg_color) = style_color_from_hex_str(hex_str) {
+            if let Some(fg_color) = style_color_from_hex_str(&hex_str) {
                 p = p.style(Style::default().fg(fg_color))
             }
         }
         p
     };
 
-    let labels_vec: Vec<Value>;
-    if let Value::Array(vec) = &issue["labels"]["nodes"] {
-        labels_vec = vec.clone();
-    } else {
-        error!("render_and_layout() issue[\"labels\"][\"nodes\"] must be an array");
-        panic!("render_and_layout() issue[\"labels\"][\"nodes\"] must be an array");
-    }
+    let labels_vec: Vec<Label> = issue.labels.clone();
 
     let labels_spans: Vec<Spans> = labels_vec.iter()
         .map(|label_obj| {
             let mut span_style = Style::default();
-            if let Some(label_color) = style_color_from_hex_str(&label_obj["color"]) {
+            if let Some(label_color) = style_color_from_hex_str(label_obj.color.as_deref().unwrap_or("")) {
                 span_style = span_style.fg(label_color);
             }
-            Spans::from(Span::styled(value_to_str(&label_obj["name"]), span_style))
+            Spans::from(Span::styled(&*label_obj.name.as_deref().unwrap_or(""), span_style))
         })
         .collect();
 
@@ -198,26 +191,35 @@ where
 
     f.render_widget(labels_p, content_chunks[0]);
 
-    f.render_widget(create_colored_p(value_to_str(&issue["assignee"]["displayName"]), String::from("Assignee"), None),
+    f.render_widget(
+        create_colored_p(if let Some(name) = issue.assignee.as_ref().and_then(|x| x.display_name.clone()) { name.clone() } else { String::from("") },
+            String::from("Assignee"),
+            None),
         content_chunks[1]);
     
-    f.render_widget(create_colored_p(value_to_str(&issue["creator"]["displayName"]), String::from("Creator"), None),
+    f.render_widget(
+        create_colored_p(if let Some(name) = issue.creator.as_ref().and_then(|x| x.display_name.clone()) { name.clone() } else { String::from("") },
+            String::from("Creator"),
+            None),
         content_chunks[2]);
 
-    f.render_widget(create_colored_p(value_to_str(&issue["state"]["name"]), String::from("State"), Some(&issue["state"]["color"])),
+    f.render_widget(create_colored_p(issue.state.name.clone(), String::from("State"), Some(issue.state.color.clone())),
         content_chunks[3]);
     
-    f.render_widget(create_colored_p(value_to_str(&issue["priority"]), String::from("Priority"), None),
+    f.render_widget(create_colored_p(issue.priority.to_string(), String::from("Priority"), None),
         content_chunks[4]);
     
-    f.render_widget(create_colored_p(value_to_str(&issue["cycle"]["name"]), String::from("Cycle"), None),
+    f.render_widget(
+        create_colored_p(if let Some(name) = issue.cycle.name.as_ref() { name.clone() } else { String::from("") },
+            String::from("Cycle"),
+            None),
         content_chunks[5]);
     
-    f.render_widget(create_colored_p(value_to_str(&issue["project"]["name"]), String::from("Project"), Some(&issue["project"]["color"])),
-        content_chunks[6]);
-    
-
-    
+    f.render_widget(
+        create_colored_p(if let Some(name) = issue.project.as_ref().and_then(|obj| obj.name.clone()) { name.clone() } else { String::from("") },
+            String::from("Project"),
+            Some(if let Some(color) = issue.project.as_ref().and_then(|obj| obj.color.clone()) { color.clone() } else { String::from("") })),
+        content_chunks[6]);    
 
 
     // render title & desc
@@ -226,12 +228,12 @@ where
         .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
         .split(content_and_categories_cols[0]);
 
-    let title_p = Paragraph::new(value_to_str(&issue["title"]))
+    let title_p = Paragraph::new(issue.title.clone())
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
 
 
-    let desc_p = Paragraph::new(value_to_str(&issue["description"]))
+    let desc_p = Paragraph::new(issue.description.as_ref().unwrap_or(&String::from("")).clone())
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
 

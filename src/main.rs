@@ -8,8 +8,7 @@ extern crate lazy_static;
 use std::io;
 use std::fs;
 use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{ Ordering },
 };
 
 mod app;
@@ -32,7 +31,7 @@ use crate::components::{
 use crate::linear::{
     client::LinearClient,
     config::LinearConfig,
-    view_resolver_single_endpoint,
+    view_resolver,
 };
 
 use app::{ Route };
@@ -50,7 +49,7 @@ use tokio::{
 // use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 // use tui::{ backend::TermionBackend, Terminal, };
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode},
+    event::{ DisableMouseCapture, EnableMouseCapture },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -168,21 +167,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     
                     let _ = resp.send(viewer_resp.ok());
                 },
-                IOEvent::LoadViewIssues { linear_config, view, team_tz_lookup, tz_offset_lookup, issue_data, view_loader, resp } => {
-                    let issue_list = view_resolver_single_endpoint::optimized_view_issue_fetch(&view, view_loader, linear_config).await;
-                    /*
-                    let issue_list = view_resolver::optimized_view_issue_fetch(&view, view_loader,
-                                                                                        team_tz_lookup,
-                                                                                        tz_offset_lookup,
-                                                                                        issue_data,
-                                                                                        linear_config).await;
-                    */
+                IOEvent::LoadViewIssues { linear_config, view, view_cursor, resp } => {
+                    let issue_list = view_resolver::optimized_view_issue_fetch(&view, view_cursor, linear_config).await;
+
                     info!("LoadViewIssues data: {:?}", issue_list);
 
                     let _ = resp.send(issue_list);
                 },
-                IOEvent::LoadOpData { op, linear_config, linear_cursor, team, resp } => {
-                    let option_stateful = LinearIssueOpInterface::load_op_data(&op, linear_config, Some(linear_cursor), &team).await;
+                IOEvent::LoadOpData { op, linear_config, linear_cursor, team_id, resp } => {
+                    let option_stateful = LinearIssueOpInterface::load_op_data(&op, linear_config, Some(linear_cursor), team_id).await;
                     info!("load_op_data data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);
@@ -283,16 +276,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
 
-        terminal.draw(|mut f| {
+        terminal.draw(|f| {
             match app.route {
                 Route::ConfigInterface => {
-                    ui::draw_config_interface(&mut f, &mut app);
+                    ui::draw_config_interface(f, &mut app);
                 },
                 Route::ActionSelect => {
-                    ui::draw_action_select(&mut f, &mut app);
+                    ui::draw_action_select(f, &mut app);
                 },
                 Route::DashboardViewDisplay => {
-                    ui::draw_dashboard_view_config(&mut f, &mut app);
+                    ui::draw_dashboard_view_config(f, &mut app);
                 }
             };
         })?;

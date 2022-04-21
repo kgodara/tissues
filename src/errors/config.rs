@@ -22,11 +22,11 @@ pub enum TimeZoneParseError {
 #[derive(Error, Debug)]
 pub enum GraphQLRequestError {
     #[error("GraphQL operation parse failed")]
-    GraphQLParseFailure(#[from] GraphQLParseError),
+    ParseFailure(#[from] GraphQLParseError),
     #[error("GraphQL request failed")]
-    GraphQLRequestError(#[from] reqwest::Error),
+    RequestError(#[from] reqwest::Error),
     #[error("GraphQL Invalid Cursor: {0:?}")]
-    GraphQLInvalidCursor(GraphQLCursor),
+    InvalidCursor(GraphQLCursor),
 }
 
 #[derive(Error, Debug)]

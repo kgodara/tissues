@@ -2,29 +2,30 @@
 // use termion::{event::Key,};
 use crossterm::event::KeyCode;
 
-use std::sync::atomic::{ AtomicBool, Ordering };
+use std::sync::atomic::{ Ordering };
 
-use crate::app::{App, Platform, Route, InputMode};
+use crate::app::{App, Platform, AppEvent, Route, InputMode};
 use crate::network::IOEvent;
 use crate::util::{
     state_table,
     dashboard::{ fetch_selected_view_panel_issue, fetch_selected_view_panel_idx, },
     // event::{Event, Events},
-    event_crossterm::{Event, Events},
+    event_crossterm::{ Events },
 };
 
-use crate::linear::config::LinearConfig;
+use crate::linear::{
+    config::LinearConfig,
+    types::{ CustomView, IssueRelatableObject }
+};
 
 use crate::constants::{
     LINEAR_TOKEN_LEN,
     IssueModificationOp
 };
 
-use crate::components::user_input::{ ValidationState, TitleValidationState, TokenValidationState };
+use crate::components::user_input::{ TitleValidationState, TokenValidationState };
 
 use tokio::sync::mpsc::Sender;
-
-use serde_json::Value;
 
 use tui::{
     widgets::{ TableState },
@@ -284,7 +285,7 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
             // Verify length is satisfactory for linear access token
             info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
             if submission_len == LINEAR_TOKEN_LEN {
-                app.dispatch_event("load_viewer", tx);
+                app.dispatch_event(AppEvent::LoadViewer, tx);
             }
             else {
                 let mut token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
@@ -294,10 +295,11 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
         Route::ActionSelect => {
             // If a state change is confirmed, dispatch & reset
             if app.modifying_issue { 
+                // Execute length check, validation
+                //      if invalid: set invalid message, etc
                 if app.linear_issue_op_interface.is_valid_selection_for_update(&app.issue_title_input.input) {
-                    // TODO: Impl length check, invalid message, etc
                     info!("exec_editor_submit_cmd - dispatching 'update_issue' event");
-                    app.dispatch_event("update_issue", tx);
+                    app.dispatch_event(AppEvent::UpdateIssue, tx);
                     app.modifying_issue = false;
                 } else {
                     app.issue_title_input.title_validation_state = TitleValidationState::Invalid;
@@ -308,7 +310,7 @@ pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sende
     }
 }
 
-pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sender<IOEvent>) {
+pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events, _tx: &Sender<IOEvent>) {
     events.enable_exit_key();
     app.input_mode = InputMode::Normal;
 
@@ -331,7 +333,7 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
     if Route::DashboardViewDisplay == app.route {
         // Verify that a populated slot is selected
         // if so, set it to None
-        let selected_view: Option<Value>;
+        let selected_view: Option<CustomView>;
         if let Some(view_idx) = app.linear_dashboard_view_idx {
             selected_view = app.linear_dashboard_view_list[view_idx].clone();
 
@@ -343,12 +345,12 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
                 let view_panel_list_handle = app.linear_dashboard_view_panel_list.clone();
                 let mut view_panel_list_lock = view_panel_list_handle.lock().unwrap();
 
-                let filter_id = view["id"].clone();
+                let filter_id = view.id.clone();
                 let filter_view_panel_exists = view_panel_list_lock
                     .iter()
-                    .position(|e| { 
+                    .position(|e| {
                         // debug!("filter_view_panel_exists comparing {:?} == {:?}", e.filter["id"], filter_id);   
-                        e.filter["id"] == filter_id
+                        e.view.id == filter_id
                     });
 
                 if let Some(filter_view_panel_idx) = filter_view_panel_exists {
@@ -466,17 +468,17 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             //     pub request_num: Arc<Mutex<u32>>,
             //     pub loading: Arc<AtomicBool>,
 
-            let mut loader_lock = view_panel_list_lock[idx].view_loader.lock().unwrap();
+            let mut cursor_lock = view_panel_list_lock[idx].view_cursor.lock().unwrap();
             let mut panel_issue_lock = view_panel_list_lock[idx].issue_table_data.lock().unwrap();
             let mut request_num_lock = view_panel_list_lock[idx].request_num.lock().unwrap();
 
             *panel_issue_lock = vec![];
-            *loader_lock = None;
+            *cursor_lock = None;
             *request_num_lock = 0;
 
             is_panel_loading.store(false, Ordering::Relaxed);
 
-            drop(loader_lock);
+            drop(cursor_lock);
             drop(panel_issue_lock);
             drop(request_num_lock);
 
@@ -485,7 +487,7 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             // mark panel for pagination
             app.view_panel_to_paginate = idx;
 
-            app.dispatch_event("paginate_dashboard_view", tx);
+            app.dispatch_event(AppEvent::PaginateDashboardView, tx);
 
         }
     }
@@ -520,18 +522,16 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
             if op == IssueModificationOp::Title {
                 let issue_option = fetch_selected_view_panel_issue(app);
                 if let Some(issue_obj) = issue_option {
-                    if let Value::String(issue_title) = &issue_obj["title"] {
-                        // enable editor
-                        app.editor_available = true;
+                    // enable editor
+                    app.editor_available = true;
 
-                        app.issue_title_input.set_input(issue_title.to_string());
-                        // app.issue_title_input.input = issue_title.to_string();
-                        app.input_mode = InputMode::Editing;
-                    }
+                    app.issue_title_input.set_input(issue_obj.title.to_string());
+                    // app.issue_title_input.input = issue_title.to_string();
+                    app.input_mode = InputMode::Editing;
                 }
             }
 
-            app.dispatch_event("load_issue_op_data", tx);
+            app.dispatch_event(AppEvent::LoadIssueOpData, tx);
         }
     }
 }
@@ -571,7 +571,7 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
             // If none of above, move back to ConfigInterface
             else  {
-                app.change_route(Route::ConfigInterface, &tx);
+                app.change_route(Route::ConfigInterface, tx);
             }
         },
 
@@ -581,7 +581,7 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             if !app.linear_dashboard_view_list_selected {
                 exec_select_dashboard_view_list_cmd(app);
             } else {
-                app.change_route(Route::ActionSelect, &tx);
+                app.change_route(Route::ActionSelect, tx);
             }
         }
     }
@@ -596,14 +596,14 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
             drop(linear_config_lock);
 
             if linear_config.is_valid_token {
-                app.change_route(Route::ActionSelect, &tx);
+                app.change_route(Route::ActionSelect, tx);
             }
         },
         Route::ActionSelect => {
 
             // If a state change is confirmed, dispatch & reset
             if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update(&app.issue_title_input.input) {
-                app.dispatch_event("update_issue", &tx);
+                app.dispatch_event(AppEvent::UpdateIssue, tx);
                 app.modifying_issue = false;
             }
             // If user has chosen the "Modify Dashboard" action
@@ -698,9 +698,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
                 let mut load_paginated = false;
                 {
-                    let issue_op_data_handle = app.linear_issue_op_interface.table_data_from_op();
-
-                    let issue_op_data_lock = issue_op_data_handle.lock().unwrap();
+                    let issue_op_obj_vec: Vec<IssueRelatableObject> = app.linear_issue_op_interface.table_data_from_op();
 
                     // if handle.len() == 0:
                     //     return; (either no custom views, or custom views being loaded)
@@ -710,12 +708,12 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                     //      If true: dispatch event to load next page of linear issues
                     //          and merge with current linear_custom_view_select.view_table_data
 
-                    if issue_op_data_lock.is_empty() {
+                    if issue_op_obj_vec.is_empty() {
                         return;
                     }
 
                     // if called with len()=0, panics
-                    let is_last_element = state_table::is_last_element(& app.linear_issue_op_interface.data_state, &*issue_op_data_lock);
+                    let is_last_element = state_table::is_last_element(& app.linear_issue_op_interface.data_state, &issue_op_obj_vec);
                     let cursor_has_next_page;
 
                     {
@@ -729,13 +727,13 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                         load_paginated = true;
                     }
                     else {
-                        state_table::next(&mut app.linear_issue_op_interface.data_state, &*issue_op_data_lock);
+                        state_table::next(&mut app.linear_issue_op_interface.data_state, &issue_op_obj_vec);
                         app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
                     }
                 }
     
                 if load_paginated {
-                    app.dispatch_event("load_issue_op_data", &tx);
+                    app.dispatch_event(AppEvent::LoadIssueOpData, tx);
                 }
 
                 // Condensed version w/out pagination:
@@ -758,7 +756,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
                 if let Some(table_state) = &app.view_panel_issue_selected {
                     // debug!("exec_scroll_down_cmd() view panel issue is selected");
-                    let view_panel_loader_handle = view_panel_list_handle[view_panel_selected_idx-1].view_loader.lock().unwrap();
+                    let view_panel_cursor_handle = view_panel_list_handle[view_panel_selected_idx-1].view_cursor.lock().unwrap();
 
                     if !view_panel_issue_handle.is_empty() {
                         // Check if at end of app.view_panel_issue_selected
@@ -767,14 +765,14 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                         //          and merge with current app.view_panel_list_handle[view_panel_selected_idx-1].issue_table_data
 
                         let is_last_element = state_table::is_last_element(table_state, &view_panel_issue_handle);
-                        let loader_is_exhausted = if let Some(loader_val) = &*view_panel_loader_handle {
-                                loader_val.exhausted
+                        let cursor_is_exhausted = if let Some(cursor) = &*view_panel_cursor_handle {
+                                cursor.platform == Platform::Linear && !cursor.has_next_page
                             }
                             else {
                                 false
                             };
 
-                        if is_last_element && !loader_is_exhausted {
+                        if is_last_element && !cursor_is_exhausted {
 
                             debug!("exec_scroll_down_cmd() at end of list with more to load, paginating");
                             app.view_panel_to_paginate = view_panel_selected_idx-1;
@@ -809,7 +807,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             }
 
             if load_paginated {
-                app.dispatch_event("paginate_dashboard_view", &tx);
+                app.dispatch_event(AppEvent::PaginateDashboardView, tx);
             }
         },
 
@@ -856,7 +854,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 }
     
                 if load_paginated {
-                    app.dispatch_event("load_custom_views", &tx);
+                    app.dispatch_event(AppEvent::LoadCustomViews, tx);
                 }
             }
         }
@@ -877,13 +875,12 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             else if app.modifying_issue {
                 
 
-                let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
-                let data_lock = data_handle.lock().unwrap();
-                let mut data_state = &mut app.linear_issue_op_interface.data_state;
+                let obj_vec: Vec<IssueRelatableObject> = app.linear_issue_op_interface.table_data_from_op();
+                let data_state = &mut app.linear_issue_op_interface.data_state;
 
-                debug!("Attempting to scroll up on IssueOpInterface - data_lock, data_state: {:?}, {:?}", *data_lock, data_state);
+                debug!("Attempting to scroll up on IssueOpInterface - data_lock, data_state: {:?}, {:?}", obj_vec, data_state);
 
-                state_table::previous(&mut data_state, &*data_lock);
+                state_table::previous(data_state, &obj_vec);
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
             }
 

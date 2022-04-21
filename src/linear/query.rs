@@ -16,8 +16,6 @@ use crate::util::{
     set_linear_after_cursor_from_opt
 };
 
-use crate::linear::view_resolver::FilterType;
-
 use crate::constants::{
     IssueModificationOp
 };
@@ -31,18 +29,9 @@ lazy_static! {
     pub static ref LINEAR_FETCH_TEAM_TIME_ZONES: Value = from_str(FETCH_TEAM_TIMEZONES).unwrap();
     pub static ref LINEAR_FETCH_VIEWER: Value = from_str(FETCH_VIEWER).unwrap();
 
-    pub static ref LINEAR_FETCH_ISSUES_SINGLE_QUERY: Value = from_str(FETCH_ISSUES_SINGLE_QUERY).unwrap();
+
+    pub static ref LINEAR_FETCH_ISSUES_BY_FILTER_DATA: Value = from_str(FETCH_ISSUES_BY_FILTER_DATA).unwrap();
     pub static ref LINEAR_FETCH_WORKFLOW_STATES: Value = from_str(FETCH_WORKFLOW_STATES).unwrap();
-
-
-    pub static ref LINEAR_FETCH_ALL_ISSUES: Value = from_str(FETCH_ALL_ISSUES).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_TEAM: Value = from_str(FETCH_ISSUES_BY_TEAM).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_CONTENT: Value = from_str(FETCH_ISSUES_BY_CONTENT).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE: Value = from_str(FETCH_ISSUES_BY_WORKFLOW_STATE).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_ASSIGNEE: Value = from_str(FETCH_ISSUES_BY_ASSIGNEE).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_LABEL: Value = from_str(FETCH_ISSUES_BY_LABEL).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_CREATOR: Value = from_str(FETCH_ISSUES_BY_CREATOR).unwrap();
-    pub static ref LINEAR_FETCH_ISSUES_BY_PROJECT: Value = from_str(FETCH_ISSUES_BY_PROJECT).unwrap();
 
 
     pub static ref LINEAR_GET_WORKFLOW_STATES_BY_TEAM: Value = from_str(GET_WORKFLOW_STATES_BY_TEAM).unwrap();
@@ -111,68 +100,8 @@ pub async fn exec_fetch_viewer(api_key: &str) -> QueryResult {
 
 // Custom View Resolver Queries
 
-pub async fn exec_fetch_all_issues(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
-    let mut query = LINEAR_FETCH_ALL_ISSUES.clone();
-
-    // query = parse_graphql_from_file(&LINEAR_FETCH_ALL_ISSUES_PATH)?;
-
-    query["variables"] = Value::Object(Map::new());
-    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
-
-    set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
-
-    info!("fetch_all_issues variables: {:?}", query["variables"]);
-
-    dispatch_linear_req(api_key, &query).await
-}
-
-pub async fn exec_fetch_issues_by_team(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
-    let mut query = LINEAR_FETCH_ISSUES_BY_TEAM.clone();
-
-    // query = parse_graphql_from_file(&LINEAR_FETCH_ISSUES_BY_TEAM_PATH)?;
-
-    query["variables"] = Value::Object(variables);
-    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
-
-
-    set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
-
-
-    info!("fetch_issues_by_team variables: {:?}", query["variables"]);
-
-    dispatch_linear_req(api_key, &query).await
-}
-
-
-pub async fn exec_fetch_issue_by_direct_filter(filter_type: &FilterType, api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
-
-    let mut query: Value = match filter_type {
-        FilterType::Content => LINEAR_FETCH_ISSUES_BY_CONTENT.clone(),
-        FilterType::SelectedState => LINEAR_FETCH_ISSUES_BY_WORKFLOW_STATE.clone(),
-        FilterType::SelectedCreator => LINEAR_FETCH_ISSUES_BY_CREATOR.clone(),
-        FilterType::SelectedAssignee => LINEAR_FETCH_ISSUES_BY_ASSIGNEE.clone(),
-        FilterType::SelectedLabel => LINEAR_FETCH_ISSUES_BY_LABEL.clone(),
-        FilterType::SelectedProject => LINEAR_FETCH_ISSUES_BY_PROJECT.clone(),
-        _ => {
-            error!("exec_fetch_issue_by_direct_filter received unsupported FilterType: {:?}", filter_type);
-            panic!("exec_fetch_issue_by_direct_filter received unsupported FilterType: {:?}", filter_type);
-        }
-    };
-
-    query["variables"] = Value::Object(variables);
-    query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));
-
-    // Set "afterCursor" query variable
-    set_linear_after_cursor_from_opt(&mut query["variables"], issue_cursor)?;
-
-
-    info!("exec_fetch_issue_by_direct_filter - {:?} - variables: {:?}", filter_type, query["variables"]);
-
-    dispatch_linear_req(api_key, &query).await
-}
-
 pub async fn exec_fetch_issue_single_endpoint(api_key: &str, issue_cursor: Option<GraphQLCursor>, variables: Map<String, Value>, issue_page_size: u32) -> QueryResult {
-    let mut query = LINEAR_FETCH_ISSUES_SINGLE_QUERY.clone();
+    let mut query = LINEAR_FETCH_ISSUES_BY_FILTER_DATA.clone();
 
     query["variables"] = Value::Object(variables);
     query["variables"]["firstNum"] = Value::Number(Number::from(issue_page_size));

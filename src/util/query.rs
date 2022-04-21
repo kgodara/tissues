@@ -18,7 +18,7 @@ pub fn set_linear_after_cursor_from_opt(variables: &mut Value, cursor_opt: Optio
     if let Some(cursor_data) = cursor_opt {
         // If Cursor is for a different platform, and is not a new cursor
         if cursor_data.platform != Platform::Linear && cursor_data.platform != Platform::Na {
-            return Err(GraphQLRequestError::GraphQLInvalidCursor(cursor_data));
+            return Err(GraphQLRequestError::InvalidCursor(cursor_data));
         }
         if cursor_data.has_next_page && cursor_data.platform == Platform::Linear {
             variables["afterCursor"] = Value::String(cursor_data.end_cursor);

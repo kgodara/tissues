@@ -16,11 +16,12 @@ use serde_json::{ Value, json};
 
 use crate::linear::{
     client::LinearClient,
-    LinearConfig
+    LinearConfig,
+    types::{ CustomView },
 };
 
 use crate::util::{
-    table::{ values_to_str_with_fallback, format_cell_fields,
+    table::{ empty_str_to_fallback, format_cell_fields,
         row_min_render_height, get_row_height, colored_cell,
         TableStyle, gen_table_title_spans
     },
@@ -31,7 +32,7 @@ use crate::constants::table_columns::{ CUSTOM_VIEW_SELECT_COLUMNS };
 
 
 pub struct LinearCustomViewSelect {
-    pub view_table_data: Arc<Mutex<Vec<Value>>>,
+    pub view_table_data: Arc<Mutex<Vec<CustomView>>>,
     pub view_table_state: TableState,
     pub loading: Arc<AtomicBool>,
 }
@@ -61,15 +62,14 @@ impl LinearCustomViewSelect {
             Value::Array(_) => {
                 info!("Populating LinearCustomViewSelect::view_table_data with: {:?}", views);
 
-                // return Some(issues);
-                return Some(json!( { "views": views, "cursor_info": cursor_info } ));
+                Some(json!( { "views": views, "cursor_info": cursor_info } ))
             },
-            _ => {return None;},
+            _ => { None },
         }
     }
 
 
-    pub fn render<'a>(table_data: &[Value],
+    pub fn render<'a>(table_data: &[CustomView],
         widths: &[Constraint],
         table_style: TableStyle) -> Result<Table<'a>, &'static str> {
 
@@ -101,13 +101,17 @@ impl LinearCustomViewSelect {
 
         let max_row_size_opt: Option<u16> = table_data
             .iter()
-            .map(|row| {
+            .map(|custom_view| {
 
-                let cell_fields: Vec<String> = values_to_str_with_fallback(
-                    &[row["name"].clone(),
-                        row["description"].clone(),
-                        row["organization"]["name"].clone(),
-                        row["team"]["key"].clone()
+                let cell_fields: Vec<String> = empty_str_to_fallback(
+                    &[
+                        &custom_view.name,
+                        &custom_view.description,
+                        &custom_view.org.name,
+                        match &custom_view.team {
+                            Some(team) => { team.key.as_deref().unwrap_or("") },
+                            None => { "" },
+                        }
                     ],
                     &CUSTOM_VIEW_SELECT_COLUMNS
                 );
@@ -121,7 +125,7 @@ impl LinearCustomViewSelect {
 
         let mut rows: Vec<Row> = table_data.iter()
             .enumerate()
-            .map(|(idx, row)| {
+            .map(|(idx, custom_view)| {
 
                 // Get the formatted Strings for each cell field
                 let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields_list[idx], widths, &CUSTOM_VIEW_SELECT_COLUMNS, max_row_size_opt);
@@ -133,10 +137,9 @@ impl LinearCustomViewSelect {
                 let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
                 let name: String = cell_fields_formatted[0].clone();
-                let color = row["color"].clone();
 
                 // Insert new "name" cell, and remove unformatted version
-                cells.insert(0, colored_cell(name, color));
+                cells.insert(0, colored_cell(name, &custom_view.color));
                 cells.remove(1);
 
                 // debug!("render - row: {:?}", Row::new(cells.clone()).bottom_margin(bottom_margin));

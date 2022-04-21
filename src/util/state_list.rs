@@ -1,7 +1,7 @@
 use tui::widgets::ListState;
 // A set of utilities for working with a ListState and an Iterator
 
-pub fn next<T>(state: &mut ListState, items: &Vec<T>) {
+pub fn next<T>(state: &mut ListState, items: &[T]) {
     let i = match state.selected() {
         Some(i) => {
             if i >= items.len() - 1 {
@@ -15,7 +15,7 @@ pub fn next<T>(state: &mut ListState, items: &Vec<T>) {
     state.select(Some(i));
 }
 
-pub fn previous<T>(state: &mut ListState, items: &Vec<T>) {
+pub fn previous<T>(state: &mut ListState, items: &[T]) {
 
     let i = match state.selected() {
         Some(i) => {

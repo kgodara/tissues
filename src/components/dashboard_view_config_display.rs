@@ -1,8 +1,6 @@
 
 use std::cmp::max;
 
-use serde_json::Value;
-
 use tui::{
     layout::{Constraint},
     style::{Color, Modifier, Style},
@@ -11,21 +9,23 @@ use tui::{
 
 use crate::util::{
     table::{ TableStyle, gen_table_title_spans, 
-        values_to_str_with_fallback, format_cell_fields,
+        empty_str_to_fallback, format_cell_fields,
         get_row_height, colored_cell, row_min_render_height
     },
 };
 
+use crate::linear::types::{ CustomView };
+
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
 
-
+#[derive(Default)]
 pub struct DashboardViewConfigDisplay {
     pub view_table_state: TableState,
 }
 
 impl DashboardViewConfigDisplay {
 
-    pub fn render<'a>(view_list: &'a [Option<Value>],
+    pub fn render<'a>(view_list: &'a [Option<CustomView>],
         widths: &[Constraint],
         table_style: TableStyle,
     ) -> Result<Table<'a>, &'static str> {
@@ -50,16 +50,19 @@ impl DashboardViewConfigDisplay {
 
         let max_row_size_opt: Option<u16> = view_list
             .iter()
-            .map(|row_option| {
+            .map(|custom_view_opt| {
 
                 // Get the String representations of each cell field
-                let cell_fields: Vec<String> = match row_option {
-                    Some(row) => {
-                        values_to_str_with_fallback(
-                            &[row["name"].clone(),
-                                row["description"].clone(),
-                                row["organization"]["name"].clone(),
-                                row["team"]["key"].clone()
+                let cell_fields: Vec<String> = match custom_view_opt {
+                    Some(custom_view) => {
+                        empty_str_to_fallback(
+                            &[&custom_view.name,
+                                &custom_view.description,
+                                &custom_view.org.name,
+                                match &custom_view.team {
+                                    Some(team) => team.key.as_deref().unwrap_or(""),
+                                    None => {""},
+                                }
                             ],
                             &DASHBOARD_VIEW_CONFIG_COLUMNS
                         )
@@ -75,7 +78,7 @@ impl DashboardViewConfigDisplay {
 
         let mut rows: Vec<Row> = view_list.iter()
             .enumerate()
-            .map(|(idx, row_option)| {
+            .map(|(idx, custom_view_opt)| {
 
                 // Get the formatted Strings for each cell field
                 let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields_list[idx], widths, &DASHBOARD_VIEW_CONFIG_COLUMNS, max_row_size_opt);
@@ -87,12 +90,11 @@ impl DashboardViewConfigDisplay {
                 let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
                 let generate_name_cell = || {
-                    match row_option {
-                        Some(row) => {
+                    match custom_view_opt {
+                        Some(custom_view) => {
                             let name: String = cell_fields_formatted[0].clone();
-                            let color = row["color"].clone();
 
-                            colored_cell(name, color)
+                            colored_cell(name, &custom_view.color)
                         },
                         None => { Cell::from(String::from("Empty Slot"))}
                     }
@@ -123,14 +125,5 @@ impl DashboardViewConfigDisplay {
             .highlight_style(selected_style);
 
         Ok(t)
-    }
-}
-
-impl Default for DashboardViewConfigDisplay {
-
-    fn default() -> DashboardViewConfigDisplay {
-        DashboardViewConfigDisplay {
-            view_table_state: TableState::default(),
-        }
     }
 }

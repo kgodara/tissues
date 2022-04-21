@@ -2,14 +2,12 @@
 use std::{
     fs,
     env,
-    io::{stdin, Write},
     path::{Path, PathBuf},
-    sync::{ Arc, 
-        atomic::{ AtomicBool, Ordering }
-    },
 };
 
 use serde_json::{ Value, Map };
+
+use crate::linear::types::{ CustomView };
 
 use crate::constants::LINEAR_TOKEN_LEN;
 
@@ -187,14 +185,14 @@ impl LinearConfig {
         self.viewer_object = Some(viewer_object);
     }
 
-    pub fn save_view_list(view_list: Vec<Option<Value>>) {
+    pub fn save_view_list(view_list: Vec<Option<CustomView>>) {
         let view_list_file_path = LinearConfig::get_or_build_paths(CachedDataFile::ViewList);
         let serialized = serde_json::to_string(&view_list).unwrap();
         fs::write(&view_list_file_path, serialized).unwrap();
     }
 
     // Attempt to read cached view list from file
-    pub fn read_view_list() -> Option<Vec<Option<Value>>> {
+    pub fn read_view_list() -> Option<Vec<Option<CustomView>>> {
         match dirs::home_dir() {
             Some(home) => {
                 let path = Path::new(&home);
@@ -206,7 +204,7 @@ impl LinearConfig {
 
                 match data {
                     Ok(data_str) => {
-                        let deserialized: Vec<Option<Value>> = serde_json::from_str(&data_str).unwrap();
+                        let deserialized: Vec<Option<CustomView>> = serde_json::from_str(&data_str).unwrap();
                         return Some(deserialized);
                     },
                     // Return None if file is not found, otherwise panic

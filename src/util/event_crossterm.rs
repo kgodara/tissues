@@ -1,5 +1,4 @@
 use std::{
-    io,
     thread,
     time::Duration,
     env
@@ -11,16 +10,8 @@ use std::sync::{
     Arc,
 };
 
-/*
-use termion::{
-    event::Key,
-    input::TermRead,
-};
-*/
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{self, Event as CEvent, KeyCode},
 };
 
 pub enum Event<I> {

@@ -1,14 +1,11 @@
 
-use std::cmp::{ max, min };
+use std::cmp::{ max };
 
 use std::sync::{
     Arc,
     Mutex,
     atomic::AtomicBool,
 };
-
-
-use serde_json::Value;
 
 use tui::{
     layout::{ Constraint },
@@ -17,13 +14,16 @@ use tui::{
 };
 
 
-use crate::linear::view_resolver::ViewLoader;
+use crate::linear::{
+    types::{ CustomView, Issue },
+};
 
 use crate::util::{
-    table::{ values_to_str_with_fallback, format_cell_fields,
+    table::{ empty_str_to_fallback, format_cell_fields,
         row_min_render_height, get_row_height, colored_cell,
         TableStyle, gen_table_title_spans
     },
+    GraphQLCursor,
 };
 
 use crate::constants::table_columns::{ VIEW_PANEL_COLUMNS };
@@ -31,25 +31,25 @@ use crate::constants::table_columns::{ VIEW_PANEL_COLUMNS };
 
 #[derive(Debug, Clone)]
 pub struct DashboardViewPanel {
-    pub filter: Value,
-    pub issue_table_data: Arc<Mutex<Vec<Value>>>,
-    pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
+    pub view: CustomView,
+    pub issue_table_data: Arc<Mutex<Vec<Issue>>>,
+    pub view_cursor: Arc<Mutex<Option<GraphQLCursor>>>,
     pub request_num: Arc<Mutex<u32>>,
     pub loading: Arc<AtomicBool>,
 }
 
 impl DashboardViewPanel {
-    pub fn with_filter(f: Value) -> DashboardViewPanel {
+    pub fn with_view(f: CustomView) -> DashboardViewPanel {
         DashboardViewPanel {
-            filter: f,
+            view: f,
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
-            view_loader: Arc::new(Mutex::new(None)),
+            view_cursor: Arc::new(Mutex::new(None)),
             request_num: Arc::new(Mutex::new(0)),
             loading: Arc::new(AtomicBool::new(false)),
         }
     }
 
-    pub fn render<'a>(table_data: &[Value], widths: &[Constraint], table_style: TableStyle) -> Result<Table<'a>, &'static str> {
+    pub fn render<'a>(table_data: &[Issue], widths: &[Constraint], table_style: TableStyle) -> Result<Table<'a>, &'static str> {
 
         let bottom_margin = table_style.row_bottom_margin.unwrap_or(0);
 
@@ -76,15 +76,15 @@ impl DashboardViewPanel {
 
         let max_row_size_opt: Option<u16> = table_data
             .iter()
-            .map(|row| {
+            .map(|issue| {
 
                 let cell_fields: Vec<String> = 
-                    values_to_str_with_fallback(
-                        &[row["number"].clone(),
-                            row["title"].clone(),
-                            row["state"]["name"].clone(),
-                            row["description"].clone(),
-                            row["createdAt"].clone()
+                    empty_str_to_fallback(
+                        &[  &issue.number.to_string().clone(),
+                            &issue.title.clone(),
+                            &issue.state.name.clone(),
+                            issue.description.as_deref().unwrap_or(""),
+                            &issue.created_at.clone()
                         ],
                         &VIEW_PANEL_COLUMNS
                     );
@@ -97,7 +97,7 @@ impl DashboardViewPanel {
 
         let mut rows: Vec<Row> = table_data.iter()
             .enumerate()
-            .map(|(idx, row)| {
+            .map(|(idx, issue)| {
 
                 // Get the formatted Strings for each cell field
                 let cell_fields_formatted: Vec<String> = format_cell_fields(&cell_fields_list[idx], widths, &VIEW_PANEL_COLUMNS, max_row_size_opt);
@@ -107,10 +107,9 @@ impl DashboardViewPanel {
                 let mut cells: Vec<Cell> = cell_fields_formatted.iter().map(|c| Cell::from(c.clone())).collect();
 
                 let name = cell_fields_formatted[2].clone();
-                let color = row["state"]["color"].clone();
 
                 // Insert new "state" cell, and remove unformatted version
-                cells.insert(2, colored_cell(name, color));
+                cells.insert(2, colored_cell(name, &issue.state.color.clone()));
                 cells.remove(3);
 
                 Row::new(cells)
@@ -154,9 +153,9 @@ impl Default for DashboardViewPanel {
 
     fn default() -> DashboardViewPanel {
         DashboardViewPanel {
-            filter: Value::Null,
+            view: CustomView::default(),
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
-            view_loader: Arc::new(Mutex::new(None)),
+            view_cursor: Arc::new(Mutex::new(None)),
             request_num: Arc::new(Mutex::new(0)),
             loading: Arc::new(AtomicBool::new(false)),
         }

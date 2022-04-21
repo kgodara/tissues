@@ -1,13 +1,13 @@
 
-use serde_json::Value;
-
 use crate::app::App;
+
+use crate::linear::types::{ IssueRelatableObject, Issue };
 
 // Accepts:
 //     app
 // Returns:
 //     full JSON Issue object (as specified in GraphQL request), or None if a View Panel Issue is not selected
-pub fn fetch_selected_view_panel_issue(app: &App) -> Option<Value> {
+pub fn fetch_selected_view_panel_issue(app: &App) -> Option<Issue> {
     // Validate that a ViewPanel and issue are selected
     // using 'app.linear_dashboard_view_panel_selected' & 'app.view_panel_issue_selected'
 
@@ -81,9 +81,8 @@ pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
 //     app
 // Returns:
 //     full JSON object (as specified in GraphQL request), or None if a Value is not selected
-pub fn fetch_selected_value(app: &App) -> Option<Value> {
-    let data_handle = app.linear_issue_op_interface.table_data_from_op();
-    let data_lock = data_handle.lock().unwrap();
+pub fn fetch_selected_value(app: &App) -> Option<IssueRelatableObject> {
+    let obj_vec = app.linear_issue_op_interface.table_data_from_op();
     let state_idx: usize;
 
     if let Some(x) = app.linear_issue_op_interface.selected_idx {
@@ -93,5 +92,5 @@ pub fn fetch_selected_value(app: &App) -> Option<Value> {
         return None;
     }
 
-    data_lock.get(state_idx).cloned()
+    obj_vec.get(state_idx).cloned()
 }

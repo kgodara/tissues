@@ -1,4 +1,3 @@
-use std::fs;
 use std::collections::HashMap;
 
 use serde_json::Value;
@@ -11,12 +10,13 @@ use crate::linear::{
     LinearConfig,
     client::LinearClient,
     error::LinearClientError,
-    view_resolver::FilterType,
 };
 
 use crate::app::Platform;
 
 use crate::util::GraphQLCursor;
+
+use super::view_resolver::FilterType;
 
 
 const TIMEZONE_JSON_PATH: &str = "data/timezones.json";

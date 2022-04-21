@@ -2,8 +2,6 @@ use std::cmp::min;
 
 use textwrap::{ wrap };
 
-use serde_json::Value;
-
 use tui::{
     layout::{ Constraint },
     style::{ Color, Modifier, Style },
@@ -25,8 +23,8 @@ use crate::constants::table_columns::TableColumn;
 #[derive(Debug)]
 pub struct TableStyle {
     // General (all tables)
-    // ( name: Value::String, color_hex_str: Value::String || Value::Null )
-    pub title_style: Option<(Value, Value)>,
+    // ( name: String, color_hex_str: Option<String> )
+    pub title_style: Option<(String, String)>,
     pub row_bottom_margin: Option<u16>,
 
     // View Panel Specific
@@ -65,10 +63,7 @@ pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
                                     Style::default()
                                 ),
                                 // Display provided Label as Table Title
-                                Span::styled(String::from(*title_style.0
-                                        .as_str()
-                                        .get_or_insert("Table")
-                                    ),
+                                Span::styled(title_style.0,
                                     Style::default()
                                         .add_modifier(Modifier::BOLD)
                                         .fg(*style_color_from_hex_str(&title_style.1)
@@ -91,34 +86,14 @@ pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
 }
 
 
-pub fn values_to_str_with_fallback(values: &[Value], columns: &[TableColumn]) -> Vec<String> {
+pub fn empty_str_to_fallback(values: &[&str], columns: &[TableColumn]) -> Vec<String> {
     values.iter()
         .enumerate()
-        .map(|(idx, field)| match field {
-
-            Value::String(x) => x.clone(),
-            Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-            Value::Null => {
-                columns[idx].null_fallback.to_string() 
-            },
-            _ => {
-                String::default()
-            },
+        .map(|(idx, field)| match field.len() {
+            0 => { columns[idx].null_fallback.to_string() },
+            _ => { String::from(*field) },
         })
         .collect()
-}
-
-pub fn value_to_str(value: &Value) -> String {
-    match value {
-        Value::String(x) => x.clone(),
-        Value::Number(x) => x.clone().as_i64().unwrap_or(0).to_string(),
-        Value::Null => {
-            String::default()
-        },
-        _ => {
-            String::default()
-        },
-    }
 }
 
 pub fn format_cell_fields(cell_fields: &[String], widths: &[Constraint], columns: &[TableColumn], col_height: Option<u16>) -> Vec<String> {
@@ -173,8 +148,9 @@ pub fn get_row_height(cell_fields: &[String]) -> usize {
         .unwrap_or(1)
 }
 
-pub fn colored_cell(name: String, color: Value) -> Cell<'static> {
-    let style_color = style_color_from_hex_str(&color);
+
+pub fn colored_cell(name: String, color: &str) -> Cell<'static> {
+    let style_color = style_color_from_hex_str(color);
 
     match style_color {
         Some(y) => { Cell::from(name).style(Style::default().fg(y)) },

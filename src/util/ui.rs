@@ -1,16 +1,10 @@
 use tui::{
-    style::{Color, Modifier, Style},
+    style::{ Color },
     layout::{Constraint, Direction, Layout, Rect},
-    text::{Span, Spans}
 };
-
-use crate::constants::colors::{ API_REQ_NUM };
-
-use crate::util::loader::{ loader_from_state };
 
 use colorsys::{Rgb};
 
-use serde_json::Value;
 
 
 // Useful for modals
@@ -42,32 +36,25 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 
 
 // Coloring
-pub fn style_color_from_hex_str(color: &Value) -> Option<Color> {
 
-    let hex_str;
+pub fn style_color_from_hex_str(color: &str) -> Option<Color> {
 
-    match color {
-        serde_json::Value::String(x) => hex_str = x,
-        _ => { return None }
-    };
-
-    let rgb_struct;
-
-    match Rgb::from_hex_str(hex_str.as_str()).ok() {
-        Some(x) => rgb_struct = x,
+    let rgb_struct = match Rgb::from_hex_str(color).ok() {
+        Some(x) => x,
         None => return None,
-    }
+    };
 
 
     Some(Color::Rgb(rgb_struct.red() as u8, rgb_struct.green() as u8, rgb_struct.blue() as u8))
 
 }
 
+
+
 pub fn hex_str_from_style_color(color: &Color) -> Option<String> {
 
     match color {
         Color::Rgb(r, g, b) => {
-            // TODO: Fix this temp workaround
             let rgb = Rgb::new(*r as f64, *g as f64, *b as f64, None);
             Some(rgb.to_hex_string())
         },
