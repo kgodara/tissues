@@ -165,7 +165,6 @@ impl LinearConfig {
             }
         }
 
-
         Some(())
     }
 

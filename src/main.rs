@@ -143,7 +143,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             app.change_route(Route::ActionSelect, &tx);
         }
     }
-
     let _manager = tokio::spawn(async move {
         // Start receiving messages
         while let Some(cmd) = rx.recv().await {

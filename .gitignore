@@ -4,3 +4,4 @@
 .env
 .git.bfg-report/**
 .vscode*
+**DS_Store**
