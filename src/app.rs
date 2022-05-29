@@ -31,7 +31,10 @@ use crate::constants::{
 use crate::linear::{
     LinearConfig,
     client::{ LinearClient, ClientResult },
-    types::{ CustomView, IssueRelatableObject, Issue, },
+    types::{ CustomView, Issue,
+        IssueRelatableObject,
+        WorkflowState, User, Project, Cycle,
+    },
 };
 
 use serde_json::{ Error, Value };
@@ -795,7 +798,11 @@ impl<'a> App<'a> {
                     return;
                 }
 
-                let current_op = self.linear_issue_op_interface.current_op;
+                let current_op_opt = self.linear_issue_op_interface.current_op;
+                let current_op: IssueModificationOp;
+
+                if current_op_opt.is_none() { return; }
+                else { current_op = current_op_opt.unwrap(); }
 
                 // If current_op is ModifyTitle, return since no data needs to be loaded
                 if current_op == IssueModificationOp::Title {
@@ -810,7 +817,7 @@ impl<'a> App<'a> {
                 let linear_config_lock = self.linear_client.config.lock().unwrap();
                 let linear_config = linear_config_lock.clone();
                 drop(linear_config_lock);
-                
+
 
                 let selected_issue_opt = fetch_selected_view_panel_issue(self);
 
@@ -864,24 +871,107 @@ impl<'a> App<'a> {
 
                     let mut issue_op_data_lock = issue_op_data_handle.lock().unwrap();
 
-                    // let mut current_issue_op_data = issue_op_data_lock.clone();
-
-
-
-
-
-
                     if let Some(Some(ref mut x)) = res {
 
-                        let mut op_obj_vec_result: Result<Vec<IssueRelatableObject>, Error> = serde_json::from_value(x["data"].clone());
+                        let mut op_obj_vec: Vec<IssueRelatableObject> = match current_op {
+                            IssueModificationOp::WorkflowState => {
+                                let result: Result<Vec<WorkflowState>, Error> = serde_json::from_value(x["data"].clone());
 
+                                let result: Result<Vec<IssueRelatableObject>, Error> = result.map(|op_obj_vec| { op_obj_vec.into_iter()
+                                    .map(|op_obj| { IssueRelatableObject::WorkflowState(op_obj) })
+                                    .collect() 
+                                });
+
+                                if let Ok(result_vec) = result {
+                                    result_vec
+                                }
+                                else {
+                                    error!("'load_issue_op_data' from_value() failed for WorkflowState - {:?}", result);
+                                    panic!("'load_issue_op_data' from_value() failed for WorkflowState - {:?}", result)
+                                }
+                            },
+                            IssueModificationOp::Assignee => {
+                                let result: Result<Vec<User>, Error> = serde_json::from_value(x["data"].clone());
+
+                                let result: Result<Vec<IssueRelatableObject>, Error> = result.map(|op_obj_vec| { op_obj_vec.into_iter()
+                                    .map(|op_obj| { IssueRelatableObject::Assignee(op_obj) })
+                                    .collect() 
+                                });
+
+                                if let Ok(result_vec) = result {
+                                    result_vec
+                                }
+                                else {
+                                    error!("'load_issue_op_data' from_value() failed for Assignee - {:?}", result);
+                                    panic!("'load_issue_op_data' from_value() failed for Assignee - {:?}", result)
+                                }
+                            },
+                            IssueModificationOp::Project => {
+                                let result: Result<Vec<Project>, Error> = serde_json::from_value(x["data"].clone());
+
+                                let result: Result<Vec<IssueRelatableObject>, Error> = result.map(|op_obj_vec| { op_obj_vec.into_iter()
+                                    .map(|op_obj| { IssueRelatableObject::Project(op_obj) })
+                                    .collect() 
+                                });
+
+                                if let Ok(result_vec) = result {
+                                    result_vec
+                                }
+                                else {
+                                    error!("'load_issue_op_data' from_value() failed for Project - {:?}", result);
+                                    panic!("'load_issue_op_data' from_value() failed for Project - {:?}", result)
+                                }
+                            },
+                            IssueModificationOp:: Cycle => {
+                                let result: Result<Vec<Cycle>, Error> = serde_json::from_value(x["data"].clone());
+
+                                let result: Result<Vec<IssueRelatableObject>, Error> = result.map(|op_obj_vec| { op_obj_vec.into_iter()
+                                    .map(|op_obj| { IssueRelatableObject::Cycle(op_obj) })
+                                    .collect() 
+                                });
+
+                                if let Ok(result_vec) = result {
+                                    result_vec
+                                }
+                                else {
+                                    error!("'load_issue_op_data' from_value() failed for Cycle - {:?}", result);
+                                    panic!("'load_issue_op_data' from_value() failed for Cycle - {:?}", result)
+                                }
+                            },
+                            _ => { panic!("unsupported issue_op: {:?}", current_op) }
+                        };
+
+                        for op_obj in op_obj_vec {
+                            info!("MONKEY MONKEY op_obj: {:?}", op_obj);
+                            match op_obj {
+                                IssueRelatableObject::WorkflowState(workflow_state) => {
+                                    issue_op_data_lock.workflow_states.push(workflow_state.clone());
+                                },
+                                IssueRelatableObject::Assignee(assignee) => {
+                                    issue_op_data_lock.users.push(assignee.clone());
+                                },
+                                IssueRelatableObject::Project(project) => {
+                                    // TODO: Remove this
+                                    info!("MONKEY MONKEY");
+                                    issue_op_data_lock.projects.push(project.clone());
+                                },
+                                IssueRelatableObject::Cycle(cycle) => {
+                                    issue_op_data_lock.cycles.push(cycle.clone());
+                                },
+                            }
+                        }
                         
 
+                        // let mut op_obj_vec_result: Result<Vec<IssueRelatableObject>, Error> = serde_json::from_value(x["data"].clone());
+
+                        
+                        /*
                         // Modify correct data vec & extract Object from IssueRelatableObject
                         match op_obj_vec_result {
                             Ok(ref mut op_obj_vec) => {
 
                                 for op_obj in op_obj_vec {
+                                    info!("MONKEY MONKEY op_obj: {:?}", op_obj);
                                     match op_obj {
                                         IssueRelatableObject::WorkflowState(workflow_state) => {
                                             issue_op_data_lock.workflow_states.push(workflow_state.clone());
@@ -890,6 +980,8 @@ impl<'a> App<'a> {
                                             issue_op_data_lock.users.push(assignee.clone());
                                         },
                                         IssueRelatableObject::Project(project) => {
+                                            // TODO: Remove this
+                                            info!("MONKEY MONKEY");
                                             issue_op_data_lock.projects.push(project.clone());
                                         },
                                         IssueRelatableObject::Cycle(cycle) => {
@@ -902,13 +994,6 @@ impl<'a> App<'a> {
                                 error!("'load_issue_op_data' from_value() failed for custom view vec - {:?}", err);
                                 panic!("'load_issue_op_data' from_value() failed for custom view vec - {:?}", err);
                             }
-                        }
-
-                        /*
-                        debug!("x - {:?}", x);
-                        if let Some(values_vec) = x["data"].as_array_mut() {
-                            current_issue_op_data.append(&mut values_vec.to_vec());
-                            *issue_op_data_lock = current_issue_op_data;
                         }
                         */
 
@@ -933,7 +1018,14 @@ impl<'a> App<'a> {
                 let issue_id: String;
                 let selected_value_id: String;
                 let mut issue_obj_opt: Option<IssueRelatableObject> = None;
-                let current_op = self.linear_issue_op_interface.current_op;
+
+                let current_op: IssueModificationOp;
+
+                if let Some(op) = self.linear_issue_op_interface.current_op {
+                    current_op = op;
+                } else {
+                    return;
+                }
 
                 // Get relevant issue and selected Value id, return if anything not found
                 {

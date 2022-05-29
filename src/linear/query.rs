@@ -92,7 +92,7 @@ pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQ
 }
 
 pub async fn exec_fetch_viewer(api_key: &str) -> QueryResult {
-    let mut query = LINEAR_FETCH_VIEWER.clone();
+    let query = LINEAR_FETCH_VIEWER.clone();
 
     dispatch_linear_req(api_key, &query).await
 }

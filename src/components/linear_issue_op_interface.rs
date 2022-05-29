@@ -52,7 +52,7 @@ pub struct ModificationOpData {
 
 pub struct LinearIssueOpInterface {
 
-    pub current_op: IssueModificationOp,
+    pub current_op: Option<IssueModificationOp>,
     pub selected_idx: Option<usize>,
     pub data_state: TableState,
     pub loading: Arc<AtomicBool>,
@@ -125,61 +125,60 @@ impl LinearIssueOpInterface {
 
     // loading functions section end
 
-    pub fn table_data_from_op(&self) -> Vec<IssueRelatableObject> {
+    pub fn table_data_from_op(&self) -> Option<Vec<IssueRelatableObject>> {
         let obj_data_lock = self.obj_data.lock().unwrap();
         match self.current_op {
-            IssueModificationOp::WorkflowState => {
-                obj_data_lock.workflow_states
+            Some(IssueModificationOp::WorkflowState) => {
+                Some(obj_data_lock.workflow_states
                     .iter()
                     .map(|state| { IssueRelatableObject::WorkflowState(state.clone()) })
-                    .collect()
+                    .collect())
             },
-            IssueModificationOp::Assignee => {
-                obj_data_lock.users
+            Some(IssueModificationOp::Assignee) => {
+                Some(obj_data_lock.users
                     .iter()
                     .map(|user| { IssueRelatableObject::Assignee(user.clone()) })
-                    .collect()
+                    .collect())
             },
-            IssueModificationOp::Project => {
-                obj_data_lock.projects
+            Some(IssueModificationOp::Project) => {
+                Some(obj_data_lock.projects
                     .iter()
                     .map(|project| { IssueRelatableObject::Project(project.clone()) })
-                    .collect()
+                    .collect())
             },
-            IssueModificationOp::Cycle => {
-                obj_data_lock.cycles
+            Some(IssueModificationOp::Cycle) => {
+                Some(obj_data_lock.cycles
                     .iter()
                     .map(|cycle| { IssueRelatableObject::Cycle(cycle.clone()) })
-                    .collect()
+                    .collect())
             },
-            _ => { panic!("table_data_from_op() - unsupported IssueModificationOp"); }
+            _ => { None }
         }
     }
 
 
     pub fn is_valid_selection_for_update(&self, issue_title_input: &str) -> bool {
         match self.current_op {
-            IssueModificationOp::Title => {
+            Some(IssueModificationOp::Title) => {
                 let grapheme_len: usize = issue_title_input
                     .graphemes(true)
                     .count();
                 grapheme_len > 0
             },
-            IssueModificationOp::WorkflowState => {
+            Some(IssueModificationOp::WorkflowState) => {
                 self.selected_idx.is_some()
             },
-            IssueModificationOp::Assignee => {
+            Some(IssueModificationOp::Assignee) => {
                 self.selected_idx.is_some()
             },
-            IssueModificationOp::Project => {
+            Some(IssueModificationOp::Project) => {
                 self.selected_idx.is_some()
             },
-            IssueModificationOp::Cycle => {
+            Some(IssueModificationOp::Cycle) => {
                 self.selected_idx.is_some()
             },
             _ => {
-                error!("not ready");
-                panic!("not ready")
+                false
             }
         }
     }
@@ -187,30 +186,30 @@ impl LinearIssueOpInterface {
     pub fn reset_op(&mut self) {
         let mut obj_data_lock = self.obj_data.lock().unwrap();
         match self.current_op {
-            IssueModificationOp::Title => {
+            Some(IssueModificationOp::Title) => {
 
             },
-            IssueModificationOp::WorkflowState => {
+            Some(IssueModificationOp::WorkflowState) => {
                 obj_data_lock.workflow_states = Vec::default();
-                self.selected_idx = None;
             },
-            IssueModificationOp::Assignee => {
+            Some(IssueModificationOp::Assignee) => {
                 obj_data_lock.users = Vec::default();
-                self.selected_idx = None;
             },
-            IssueModificationOp::Project => {
+            Some(IssueModificationOp::Project) => {
                 obj_data_lock.projects = Vec::default();
-                self.selected_idx = None;
             },
-            IssueModificationOp::Cycle => {
+            Some(IssueModificationOp::Cycle) => {
                 obj_data_lock.cycles = Vec::default();
-                self.selected_idx = None;
             },
             _ => {
-                error!("Not ready");
-                panic!("Not ready")
+                error!("reset_op: invalid LinearIssueOpInterface::current_op: {:?}", self.current_op);
+                panic!("reset_op: invalid LinearIssueOpInterface::current_op: {:?}", self.current_op);
             }
         };
+
+        self.selected_idx = None;
+        self.current_op = None;
+
         self.data_state = TableState::default();
         self.cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
     }
@@ -454,7 +453,7 @@ impl LinearIssueOpInterface {
 impl Default for LinearIssueOpInterface {
     fn default() -> LinearIssueOpInterface {
         LinearIssueOpInterface {
-            current_op: IssueModificationOp::WorkflowState,
+            current_op: None,
             selected_idx: None,
             data_state: TableState::default(),
             loading: Arc::new(AtomicBool::new(false)),

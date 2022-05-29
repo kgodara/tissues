@@ -511,9 +511,16 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
     if Route::ActionSelect == app.route {
 
 
-        // Enable drawing of issue op interface if expanded issue modal not open
-        if app.issue_to_expand.is_none() {
-            app.linear_issue_op_interface.current_op = op;
+
+        // If matching op interface modal is open, close it
+        if app.linear_issue_op_interface.current_op == Some(op) {
+            exec_move_back_cmd(app, tx);
+        }
+
+        // Enable drawing of issue op interface if:
+        //     expanded issue modal not open
+        else if app.issue_to_expand.is_none() {
+            app.linear_issue_op_interface.current_op = Some(op);
             app.modifying_issue = true;
 
             // If IssueModificationOp::Title,
@@ -685,7 +692,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             let mut load_paginated = false;
 
             // Don't scroll down if entering issue title
-            if app.modifying_issue && app.linear_issue_op_interface.current_op == IssueModificationOp::Title {
+            if app.modifying_issue && app.linear_issue_op_interface.current_op == Some(IssueModificationOp::Title) {
                 return;
             }
             // If the issue op interface is open, scroll down on modal
@@ -698,10 +705,15 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
                 let mut load_paginated = false;
                 {
-                    let issue_op_obj_vec: Vec<IssueRelatableObject> = app.linear_issue_op_interface.table_data_from_op();
-
                     // if handle.len() == 0:
-                    //     return; (either no custom views, or custom views being loaded)
+                    //     return; (either no issue relatable objects, or being loaded)
+                    let issue_op_obj_vec: Vec<IssueRelatableObject>;
+
+                    if let Some(result) = app.linear_issue_op_interface.table_data_from_op() {
+                        issue_op_obj_vec = result;
+                    } else {
+                        return;
+                    }
 
                     // Check if at end of linear_issue_op_interface.table_data_from_op()
                     //  If true: Check if app.linear_issue_op_interface.cursor.has_next_page = true
@@ -870,12 +882,18 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
         Route::ActionSelect => {
 
             // Don't scroll up if entering issue title
-            if app.modifying_issue && app.linear_issue_op_interface.current_op == IssueModificationOp::Title { }
+            if app.modifying_issue && app.linear_issue_op_interface.current_op == Some(IssueModificationOp::Title) { }
+
             // If the issue op interface is open, scroll down on modal
             else if app.modifying_issue {
-                
 
-                let obj_vec: Vec<IssueRelatableObject> = app.linear_issue_op_interface.table_data_from_op();
+
+                let obj_vec: Vec<IssueRelatableObject>;
+                if let Some(result) = app.linear_issue_op_interface.table_data_from_op() {
+                    obj_vec = result;
+                } else {
+                    return;
+                }
                 let data_state = &mut app.linear_issue_op_interface.data_state;
 
                 debug!("Attempting to scroll up on IssueOpInterface - data_lock, data_state: {:?}, {:?}", obj_vec, data_state);

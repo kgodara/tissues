@@ -345,7 +345,7 @@ where
     // Draw Linear Issue Op Interface
 
     // IssueModificationOp::Title is not rendered with a table
-    if app.modifying_issue && app.linear_issue_op_interface.current_op == IssueModificationOp::Title {
+    if app.modifying_issue && app.linear_issue_op_interface.current_op == Some(IssueModificationOp::Title) {
         let area = util::ui::centered_rect(50, 40, f.size());
 
         let input_chunks = Layout::default()
@@ -389,6 +389,13 @@ where
 
         let area = util::ui::centered_rect(40, 40, f.size());
 
+        let current_op: &IssueModificationOp = if let Some(op) = &app.linear_issue_op_interface.current_op {
+            op
+        } else {
+            error!("draw_action_select - app.linear_issue_op_interface.current_op must be Some(): {:?}", &app.linear_issue_op_interface.current_op);
+            panic!("draw_action_select - app.linear_issue_op_interface.current_op must be Some(): {:?}", &app.linear_issue_op_interface.current_op)
+        };
+
         let issue_op_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(100),].as_ref())
@@ -396,10 +403,10 @@ where
 
         f.render_widget(Clear, area); //this clears out the background
 
-        let issue_op_widths: Vec<Constraint> = LinearIssueOpInterface::widths_from_rect_op(&issue_op_chunks[0], &app.linear_issue_op_interface.current_op);
+        let issue_op_widths: Vec<Constraint> = LinearIssueOpInterface::widths_from_rect_op(&issue_op_chunks[0], current_op);
 
         let issue_op_table_style = TableStyle {
-            title_style: Some(( LinearIssueOpInterface::title_from_op(&app.linear_issue_op_interface.current_op),
+            title_style: Some(( LinearIssueOpInterface::title_from_op(current_op),
                 hex_str_from_style_color(&colors::ISSUE_MODIFICATION_TABLE_TITLE).unwrap_or_else(|| String::from("#000000"))
             )),
             row_bottom_margin: Some(0),
@@ -415,7 +422,7 @@ where
         let cloned_data: ModificationOpData = data_lock.clone();
         drop(data_lock);
 
-        let mut issue_op_table = LinearIssueOpInterface::render(app.linear_issue_op_interface.current_op,
+        let mut issue_op_table = LinearIssueOpInterface::render(*current_op,
                 &cloned_data,
                 &issue_op_widths,
                 issue_op_table_style

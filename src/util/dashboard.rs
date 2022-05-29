@@ -82,7 +82,14 @@ pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
 // Returns:
 //     full JSON object (as specified in GraphQL request), or None if a Value is not selected
 pub fn fetch_selected_value(app: &App) -> Option<IssueRelatableObject> {
-    let obj_vec = app.linear_issue_op_interface.table_data_from_op();
+    let obj_vec;
+
+    if let Some(result) = app.linear_issue_op_interface.table_data_from_op() {
+        obj_vec = result
+    } else {
+        return None;
+    }
+
     let state_idx: usize;
 
     if let Some(x) = app.linear_issue_op_interface.selected_idx {
