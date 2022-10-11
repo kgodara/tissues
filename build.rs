@@ -43,7 +43,6 @@ fn main() {
         "fetch_workflow_states",
     ];
 
-    let mod_target: PathBuf = base.join("queries").join("linear").join("issue_modifications");
     let query_issue_mod_name_list = &[
         "set_issue_workflow_state",
         "set_issue_assignee",
@@ -52,7 +51,6 @@ fn main() {
         "set_issue_title",
     ];
 
-    let op_fetch_target: PathBuf = base.join("queries").join("linear").join("op_fetch");
     let query_op_fetch_name_list = &[
         "get_cycles_by_team",
         "get_projects_by_team",

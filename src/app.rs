@@ -873,7 +873,7 @@ impl<'a> App<'a> {
 
                     if let Some(Some(ref mut x)) = res {
 
-                        let mut op_obj_vec: Vec<IssueRelatableObject> = match current_op {
+                        let op_obj_vec: Vec<IssueRelatableObject> = match current_op {
                             IssueModificationOp::WorkflowState => {
                                 let result: Result<Vec<WorkflowState>, Error> = serde_json::from_value(x["data"].clone());
 
@@ -960,42 +960,6 @@ impl<'a> App<'a> {
                                 },
                             }
                         }
-                        
-
-                        // let mut op_obj_vec_result: Result<Vec<IssueRelatableObject>, Error> = serde_json::from_value(x["data"].clone());
-
-                        
-                        /*
-                        // Modify correct data vec & extract Object from IssueRelatableObject
-                        match op_obj_vec_result {
-                            Ok(ref mut op_obj_vec) => {
-
-                                for op_obj in op_obj_vec {
-                                    info!("MONKEY MONKEY op_obj: {:?}", op_obj);
-                                    match op_obj {
-                                        IssueRelatableObject::WorkflowState(workflow_state) => {
-                                            issue_op_data_lock.workflow_states.push(workflow_state.clone());
-                                        },
-                                        IssueRelatableObject::Assignee(assignee) => {
-                                            issue_op_data_lock.users.push(assignee.clone());
-                                        },
-                                        IssueRelatableObject::Project(project) => {
-                                            // TODO: Remove this
-                                            info!("MONKEY MONKEY");
-                                            issue_op_data_lock.projects.push(project.clone());
-                                        },
-                                        IssueRelatableObject::Cycle(cycle) => {
-                                            issue_op_data_lock.cycles.push(cycle.clone());
-                                        },
-                                    }
-                                }
-                            },
-                            Err(err) => {
-                                error!("'load_issue_op_data' from_value() failed for custom view vec - {:?}", err);
-                                panic!("'load_issue_op_data' from_value() failed for custom view vec - {:?}", err);
-                            }
-                        }
-                        */
 
                         match GraphQLCursor::linear_cursor_from_page_info(x["cursor_info"].clone()) {
                             Some(z) => {
