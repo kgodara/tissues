@@ -415,9 +415,6 @@ impl LinearIssueOpInterface {
                     IssueRelatableObject::Cycle(_cycle) => {
                         // No colored cell for cycles
                     },
-                    _ => {
-                        panic!("Not ready yet");
-                    }
                 };
     
 

@@ -5,6 +5,14 @@ authors = ["Karan Godara <karan@getquilt.app>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dev-dependencies]
+insta = { version = "1.21.0", features = ["yaml", "redactions"] }
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3
 
 
 [dependencies]

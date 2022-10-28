@@ -1,0 +1,21 @@
+---
+source: tests/mod.rs
+expression: view_issues
+---
+- createdAt: "2021-02-09T20:05:52.185Z"
+  dueDate: ~
+  id: ca14857a-b88e-4108-b97d-1c759358b9e7
+  number: 12
+- createdAt: "2021-01-11T04:43:21.270Z"
+  dueDate: ~
+  id: f8a8309b-bc06-4c87-a19f-282aa7bff614
+  number: 5
+- createdAt: "2021-01-11T04:43:21.270Z"
+  dueDate: ~
+  id: 9ec131be-f97e-4110-b9f1-39a3b61723ef
+  number: 2
+- createdAt: "2021-01-11T04:43:21.270Z"
+  dueDate: ~
+  id: 1872404c-c3be-4938-a259-43ba8deb511e
+  number: 3
+

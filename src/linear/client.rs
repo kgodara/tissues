@@ -99,7 +99,6 @@ impl LinearClient {
         let cursor_info = &query_response["data"]["issues"]["pageInfo"];
 
         Ok( json!( { "issue_nodes": issue_nodes, "cursor_info": cursor_info } ))
-
     }
 
     // view_resolver 'filter_data' support query (workflow state name case-sensitivity)

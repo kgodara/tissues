@@ -1,0 +1,25 @@
+---
+source: tests/mod.rs
+expression: view_issues
+---
+- createdAt: "2021-06-30T20:18:14.800Z"
+  id: a1d909f3-21c1-4654-af2b-5a3daadd5ee3
+  number: 13
+  project:
+    id: 2a40437b-73be-45f1-81ad-83379c3d9e3f
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: f8a8309b-bc06-4c87-a19f-282aa7bff614
+  number: 5
+  project:
+    id: 34197686-1d88-47ec-a1e0-321d9144eacd
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: 9ec131be-f97e-4110-b9f1-39a3b61723ef
+  number: 2
+  project:
+    id: 34197686-1d88-47ec-a1e0-321d9144eacd
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: 1872404c-c3be-4938-a259-43ba8deb511e
+  number: 3
+  project:
+    id: 34197686-1d88-47ec-a1e0-321d9144eacd
+

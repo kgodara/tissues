@@ -3,6 +3,8 @@
 extern crate simplelog;
 
 use simplelog::*;
+use insta;
+use serde_json::json;
 
 #[macro_use]
 extern crate lazy_static;
@@ -23,11 +25,6 @@ use rust_cli::{
 };
 
 use linear::{ LinearConfig, client::{ LinearClient, ClientResult }, types::{ CustomView } };
-
-mod constants;
-use constants::{ VIEW_ANSWER_KEY };
-
-use tokio::runtime::Handle;
 
 
 macro_rules! aw {
@@ -74,7 +71,7 @@ pub fn initialize() {
             }
             // set issue_page_size to 50, to simplify pagination requirements
             linear_config_lock.issue_page_size = 50;
-    
+
             // set custom_view_page_size to 50, to simplify pagination requirements
             linear_config_lock.custom_view_page_size = 50;
         }
@@ -144,54 +141,112 @@ pub fn fetch_all_custom_views() -> Vec<Value> {
 }
 
 #[cfg(test)]
-pub fn validate_view_issues(view_issues: &[Value], view_id: &str) -> bool {
-    for issue_id in VIEW_ANSWER_KEY[view_id].iter() {
-            
-        if !view_issues.iter().any(|issue| {
-            &issue["id"].as_str().unwrap() == issue_id
-        }) { return false; }
+fn exec_snapshot_test<F>(view: &CustomView, linear_config: LinearConfig, snapshot: &str, issue_field_remapper: Option<F>)
+where F: Fn(Value) -> Value
+{
+    let mut view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&view.clone(), None, linear_config)).0;
+    if let Some(field_remapper) = issue_field_remapper {
+        view_issues = view_issues.into_iter().map(field_remapper).collect();
     }
-    true
+    insta::assert_yaml_snapshot!(snapshot, view_issues);
 }
 
 // View Tests
+
 #[test]
 pub fn selected_priority_view() {
     initialize();
     // cf9db35e-5eb9-475a-8ae0-8a130821ead0
+
+    /* only care about:
+        id
+        createdAt
+        number
+        priority
+    */
+
+    let strip_priority = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+            "priority": issue_value["priority"],
+        })
+    };
     
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
     let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
-    
+
     let view: &CustomView = custom_views_lock.iter().find(|view| {
         view.id == "cf9db35e-5eb9-475a-8ae0-8a130821ead0"
     }).expect("Failed to find SelectedPriority view");
 
-    let view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&view.clone(), None, linear_config_lock.clone())).0;
-
-    assert!(validate_view_issues(&view_issues, &view.id));
+    // SelectedPriority
+    exec_snapshot_test(
+        view,
+        linear_config_lock.clone(),
+        "selected_priority",
+        Some(strip_priority)
+    );
 }
 
 #[test]
 pub fn selected_project_view() {
     initialize();
     // c0c7c852-5f4c-4a57-8a55-a306d86368f6
-    
+
+    /* only care about:
+        id
+        createdAt
+        number
+        project.id
+    */
+
+    let strip_project = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+            "project": { "id": issue_value["project"]["id"] },
+        })
+    };
+
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
     let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
-    
+
     let view: &CustomView = custom_views_lock.iter().find(|view| {
         view.id == "c0c7c852-5f4c-4a57-8a55-a306d86368f6"
     }).expect("Failed to find SelectedProject view");
 
-    let view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&view.clone(), None, linear_config_lock.clone())).0;
-
-    assert!(validate_view_issues(&view_issues, &view.id));
+    // SelectedProject
+    exec_snapshot_test(
+        view,
+        linear_config_lock.clone(),
+        "selected_project",
+        Some(strip_project)
+    );
 }
 
 #[test]
 pub fn selected_team_view() {
     initialize();
+
+    /* only care about:
+        id
+        createdAt
+        number
+        team.id
+    */
+
+    let strip_team = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+            "team": { "id":  issue_value["team"]["id"]},
+        })
+    };
+
     // 5a8a4fa5-cdae-4a62-bcf2-bc69e14fdeb2
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
     let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
@@ -200,30 +255,65 @@ pub fn selected_team_view() {
         view.id == "5a8a4fa5-cdae-4a62-bcf2-bc69e14fdeb2"
     }).expect("Failed to find SelectedTeam view");
 
-    let view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&view.clone(), None, linear_config_lock.clone())).0;
-
-    assert!(validate_view_issues(&view_issues, &view.id));
+    exec_snapshot_test(view,
+        linear_config_lock.clone(),
+        "selected_team",
+        Some(strip_team));
 }
 
 #[test]
 pub fn selected_creator_view() {
     initialize();
+
+    /* only care about (creator.id not in default query):
+        id
+        createdAt
+        number
+    */
+
+    let strip_creator = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+        })
+    };
+
     // 5895b38b-d98c-4898-815c-97f166de3316
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
     let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
-    
+
     let view: &CustomView = custom_views_lock.iter().find(|view| {
         view.id == "5895b38b-d98c-4898-815c-97f166de3316"
     }).expect("Failed to find SelectedCreator view");
 
-    let view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&view.clone(), None, linear_config_lock.clone())).0;
+    exec_snapshot_test(
+        view,
+        linear_config_lock.clone(),
+        "selected_creator",
+        Some(strip_creator));
 
-    assert!(validate_view_issues(&view_issues, &view.id));
 }
 
 #[test]
 pub fn selected_assignee_view() {
     initialize();
+
+    /* only care about:
+        id
+        createdAt
+        number
+        assignee.id
+    */
+
+    let strip_assignee = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+            "assignee": { "id":  issue_value["assignee"]["id"]},
+        })
+    };
 
     // 1477aacd-465c-49d3-9e14-a3b7952f4e22
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
@@ -233,14 +323,34 @@ pub fn selected_assignee_view() {
         view.id == "1477aacd-465c-49d3-9e14-a3b7952f4e22"
     }).expect("Failed to find SelectedAssignee view");
 
-    let view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&view.clone(), None, linear_config_lock.clone())).0;
+    exec_snapshot_test(
+        view,
+        linear_config_lock.clone(),
+        "selected_assignee",
+        Some(strip_assignee)
+    );
 
-    assert!(validate_view_issues(&view_issues, &view.id));
 }
 
 #[test]
 pub fn due_date_views() {
     initialize();
+
+    /* only care about:
+        id
+        createdAt
+        number
+        dueDate
+    */
+
+    let strip_due_date = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+            "dueDate": issue_value["dueDate"],
+        })
+    };
 
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
     let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
@@ -262,30 +372,64 @@ pub fn due_date_views() {
     }).expect("Failed to find DueDateAfter view");
 
     // OverDue
-    let mut view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&over_due_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("OverDue view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &over_due_view.id));
+    exec_snapshot_test(
+        over_due_view,
+        linear_config_lock.clone(),
+        "due_date_over_due",
+        Some(strip_due_date)
+    );
 
     // NoDueDate
-    view_issues = aw!(view_resolver::optimized_view_issue_fetch(&no_due_date_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("NoDueDate view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &no_due_date_view.id));
+    exec_snapshot_test(
+        no_due_date_view,
+        linear_config_lock.clone(),
+        "due_date_no_due_date",
+        Some(strip_due_date)
+    );
 
     // DueDateBefore
-    view_issues = aw!(view_resolver::optimized_view_issue_fetch(&due_date_before_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("DueDateBefore view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &due_date_before_view.id));
+    exec_snapshot_test(
+        due_date_before_view,
+        linear_config_lock.clone(),
+        "due_date_before",
+        Some(strip_due_date)
+    );
 
     // DueDateAfter
-    view_issues = aw!(view_resolver::optimized_view_issue_fetch(&due_date_after_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("DueDateAfter view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &due_date_after_view.id));
-}
+    exec_snapshot_test(
+        due_date_after_view,
+        linear_config_lock.clone(),
+        "due_date_after",
+        Some(strip_due_date)
+    );
 
+}
 
 #[test]
 pub fn workflow_state_views() {
     initialize();
+
+    /* only care about:
+        id
+        createdAt
+        number
+        state.id
+    */
+    /* Equivalent redactions object expression:
+    {
+        "[].dueDate" => "[dueDate]",
+        ...
+    }
+    */
+
+    let strip_state = |issue_value: Value| {
+        json!({
+            "id": issue_value["id"],
+            "createdAt": issue_value["createdAt"],
+            "number": issue_value["number"],
+            "state": { "id":  issue_value["state"]["id"]},
+        })
+    };
 
     let custom_views_lock = CUSTOM_VIEWS.lock().unwrap();
     let linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
@@ -306,23 +450,37 @@ pub fn workflow_state_views() {
         view.id == "372f0ae9-035e-4314-97ee-f6614391df13"
     }).expect("Failed to find SingleNotSelectedState view");
 
+
     // SelectedState
-    let mut view_issues: Vec<Value> = aw!(view_resolver::optimized_view_issue_fetch(&selected_state_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("SelectedState view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &selected_state_view.id));
+    exec_snapshot_test(
+        selected_state_view,
+        linear_config_lock.clone(), 
+        "workflow_state_selected",
+        Some(strip_state)
+    );
 
     // NotSelectedState
-    view_issues = aw!(view_resolver::optimized_view_issue_fetch(&not_selected_state_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("NotSelectedState view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &not_selected_state_view.id));
+    exec_snapshot_test(
+        not_selected_state_view,
+        linear_config_lock.clone(), 
+        "workflow_state_not_selected",
+        Some(strip_state)
+    );
 
     // SingleSelectedState
-    view_issues = aw!(view_resolver::optimized_view_issue_fetch(&single_selected_state_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("SingleSelectedState view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &single_selected_state_view.id));
+    exec_snapshot_test(
+        single_selected_state_view,
+        linear_config_lock.clone(), 
+        "workflow_state_single_selected",
+        Some(strip_state)
+    );
 
     // SingleNotSelectedState
-    view_issues = aw!(view_resolver::optimized_view_issue_fetch(&single_not_selected_state_view.clone(), None, linear_config_lock.clone())).0;
-    debug!("SingleNotSelectedState view issues: {:?}", view_issues);
-    assert!(validate_view_issues(&view_issues, &single_not_selected_state_view.id));
+    exec_snapshot_test(
+        single_not_selected_state_view,
+        linear_config_lock.clone(), 
+        "workflow_state_single_not_selected",
+        Some(strip_state)
+    );
+
 }

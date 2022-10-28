@@ -1,0 +1,30 @@
+---
+source: tests/mod.rs
+expression: view_issues
+---
+- createdAt: "2021-02-09T20:05:52.185Z"
+  id: ca14857a-b88e-4108-b97d-1c759358b9e7
+  number: 12
+  state:
+    id: e4d5a438-381e-44b0-945f-211481f769e6
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3
+  number: 4
+  state:
+    id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: 9ec131be-f97e-4110-b9f1-39a3b61723ef
+  number: 2
+  state:
+    id: e4d5a438-381e-44b0-945f-211481f769e6
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: 63234ed0-035a-4aec-914b-19802c066b5a
+  number: 7
+  state:
+    id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+- createdAt: "2021-01-11T04:43:21.270Z"
+  id: 13bfaa1c-4cf0-40d6-9d70-6c76b948261b
+  number: 1
+  state:
+    id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+
