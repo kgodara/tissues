@@ -1,5 +1,9 @@
 use super::config::{ LinearConfig, MAX_PAGE_SIZE };
 
+use anyhow::Result;
+
+use super::schema::CustomViewResponseData;
+
 // Timezone query
 
 
@@ -7,6 +11,8 @@ use super::config::{ LinearConfig, MAX_PAGE_SIZE };
 
 use super::query::{
     exec_fetch_custom_views,
+
+
     exec_fetch_team_timezones,
     exec_fetch_viewer,
     exec_fetch_workflow_states,
@@ -16,9 +22,6 @@ use super::query::{
     exec_get_issue_op_data,
     exec_update_issue,
 };
-
-
-use std::result::Result;
 
 use std::sync::{ Arc, Mutex };
 
@@ -37,7 +40,7 @@ use crate::constants::{
 };
 
 
-pub type ClientResult = Result<Value, LinearClientError>;
+pub type ClientResult = std::result::Result<Value, LinearClientError>;
 
 pub struct LinearClient {
     pub config: Arc<Mutex<LinearConfig>>,
@@ -51,17 +54,10 @@ impl Default for LinearClient {
 
 impl LinearClient {
 
-    pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
+    pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Result<CustomViewResponseData> {
 
         let linear_api_key = &verify_linear_api_key_present(&linear_config)?;
-
-        let query_response = exec_fetch_custom_views(&linear_api_key, linear_cursor, linear_config.custom_view_page_size).await?;
-
-        let view_nodes = &query_response["data"]["customViews"]["nodes"];
-        let cursor_info = &query_response["data"]["customViews"]["pageInfo"];
-
-
-        Ok( json!( { "view_nodes": view_nodes, "cursor_info": cursor_info } ))
+        exec_fetch_custom_views(&linear_api_key, linear_cursor.clone(), linear_config.custom_view_page_size).await
     }
 
     pub async fn fetch_team_timezones(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {

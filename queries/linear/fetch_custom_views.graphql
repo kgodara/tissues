@@ -1,32 +1,28 @@
-
-
-{   "query": "query fetchCustomViews($firstNum: Int, $afterCursor: String) {
-        customViews(first: $firstNum, after: $afterCursor) {
-            nodes {
+query ViewQuery($firstNum: Int, $afterCursor: String) {
+    customViews(first: $firstNum, after: $afterCursor) {
+        nodes {
+            id
+            name
+            description
+            color
+            filterData
+            filters
+            organization {
                 id
                 name
-                description
-                color
-                filterData
-                filters
-                organization {
-                    id
-                    name
-                }
-                team {
-                    id
-                    name
-                    key
-                    description
-                }
             }
-            pageInfo {
-                hasPreviousPage
-                hasNextPage
-                startCursor
-                endCursor
+            team {
+                id
+                name
+                key
+                description
             }
         }
-    }",
-    "operationName": "fetchCustomViews"
+        pageInfo {
+            hasPreviousPage
+            hasNextPage
+            startCursor
+            endCursor
+        }
+    }
 }

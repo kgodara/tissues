@@ -15,7 +15,8 @@ use crate::util::{
 
 use crate::linear::{
     config::LinearConfig,
-    types::{ CustomView, IssueRelatableObject }
+    types::{ IssueRelatableObject },
+    schema::CustomView,
 };
 
 use crate::constants::{

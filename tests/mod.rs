@@ -18,13 +18,12 @@ use std::{
 use serde_json::{ Value };
 
 use rust_cli::{
-    // app::{ ALL_WORKFLOW_STATES, init_workflow_states },
     linear,
     linear::view_resolver,
     util::{ GraphQLCursor },
 };
 
-use linear::{ LinearConfig, client::{ LinearClient, ClientResult }, types::{ CustomView } };
+use linear::{ LinearConfig, client::{ LinearClient, ClientResult }, schema::{ CustomView } };
 
 
 macro_rules! aw {

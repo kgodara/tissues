@@ -14,7 +14,7 @@ use crate::util::{
     },
 };
 
-use crate::linear::types::{ CustomView };
+use crate::linear::schema::CustomView;
 
 use crate::constants::table_columns::{ DASHBOARD_VIEW_CONFIG_COLUMNS };
 
@@ -57,10 +57,10 @@ impl DashboardViewConfigDisplay {
                     Some(custom_view) => {
                         empty_str_to_fallback(
                             &[&custom_view.name,
-                                &custom_view.description,
-                                &custom_view.org.name,
+                                &custom_view.description.clone().unwrap_or("".to_string()),
+                                &custom_view.organization.name,
                                 match &custom_view.team {
-                                    Some(team) => team.key.as_deref().unwrap_or(""),
+                                    Some(team) => &team.key,
                                     None => {""},
                                 }
                             ],
@@ -93,8 +93,8 @@ impl DashboardViewConfigDisplay {
                     match custom_view_opt {
                         Some(custom_view) => {
                             let name: String = cell_fields_formatted[0].clone();
-
-                            colored_cell(name, &custom_view.color)
+                            // TODO: Decide on default
+                            colored_cell(name, &custom_view.color.clone().unwrap_or("#000000".to_string()))
                         },
                         None => { Cell::from(String::from("Empty Slot"))}
                     }

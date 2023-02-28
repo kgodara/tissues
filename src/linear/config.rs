@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::{ Value, Map };
 
-use crate::linear::types::{ CustomView };
+use crate::linear::schema::CustomView;
 
 use crate::constants::LINEAR_TOKEN_LEN;
 

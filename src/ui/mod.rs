@@ -34,7 +34,7 @@ use crate::constants::{
     IssueModificationOp,
 };
 
-use crate::linear::types::{ CustomView };
+use crate::linear::schema::CustomView;
 
 use tui::{
   backend::Backend,
@@ -253,7 +253,8 @@ where
         let loading_state: bool = e.loading.load(Ordering::Relaxed);
 
 
-        let view_panel_table_style = TableStyle { title_style: Some(( e.view.name.clone(), e.view.color.clone() )),
+        // TODO: Create default color
+        let view_panel_table_style = TableStyle { title_style: Some(( e.view.name.clone(), e.view.color.clone().unwrap_or("#000000".to_string()) )),
             row_bottom_margin: Some(0),
             view_idx: Some((i as u16)+1),
             highlight_table,

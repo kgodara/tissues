@@ -15,7 +15,8 @@ use tui::{
 
 
 use crate::linear::{
-    types::{ CustomView, Issue },
+    types::{ Issue },
+    schema::CustomView,
 };
 
 use crate::util::{

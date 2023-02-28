@@ -17,7 +17,7 @@ pub fn single_line_str_from_file(file_path: &str) -> String {
 
 pub fn gen_file_str_const(file_path: &str, const_name: &str) -> String {
     let parse = single_line_str_from_file(file_path);
-    
+
     let mut result_str = String::from("pub const ");
     result_str.push_str(&const_name.to_ascii_uppercase());
     result_str.push_str(": &str = r#\"");
@@ -36,7 +36,6 @@ fn main() {
 
     let root_target: PathBuf = base.join("queries").join("linear");
     let query_root_name_list = &[
-        "fetch_custom_views",
         "fetch_issues_by_filter_data",
         "fetch_team_timezones",
         "fetch_viewer",

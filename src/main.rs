@@ -156,7 +156,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = resp.send(tz_list);
                 },
                 IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
-                    let option_stateful = LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
+                    // let option_stateful = LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
+
+                    let option_stateful = linear::client::LinearClient::get_custom_views(linear_config, Some(linear_cursor)).await;
                     info!("LoadCustomViews data: {:?}", option_stateful);
 
                     let _ = resp.send(option_stateful);

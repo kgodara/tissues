@@ -7,6 +7,8 @@ pub mod error;
 
 pub mod view_resolver;
 
+pub mod schema;
+
 mod query;
 
 mod timezone_manager;

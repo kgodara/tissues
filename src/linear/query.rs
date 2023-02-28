@@ -2,30 +2,40 @@ use crate::errors::{
     GraphQLRequestError
 };
 
+use anyhow::Result;
+
 use serde_json::{
     Value,
     Map,
     Number,
+    json,
     from_str,
 };
 
-use std::result::Result;
-
 use crate::util::{
     GraphQLCursor,
-    set_linear_after_cursor_from_opt
+    set_linear_after_cursor_from_opt,
+    linear_after_from_opt,
 };
 
 use crate::constants::{
     IssueModificationOp
 };
 
+use reqwest::header;
+
+
+use ::reqwest::blocking::Client as BlockingClient;
+
+use graphql_client::{reqwest::post_graphql_blocking, reqwest::post_graphql };
+use super::schema::{ViewQuery, view_query};
+
+
 include!(concat!(env!("OUT_DIR"), "/query_raw.rs"));
 
 lazy_static! {
     pub static ref CLIENT: reqwest::Client = reqwest::Client::new();
 
-    pub static ref LINEAR_FETCH_CUSTOM_VIEWS: Value = from_str(FETCH_CUSTOM_VIEWS).unwrap();
     pub static ref LINEAR_FETCH_TEAM_TIME_ZONES: Value = from_str(FETCH_TEAM_TIMEZONES).unwrap();
     pub static ref LINEAR_FETCH_VIEWER: Value = from_str(FETCH_VIEWER).unwrap();
 
@@ -48,7 +58,7 @@ lazy_static! {
 }
 
 
-type QueryResult = Result<Value, GraphQLRequestError>;
+type QueryResult = std::result::Result<Value, GraphQLRequestError>;
 
 async fn dispatch_linear_req(api_key: &str, query: &Value) -> QueryResult {
     let r = CLIENT.post("https://api.linear.app/graphql")
@@ -63,9 +73,33 @@ async fn dispatch_linear_req(api_key: &str, query: &Value) -> QueryResult {
     Ok(r)
 }
 
+pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> Result<view_query::ResponseData> {
 
-pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQLCursor>, issue_page_size: u32) -> QueryResult {
 
+    let variables = view_query::Variables {
+        first_num: Some(issue_page_size as i64),
+        after_cursor: linear_after_from_opt(&issue_cursor),
+    };
+
+    let mut headers = header::HeaderMap::new();
+
+    let mut auth_value = header::HeaderValue::from_str(&format!("{}", api_key))?;
+    auth_value.set_sensitive(true);
+
+    headers.insert(header::AUTHORIZATION, auth_value);
+    headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/json"));
+
+    let client_async = reqwest::Client::builder()
+        .user_agent("graphql-rust/0.10.0")
+        .default_headers(headers.clone())
+        .build()?;
+
+    let response_body = post_graphql::<ViewQuery, _>(&client_async, "https://api.linear.app/graphql", variables).await?;
+
+    let response_data: view_query::ResponseData = response_body.data.expect("missing response data");
+    Ok(response_data)
+
+    /*
     let mut query = LINEAR_FETCH_CUSTOM_VIEWS.clone();
 
     query["variables"] = Value::Object(Map::default());
@@ -76,6 +110,7 @@ pub async fn exec_fetch_custom_views(api_key: &str, issue_cursor: Option<GraphQL
     info!("fetch_custom_views variables: {:?}", query["variables"]);
 
     dispatch_linear_req(api_key, &query).await
+    */
 }
 
 pub async fn exec_fetch_team_timezones(api_key: &str, team_cursor: Option<GraphQLCursor>, team_tz_page_size: u32) -> QueryResult {

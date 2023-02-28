@@ -28,10 +28,11 @@ use crate::constants::{
 
 use crate::linear::{
     LinearConfig,
-    types::{ CustomView, Issue,
+    types::{ Issue,
         IssueRelatableObject,
         WorkflowState, User, Project, Cycle,
     },
+    schema::{view_query, CustomView},
 };
 
 use serde_json::{ Error, Value };
@@ -396,7 +397,7 @@ impl<'a> App<'a> {
                                                             resp: resp_tx };
                     tx2.send(cmd).await.unwrap();
 
-                    let res = resp_rx.await.ok();
+                    let res = resp_rx.await;
 
                     info!("LoadCustomViews IOEvent returned: {:?}", res);
 
@@ -405,6 +406,24 @@ impl<'a> App<'a> {
 
                     let mut current_views = view_data_lock.clone();
 
+                    if let Ok(Ok(mut y)) = res {
+                        current_views.append(&mut y.custom_views.nodes);
+                        *view_data_lock = current_views;
+                        view_select_loading_handle.store(false, Ordering::Relaxed);
+
+                        // Update GraphQLCursor
+                        // TODO: change unwrap_or
+                        *view_cursor_data_lock = GraphQLCursor {
+                            platform: Platform::Linear,
+                            has_next_page: y.custom_views.page_info.has_next_page,
+                            end_cursor: y.custom_views.page_info.end_cursor.unwrap_or(String::from("")),
+                        };
+                    }
+                    else {
+                        error!("LoadCustomViews error: {:?}", res);
+                        error!("LoadCustomViews error: {:?}", res);
+                    }
+                    /*
                     if let Some(Some(y)) = res {
 
                         let mut view_vec_result: Result<Vec<CustomView>, Error> = serde_json::from_value(y["views"].clone());
@@ -432,6 +451,7 @@ impl<'a> App<'a> {
                             },
                         }
                     }
+                    */
 
                     info!("New self.linear_custom_view_select.view_table_data: {:?}", view_data_lock);
                 });
@@ -864,8 +884,6 @@ impl<'a> App<'a> {
                                     issue_op_data_lock.users.push(assignee.clone());
                                 },
                                 IssueRelatableObject::Project(project) => {
-                                    // TODO: Remove this
-                                    info!("MONKEY MONKEY");
                                     issue_op_data_lock.projects.push(project.clone());
                                 },
                                 IssueRelatableObject::Cycle(cycle) => {

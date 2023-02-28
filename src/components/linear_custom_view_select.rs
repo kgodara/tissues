@@ -17,7 +17,7 @@ use serde_json::{ Value, json};
 use crate::linear::{
     client::LinearClient,
     LinearConfig,
-    types::{ CustomView },
+    schema::CustomView,
 };
 
 use crate::util::{
@@ -39,7 +39,9 @@ pub struct LinearCustomViewSelect {
 
 
 impl LinearCustomViewSelect {
+    // TODO: Remove this
     pub async fn load_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Option<Value> {
+        /*
         let view_fetch_result = LinearClient::get_custom_views(linear_config, linear_cursor).await;
 
         let views: Value;
@@ -66,6 +68,8 @@ impl LinearCustomViewSelect {
             },
             _ => { None },
         }
+        */
+        None
     }
 
 
@@ -106,10 +110,10 @@ impl LinearCustomViewSelect {
                 let cell_fields: Vec<String> = empty_str_to_fallback(
                     &[
                         &custom_view.name,
-                        &custom_view.description,
-                        &custom_view.org.name,
+                        &custom_view.description.clone().unwrap_or(String::from("")),
+                        &custom_view.organization.name,
                         match &custom_view.team {
-                            Some(team) => { team.key.as_deref().unwrap_or("") },
+                            Some(team) => { &team.key },
                             None => { "" },
                         }
                     ],
@@ -139,7 +143,7 @@ impl LinearCustomViewSelect {
                 let name: String = cell_fields_formatted[0].clone();
 
                 // Insert new "name" cell, and remove unformatted version
-                cells.insert(0, colored_cell(name, &custom_view.color));
+                cells.insert(0, colored_cell(name, &custom_view.color.clone().unwrap_or("#000000".to_string())));
                 cells.remove(1);
 
                 // debug!("render - row: {:?}", Row::new(cells.clone()).bottom_margin(bottom_margin));

@@ -2,6 +2,7 @@ use crate::app::{ Platform };
 
 use serde_json::Value;
 
+// TODO: Change end_cursor to Option<String> to match gql schema
 #[derive(Debug, Clone)]
 pub struct GraphQLCursor {
     pub platform: Platform,

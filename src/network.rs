@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::linear::{
     LinearConfig as LinearConfig,
-    types::{ CustomView },
+    schema::{view_query, CustomView},
 };
 
 use crate::constants::{
@@ -24,7 +24,7 @@ pub enum IOEvent {
     LoadCustomViews {
         linear_config: LinearConfig,
         linear_cursor: GraphQLCursor,
-        resp: Responder<Value>
+        resp: oneshot::Sender<anyhow::Result<view_query::ResponseData>>
     },
     LoadViewer {
         api_key: String,

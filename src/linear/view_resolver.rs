@@ -6,7 +6,7 @@ use crate::linear::{
 };
 
 use crate::app::Platform;
-use crate::linear::{error::LinearClientError, types::CustomView };
+use crate::linear::{error::LinearClientError, schema::{JSONObject, CustomView} };
 use crate::util::GraphQLCursor;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -39,7 +39,7 @@ pub enum FilterType {
 
 pub async fn single_endpoint_fetch (  view_cursor: &mut GraphQLCursor,
     request_num: &mut u32,
-    filter_data: &mut Value,
+    filter_data: &mut JSONObject,
     linear_config: &LinearConfig,
 ) -> Vec<Value> {
 
@@ -59,7 +59,7 @@ pub async fn single_endpoint_fetch (  view_cursor: &mut GraphQLCursor,
             return found_issue_list;
         }
 
-        variables.insert(String::from("filterObj"), filter_data.clone());
+        variables.insert(String::from("filterObj"), Value::Object(filter_data.clone()));
 
         query_result = LinearClient::get_issues_by_filter_data(linear_config.clone(), Some(view_cursor.clone()), variables.clone()).await;
 
@@ -131,7 +131,8 @@ pub async fn optimized_view_issue_fetch (   view_obj: &CustomView,
     let mut request_num: u32 = 0;
     let found_issue_list: Vec<Value> = single_endpoint_fetch(
         &mut view_cursor, &mut request_num,
-        &mut filter_data, &linear_config).await;
+        &mut filter_data, &linear_config
+    ).await;
 
 
     info!("'optimized_view_issue_fetch' returning found_issue_list.len(): {:?}", found_issue_list.len());
