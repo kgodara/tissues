@@ -11,11 +11,6 @@ pub mod ui;
 mod cursor;
 pub use cursor::GraphQLCursor;
 
-mod query;
-pub use query::set_linear_after_cursor_from_opt;
-pub use query::linear_after_from_opt;
-pub use query::verify_linear_api_key_present;
-
 pub mod dashboard;
 
 pub mod layout;

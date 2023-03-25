@@ -1,0 +1,16 @@
+query TeamProjectsQuery($firstNum: Int, $afterCursor: String, $ref: String!) {
+    team(id: $ref) {
+        projects(first: $firstNum, after: $afterCursor) {
+            nodes {
+                id
+                name
+                color
+                state
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+        }
+    }
+}

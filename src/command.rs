@@ -1,22 +1,21 @@
 
 // use termion::{event::Key,};
 use crossterm::event::KeyCode;
+use unicode_segmentation::UnicodeSegmentation;
 
 use std::sync::atomic::{ Ordering };
 
 use crate::app::{App, Platform, AppEvent, Route, InputMode};
-use crate::network::IOEvent;
 use crate::util::{
     state_table,
     dashboard::{ fetch_selected_view_panel_issue, fetch_selected_view_panel_idx, },
-    // event::{Event, Events},
     event_crossterm::{ Events },
 };
 
 use crate::linear::{
     config::LinearConfig,
-    types::{ IssueRelatableObject },
     schema::CustomView,
+    client::{ IssueFieldObject }
 };
 
 use crate::constants::{
@@ -24,9 +23,7 @@ use crate::constants::{
     IssueModificationOp
 };
 
-use crate::components::user_input::{ TitleValidationState, TokenValidationState };
-
-use tokio::sync::mpsc::Sender;
+use crate::components::{ InputComponent, token_entry::{ TokenValidationState }, title_entry::{ TitleValidationState } };
 
 use tui::{
     widgets::{ TableState },
@@ -77,22 +74,23 @@ pub enum Command {
 pub fn get_cmd(cmd_str: &mut String, input: KeyCode, current_route: &Route, input_mode: &InputMode) -> Option<Command> {
 
     // Editor input/submit/exit commands
-    if *input_mode == InputMode::Editing {
-        match input {
-            KeyCode::Esc => {return Some(Command::EditorExit);},
-            KeyCode::Char('\n') => {return Some(Command::EditorSubmit);},
+    if *input_mode == InputMode::Edit {
+        return match input {
+            KeyCode::Esc => Some(Command::EditorExit),
+            KeyCode::Char('\n') => Some(Command::EditorSubmit),
 
             // windows support
-            KeyCode::Enter => {return Some(Command::EditorSubmit);},
+            KeyCode::Enter => Some(Command::EditorSubmit),
 
-            KeyCode::Right => {return Some(Command::EditorMoveForward)},
-            KeyCode::Left => {return Some(Command::EditorMoveBackward)},
+            KeyCode::Right => Some(Command::EditorMoveForward),
+            KeyCode::Left => Some(Command::EditorMoveBackward),
 
-            KeyCode::Char(c) => {return Some(Command::EditorInput(c));},
-            KeyCode::Backspace => {return Some(Command::EditorDelete);},
+            KeyCode::Char(c) => Some(Command::EditorInput(c)),
+            KeyCode::Backspace => Some(Command::EditorDelete),
             _ => {
                 debug!("unsupported editor KeyCode: {:?}", input);
-                return None;}
+                None
+            }
         }
     }
 
@@ -200,138 +198,96 @@ pub fn get_cmd(cmd_str: &mut String, input: KeyCode, current_route: &Route, inpu
 }
 
 
-pub fn exec_editor_enter_cmd(app: &mut App<'_>, events: &mut Events) {
-    if app.editor_available {
+pub fn exec_editor_focus_cmd(app: &mut App<'_>, events: &mut Events) {
         events.disable_exit_key();
-        app.input_mode = InputMode::Editing;
-    }
+        app.input_mode = InputMode::Edit;
 }
 
 pub fn exec_editor_input_cmd(app: &mut App<'_>, ch: &char) {
     // Verify user is entering access token
-    match app.route {
-        Route::ConfigInterface => {
-            if app.input_mode == InputMode::Editing {
-                app.config_interface_input.insert(*ch);
-            }
-        },
-        Route::ActionSelect => {
-            if app.input_mode == InputMode::Editing {
-                app.issue_title_input.insert(*ch);
-            }
-        },
-        _ => {}
+    match app.active_input {
+        InputComponent::TokenEntry => { app.token_entry.input.insert(*ch) },
+        InputComponent::TitleEntry => { app.title_entry.input.insert(*ch) },
     }
 }
 
 pub fn exec_editor_move_forward_cmd(app: &mut App<'_>) {
-        match app.route {
-            Route::ConfigInterface => {
-                if app.input_mode == InputMode::Editing {
-                    app.config_interface_input.move_cursor_forwards();
-                }
-            },
-            Route::ActionSelect => {
-                if app.input_mode == InputMode::Editing {
-                    app.issue_title_input.move_cursor_forwards();
-                }
-            },
-            _ => {}
-        }
+    match app.active_input {
+        InputComponent::TokenEntry => { app.token_entry.input.move_cursor_forwards() },
+        InputComponent::TitleEntry => { app.title_entry.input.move_cursor_forwards() },
+    }
 }
 
 pub fn exec_editor_move_back_cmd(app: &mut App<'_>) {
-    match app.route {
-        Route::ConfigInterface => {
-            if app.input_mode == InputMode::Editing {
-                app.config_interface_input.move_cursor_back();
-            }
-        },
-        Route::ActionSelect => {
-            if app.input_mode == InputMode::Editing {
-                app.issue_title_input.move_cursor_back();
-            }
-        },
-        _ => {}
+    match app.active_input {
+        InputComponent::TokenEntry => { app.token_entry.input.move_cursor_back() },
+        InputComponent::TitleEntry => { app.title_entry.input.move_cursor_back() },
     }
 }
-
 
 pub fn exec_editor_delete_cmd(app: &mut App<'_>) {
-    // Verify user is editing access token
-    match app.route {
-        Route::ConfigInterface => {
-            if app.input_mode == InputMode::Editing {
-                app.config_interface_input.delete();
-            }
-        },
-        Route::ActionSelect => {
-            if app.input_mode == InputMode::Editing {
-                app.issue_title_input.delete();
-            }
-        },
-        _ => {}
+    match app.active_input {
+        InputComponent::TokenEntry => { app.token_entry.input.delete() },
+        InputComponent::TitleEntry => { app.title_entry.input.delete() },
     }
 }
 
-pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events, tx: &Sender<IOEvent>) {
+pub fn exec_editor_submit_cmd(app: &mut App<'_>, events: &mut Events) {
 
     events.enable_exit_key();
-    app.input_mode = InputMode::Normal;
 
-    // Verify user is editing access token
-    match app.route {
-        Route::ConfigInterface => {
-            let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.config_interface_input.input.as_str()) as u16;
-            // Verify length is satisfactory for linear access token
-            info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
-            if submission_len == LINEAR_TOKEN_LEN {
-                app.dispatch_event(AppEvent::LoadViewer, tx);
-            }
-            else {
-                let mut token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
-                *token_validation_state_lock = TokenValidationState::Invalid;
-            }
-        },
-        Route::ActionSelect => {
-            // If a state change is confirmed, dispatch & reset
-            if app.modifying_issue { 
+    if app.input_mode == InputMode::Edit {
+        match app.active_input {
+            InputComponent::TokenEntry => {
+                let submission_len: u16 = unicode_width::UnicodeWidthStr::width(app.token_entry.input.input.as_str()) as u16;
+                // Verify length is satisfactory for linear access token
+                info!("exec_editor_submit_cmd() - {:?} == {:?}", submission_len, LINEAR_TOKEN_LEN);
+                if submission_len == LINEAR_TOKEN_LEN {
+                    app.dispatch_event(AppEvent::LoadViewer);
+                }
+                else {
+                    let mut token_validation_state_lock = app.token_entry.token_validation_state.lock().unwrap();
+                    *token_validation_state_lock = TokenValidationState::Invalid;
+                }
+            },
+            InputComponent::TitleEntry => {
                 // Execute length check, validation
                 //      if invalid: set invalid message, etc
-                if app.linear_issue_op_interface.is_valid_selection_for_update(&app.issue_title_input.input) {
+                if app.title_entry.input.input.graphemes(true).count() > 0 {
                     info!("exec_editor_submit_cmd - dispatching 'update_issue' event");
-                    app.dispatch_event(AppEvent::UpdateIssue, tx);
+                    app.dispatch_event(AppEvent::UpdateIssue);
                     app.modifying_issue = false;
                 } else {
-                    app.issue_title_input.title_validation_state = TitleValidationState::Invalid;
+                    let mut title_validation_state_lock = app.title_entry.title_validation_state.lock().unwrap();
+                    *title_validation_state_lock = TitleValidationState::Invalid;
                 }
             }
-        },
-        _ => {},
+        }
     }
+
+    app.input_mode = InputMode::Normal;
 }
 
-pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events, _tx: &Sender<IOEvent>) {
+pub fn exec_editor_exit_cmd(app: &mut App<'_>, events: &mut Events) {
     events.enable_exit_key();
     app.input_mode = InputMode::Normal;
 
     // If editing the title, close the modal as well
     if app.modifying_issue {
-        app.editor_available = false;
+        app.input_mode = InputMode::Normal;
         app.modifying_issue = false;
         app.linear_issue_op_interface.reset_op();
     }
-
-
-    // app.change_route(Route::ActionSelect, tx);
 }
 
 
 pub async fn exec_delete_cmd(app: &mut App<'_>) {
     info!("Executing 'delete' command");
 
+    let cur_route: Route = (*app.route.lock().unwrap()).clone();
+
     // User is attempting to remove a Custom View on the Dashboard
-    if Route::DashboardViewDisplay == app.route {
+    if Route::DashboardViewDisplay == cur_route {
         // Verify that a populated slot is selected
         // if so, set it to None
         let selected_view: Option<CustomView>;
@@ -383,8 +339,10 @@ pub async fn exec_delete_cmd(app: &mut App<'_>) {
 
 pub fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize) {
 
+    let cur_route: Route = app.route.lock().unwrap().clone();    
+
     // User is attempting to select a View Panel
-    if Route::ActionSelect == app.route {
+    if Route::ActionSelect == cur_route {
         // Verify that view_panel_idx is within bounds of app.linear_dashboard_view_panel_list.len()
         // &&
         // Verify issue modification not in progress
@@ -441,7 +399,7 @@ pub fn exec_select_custom_view_select_cmd(app: &mut App) {
     }
 }
 
-pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
+pub fn exec_refresh_view_panel_cmd(app: &mut App) {
     // Execute command if:
     //     view panel is selected &&
     //     view panel is not loading
@@ -466,29 +424,25 @@ pub fn exec_refresh_view_panel_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             // Reset the following view panel fields before dispatching event: "paginate_dashboard_view"
             //     pub issue_table_data: Arc<Mutex<Vec<Value>>>,
             //     pub view_loader: Arc<Mutex<Option<ViewLoader>>>,
-            //     pub request_num: Arc<Mutex<u32>>,
             //     pub loading: Arc<AtomicBool>,
 
             let mut cursor_lock = view_panel_list_lock[idx].view_cursor.lock().unwrap();
             let mut panel_issue_lock = view_panel_list_lock[idx].issue_table_data.lock().unwrap();
-            let mut request_num_lock = view_panel_list_lock[idx].request_num.lock().unwrap();
 
             *panel_issue_lock = vec![];
             *cursor_lock = None;
-            *request_num_lock = 0;
 
             is_panel_loading.store(false, Ordering::Relaxed);
 
             drop(cursor_lock);
             drop(panel_issue_lock);
-            drop(request_num_lock);
 
             drop(view_panel_list_lock);
 
             // mark panel for pagination
             app.view_panel_to_paginate = idx;
 
-            app.dispatch_event(AppEvent::PaginateDashboardView, tx);
+            app.dispatch_event(AppEvent::PaginateDashboardView);
 
         }
     }
@@ -508,14 +462,15 @@ pub fn exec_expand_issue_cmd(app: &mut App) {
 
 // Issue Modification Commands
 
-pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, tx: &Sender<IOEvent>) {
-    if Route::ActionSelect == app.route {
+pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp) {
 
+    let cur_route: Route = app.route.lock().unwrap().clone();
 
+    if Route::ActionSelect == cur_route {
 
         // If matching op interface modal is open, close it
         if app.linear_issue_op_interface.current_op == Some(op) {
-            exec_move_back_cmd(app, tx);
+            exec_move_back_cmd(app);
         }
 
         // Enable drawing of issue op interface if:
@@ -525,29 +480,30 @@ pub fn exec_open_issue_op_interface_cmd(app: &mut App, op: IssueModificationOp, 
             app.modifying_issue = true;
 
             // If IssueModificationOp::Title,
-            // set app.issue_title_input.input to issue title
+            // set app.title_entry.input to issue title
             // 
             if op == IssueModificationOp::Title {
                 let issue_option = fetch_selected_view_panel_issue(app);
                 if let Some(issue_obj) = issue_option {
-                    // enable editor
-                    app.editor_available = true;
-
-                    app.issue_title_input.set_input(issue_obj.title.to_string());
-                    // app.issue_title_input.input = issue_title.to_string();
-                    app.input_mode = InputMode::Editing;
+                    app.title_entry.input.set_input(issue_obj.title.to_string());
+                    
+                    app.input_mode = InputMode::Edit;
+                    app.active_input = InputComponent::TitleEntry;
                 }
             }
 
-            app.dispatch_event(AppEvent::LoadIssueOpData, tx);
+            app.dispatch_event(AppEvent::LoadIssueOpData);
         }
     }
 }
 
 
 
-pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
-    match app.route {
+pub fn exec_move_back_cmd(app: &mut App) {
+
+    let cur_route: Route = app.route.lock().unwrap().clone();
+
+    match cur_route {
 
         Route::ConfigInterface => {
             // nowhere to move back to
@@ -562,7 +518,7 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 app.linear_issue_op_interface.reset_op();
 
                 // disable editor, only relevant if op was title modification
-                app.editor_available = false;
+                app.input_mode = InputMode::Normal;
             }
 
             // If expanded Issue view is open, close modal
@@ -576,11 +532,6 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 app.linear_dashboard_view_panel_selected = None;
                 app.actions.next();
             }
-
-            // If none of above, move back to ConfigInterface
-            else  {
-                app.change_route(Route::ConfigInterface, tx);
-            }
         },
 
         // Change Route to ActionSelect
@@ -589,39 +540,33 @@ pub fn exec_move_back_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             if !app.linear_dashboard_view_list_selected {
                 exec_select_dashboard_view_list_cmd(app);
             } else {
-                app.change_route(Route::ActionSelect, tx);
+                app.change_route(Route::ActionSelect);
             }
         }
     }
 }
 
-pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
-    match app.route {
-        Route::ConfigInterface => {
-            // TODO: only allow progression if app.config_interface_input.loaded == true
-            let linear_config_lock = app.linear_client.config.lock().unwrap();
-            let linear_config = linear_config_lock.clone();
-            drop(linear_config_lock);
+pub async fn exec_confirm_cmd(app: &mut App<'_>) {
 
-            if linear_config.is_valid_token {
-                app.change_route(Route::ActionSelect, tx);
-            }
-        },
+    let cur_route: Route = app.route.lock().unwrap().clone();
+
+    match cur_route {
+        // Unlike exec_editor_submit_cmd(), this does not submit a new access token,
+        Route::ConfigInterface => {},
         Route::ActionSelect => {
 
+            let valid_selection: bool = app.linear_issue_op_interface.is_valid_selection_for_update(&app.title_entry.input.input);
+
             // If a state change is confirmed, dispatch & reset
-            if app.modifying_issue && app.linear_issue_op_interface.is_valid_selection_for_update(&app.issue_title_input.input) {
-                app.dispatch_event(AppEvent::UpdateIssue, tx);
+            if app.modifying_issue && valid_selection {
+                app.dispatch_event(AppEvent::UpdateIssue);
                 app.modifying_issue = false;
             }
             // If user has chosen the "Modify Dashboard" action
             // only allow if timezone load is complete
             else if let Some(i) = app.actions.state.selected() {
-                if app.team_tz_load_done.load(Ordering::Relaxed) {
-                    match i {
-                        0 => { app.change_route( Route::DashboardViewDisplay, &tx) },
-                        _ => {}
-                    }
+                if i == 0 {
+                    app.change_route( Route::DashboardViewDisplay)
                 }
             }
         },
@@ -681,8 +626,11 @@ pub async fn exec_confirm_cmd(app: &mut App<'_>, tx: &Sender<IOEvent>) {
     }
 }
 
-pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
-    match app.route {
+pub fn exec_scroll_down_cmd(app: &mut App) {
+
+    let cur_route: Route = app.route.lock().unwrap().clone();
+
+    match cur_route {
 
         Route::ConfigInterface => {
             // nowhere to scroll
@@ -708,7 +656,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 {
                     // if handle.len() == 0:
                     //     return; (either no issue relatable objects, or being loaded)
-                    let issue_op_obj_vec: Vec<IssueRelatableObject>;
+                    let issue_op_obj_vec: Vec<IssueFieldObject>;
 
                     if let Some(result) = app.linear_issue_op_interface.table_data_from_op() {
                         issue_op_obj_vec = result;
@@ -746,18 +694,8 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 }
     
                 if load_paginated {
-                    app.dispatch_event(AppEvent::LoadIssueOpData, tx);
+                    app.dispatch_event(AppEvent::LoadIssueOpData);
                 }
-
-                // Condensed version w/out pagination:
-                /*
-                let data_handle = &mut app.linear_issue_op_interface.table_data_from_op();
-                let data_lock = data_handle.lock().unwrap();
-                let mut data_state = &mut app.linear_issue_op_interface.data_state;
-
-                state_table::next(&mut data_state, &*data_lock);
-                app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
-                */
             }
 
             // If a ViewPanel is selected, scroll down on the View Panel
@@ -820,7 +758,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
             }
 
             if load_paginated {
-                app.dispatch_event(AppEvent::PaginateDashboardView, tx);
+                app.dispatch_event(AppEvent::PaginateDashboardView);
             }
         },
 
@@ -867,7 +805,7 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
                 }
     
                 if load_paginated {
-                    app.dispatch_event(AppEvent::LoadCustomViews, tx);
+                    app.dispatch_event(AppEvent::LoadCustomViews);
                 }
             }
         }
@@ -876,7 +814,9 @@ pub fn exec_scroll_down_cmd(app: &mut App, tx: &Sender<IOEvent>) {
 
 pub fn exec_scroll_up_cmd(app: &mut App) {
 
-    match app.route {
+    let cur_route: Route = app.route.lock().unwrap().clone();
+
+    match cur_route {
         Route::ConfigInterface => {
             // nothing to scroll
         },
@@ -889,12 +829,10 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
             else if app.modifying_issue {
 
 
-                let obj_vec: Vec<IssueRelatableObject>;
-                if let Some(result) = app.linear_issue_op_interface.table_data_from_op() {
-                    obj_vec = result;
-                } else {
-                    return;
-                }
+                let obj_vec: Vec<IssueFieldObject> = match app.linear_issue_op_interface.table_data_from_op() {
+                    Some(result) => result,
+                    None => return,
+                };
                 let data_state = &mut app.linear_issue_op_interface.data_state;
 
                 debug!("Attempting to scroll up on IssueOpInterface - data_lock, data_state: {:?}, {:?}", obj_vec, data_state);

@@ -14,8 +14,6 @@ use crate::util::{
     layout::{ format_str_with_wrap },
 };
 
-use crate::constants::colors::{ API_REQ_NUM };
-
 use crate::util::loader::{ loader_from_state };
 
 use crate::constants::table_columns::TableColumn;
@@ -35,8 +33,6 @@ pub struct TableStyle {
     // Loading State Display Relagted
     pub loading: bool,
     pub loader_state: u16,
-
-    pub req_num: Option<u16>,
 }
 
 // Accepts:
@@ -45,41 +41,35 @@ pub struct TableStyle {
 //     Spans<'a>: a group of Spans generated from provided Style
 pub fn gen_table_title_spans<'a>(table_style: TableStyle) -> Spans<'a> {
 
-
     match table_style.title_style {
         Some(title_style) => {
                             // Display Table's View index, if provided
-            Spans::from(vec![   Span::styled(match table_style.view_idx {
-                                                Some(idx) => {
-                                                    vec!["#", idx.to_string().as_str(), " - "].concat()
-                                                },
-                                                None => {String::default()}
-                                            },
-                                            Style::default()
-                                ),
-                                // Display Table's Loading State
-                                Span::styled(
-                                    vec![loader_from_state(table_style.loading, table_style.loader_state).to_string().as_str(), " - "].concat(),
-                                    Style::default()
-                                ),
-                                // Display provided Label as Table Title
-                                Span::styled(title_style.0,
-                                    Style::default()
-                                        .add_modifier(Modifier::BOLD)
-                                        .fg(*style_color_from_hex_str(&title_style.1)
-                                                .get_or_insert(Color::White)
-                                        )
-                                ),
-                                // If req # provided, display
-                                Span::styled(match table_style.req_num {
-                                        Some(req_u16) => { vec![" - Req #: ", req_u16.to_string().as_str()].concat() },
-                                        None => { String::default() }
-                                    },
-                                    Style::default()
-                                        .add_modifier(Modifier::ITALIC)
-                                        .fg(API_REQ_NUM)
-                                )
-                            ])
+            Spans::from(
+                vec![
+                    Span::styled(
+                        match table_style.view_idx {
+                            Some(idx) => {
+                                vec!["#", idx.to_string().as_str(), " - "].concat()
+                            },
+                            None => {String::default()}
+                        },
+                        Style::default()
+                    ),
+                    // Display Table's Loading State
+                    Span::styled(
+                        vec![
+                            loader_from_state(table_style.loading, table_style.loader_state).to_string().as_str(), " - "].concat(),
+                            Style::default()
+                    ),
+                    // Display provided Label as Table Title
+                    Span::styled(
+                        title_style.0,
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .fg(*style_color_from_hex_str(&title_style.1).get_or_insert(Color::White))
+                    )
+                ]
+            )
         },
         None => { Spans::from(Span::styled("Table", Style::default())) }
     }

@@ -1,0 +1,15 @@
+query StatesQuery($firstNum: Int, $afterCursor: String, $stateFilter: WorkflowStateFilter) {
+	workflowStates(first: $firstNum, after: $afterCursor, filter: $stateFilter) {
+		nodes {
+			id
+			name
+			type
+			color
+			description
+		}
+		pageInfo {
+			hasNextPage
+			endCursor
+		}
+	}
+}

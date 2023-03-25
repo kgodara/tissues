@@ -67,7 +67,7 @@ use crate::util::{
     layout::{ widths_from_rect },
 };
 
-use crate::linear::types::{ Label, Issue };
+use crate::linear::schema::{ Issue };
 
 use crate::constants::{ 
     table_columns::{ ISSUE_MODAL_HEADER_COLUMNS }
@@ -103,8 +103,8 @@ where
 
     let cell_fields: Vec<String> = empty_str_to_fallback(
         &[
-            issue.team.name.as_deref().unwrap_or(""),
-            &issue.created_at.clone(),
+            &issue.team.name,
+            &issue.created_at,
         ],
         &ISSUE_MODAL_HEADER_COLUMNS
     );
@@ -166,15 +166,15 @@ where
         p
     };
 
-    let labels_vec: Vec<Label> = issue.labels.clone();
+    let labels_vec = issue.labels.nodes.clone();
 
     let labels_spans: Vec<Spans> = labels_vec.iter()
         .map(|label_obj| {
             let mut span_style = Style::default();
-            if let Some(label_color) = style_color_from_hex_str(label_obj.color.as_deref().unwrap_or("")) {
+            if let Some(label_color) = style_color_from_hex_str(&label_obj.color) {
                 span_style = span_style.fg(label_color);
             }
-            Spans::from(Span::styled(&*label_obj.name.as_deref().unwrap_or(""), span_style))
+            Spans::from(Span::styled(&*label_obj.name, span_style))
         })
         .collect();
 
@@ -192,13 +192,13 @@ where
     f.render_widget(labels_p, content_chunks[0]);
 
     f.render_widget(
-        create_colored_p(if let Some(name) = issue.assignee.as_ref().and_then(|x| x.display_name.clone()) { name.clone() } else { String::from("") },
+        create_colored_p(if let Some(assignee) = &issue.assignee { assignee.display_name.clone() } else { String::from("") },
             String::from("Assignee"),
             None),
         content_chunks[1]);
     
     f.render_widget(
-        create_colored_p(if let Some(name) = issue.creator.as_ref().and_then(|x| x.display_name.clone()) { name.clone() } else { String::from("") },
+        create_colored_p(if let Some(creator) = &issue.creator { creator.display_name.clone() } else { String::from("") },
             String::from("Creator"),
             None),
         content_chunks[2]);
@@ -210,16 +210,16 @@ where
         content_chunks[4]);
     
     f.render_widget(
-        create_colored_p(if let Some(name) = issue.cycle.name.as_ref() { name.clone() } else { String::from("") },
+        create_colored_p(if let Some(cycle) = &issue.cycle { cycle.name.as_ref().unwrap_or(&String::from("")).clone().to_string() } else { String::from("") },
             String::from("Cycle"),
             None),
         content_chunks[5]);
     
     f.render_widget(
-        create_colored_p(if let Some(name) = issue.project.as_ref().and_then(|obj| obj.name.clone()) { name.clone() } else { String::from("") },
+        create_colored_p(if let Some(proj) = &issue.project { proj.name.clone() } else { String::from("") },
             String::from("Project"),
-            Some(if let Some(color) = issue.project.as_ref().and_then(|obj| obj.color.clone()) { color.clone() } else { String::from("") })),
-        content_chunks[6]);    
+            Some(if let Some(proj) = &issue.project { proj.color.clone() } else { String::from("") })),
+        content_chunks[6]);
 
 
     // render title & desc

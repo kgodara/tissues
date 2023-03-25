@@ -12,11 +12,7 @@ use std::sync::{
     atomic::{ AtomicBool }
 };
 
-use serde_json::{ Value, json};
-
 use crate::linear::{
-    client::LinearClient,
-    LinearConfig,
     schema::CustomView,
 };
 
@@ -25,7 +21,6 @@ use crate::util::{
         row_min_render_height, get_row_height, colored_cell,
         TableStyle, gen_table_title_spans
     },
-    GraphQLCursor
 };
 
 use crate::constants::table_columns::{ CUSTOM_VIEW_SELECT_COLUMNS };
@@ -39,39 +34,6 @@ pub struct LinearCustomViewSelect {
 
 
 impl LinearCustomViewSelect {
-    // TODO: Remove this
-    pub async fn load_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Option<Value> {
-        /*
-        let view_fetch_result = LinearClient::get_custom_views(linear_config, linear_cursor).await;
-
-        let views: Value;
-        let cursor_info: Value;
-
-        match view_fetch_result {
-            Ok(x) => {
-                views = x["view_nodes"].clone();
-                cursor_info = x["cursor_info"].clone();
-            },
-            Err(y) => {
-                info!("Get Custom Views failed: {:?}", y);
-                return None;
-            },
-        }
-
-        info!("Custom View Fetch Result: {:?}", views);
-
-        match views {
-            Value::Array(_) => {
-                info!("Populating LinearCustomViewSelect::view_table_data with: {:?}", views);
-
-                Some(json!( { "views": views, "cursor_info": cursor_info } ))
-            },
-            _ => { None },
-        }
-        */
-        None
-    }
-
 
     pub fn render<'a>(table_data: &[CustomView],
         widths: &[Constraint],

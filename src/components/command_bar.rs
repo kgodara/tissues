@@ -247,8 +247,6 @@ impl<'a> CommandBar<'a> {
 
     pub fn render(&self) -> Result<List, &'static str> {
 
-        // debug!("CommandBar::render:: {:?}", remove_view_cmd_active);
-
         // Determine which selection of commands this Command Bar is responsible for
         let list_items: Vec<ListItem> = match self.command_bar_type {
             CommandBarType::Dashboard => {

@@ -13,13 +13,12 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
-use serde_json::{ Value, json, Map };
+use crate::app::Platform;
 
 
 use crate::linear::{
-    client::LinearClient,
-    LinearConfig,
-    types::{ WorkflowState, User, Project, Cycle, IssueRelatableObject }
+    client::{ IssueFieldObject },
+    schema::{Cycle, Project, TeamMember, State},
 };
 
 use crate::util::{
@@ -44,10 +43,10 @@ use crate::constants::{
 
 #[derive(Debug, Default, Clone)]
 pub struct ModificationOpData {
-    pub workflow_states: Vec<WorkflowState>,
-    pub users: Vec<User>,
-    pub projects: Vec<Project>,
     pub cycles: Vec<Cycle>,
+    pub projects: Vec<Project>,
+    pub users: Vec<TeamMember>,
+    pub workflow_states: Vec<State>,
 }
 
 pub struct LinearIssueOpInterface {
@@ -64,92 +63,31 @@ pub struct LinearIssueOpInterface {
 
 impl LinearIssueOpInterface {
 
-    // loading functions section start
-
-    pub async fn load_op_data(op: &IssueModificationOp,
-        linear_config: LinearConfig,
-        linear_cursor: Option<GraphQLCursor>,
-        team_id: String)-> Option<Value> {
-
-        let mut variables: Map<String, Value> = Map::new();
-        variables.insert(String::from("ref"), Value::String(team_id));
-
-        debug!("load_op_data about to dispatch query");
-
-        let data_result = match op {
-            IssueModificationOp::WorkflowState => {
-                LinearClient::get_workflow_states_by_team(linear_config, linear_cursor, variables).await
-            }
-            IssueModificationOp::Assignee => {
-                LinearClient::get_users_by_team(linear_config, linear_cursor, variables).await
-            },
-            IssueModificationOp::Project => {
-                LinearClient::get_projects_by_team(linear_config, linear_cursor, variables).await
-            },
-            IssueModificationOp::Cycle => {
-                LinearClient::get_cycles_by_team(linear_config, linear_cursor, variables).await
-            },
-            _ => {
-                error!("LinearIssueOpInterface::load_op_data, invalid IssueModificationOp: {:?}", op);
-                panic!("LinearIssueOpInterface::load_op_data, invalid IssueModificationOp: {:?}", op);
-            }
-        };
-
-        let data: Value;
-        let cursor_info: Value;
-
-        match data_result {
-            Ok(x) => {
-                data = x["data_nodes"].clone();
-                cursor_info = x["cursor_info"].clone();
-            },
-            Err(y) => {
-                error!("Get data for {:?} failed: {:?}", op, y);
-                return None;
-            },
-        }
-
-        debug!("load_op_data - op, data: {:?}, {:?}", op, data);
-
-        if data == Value::Null {
-            return Some(Value::Array(vec![]));
-        }
-
-        match data {
-            Value::Array(_) => {
-                Some(json!( { "data": data, "cursor_info": cursor_info } ))
-            },
-            _ => {None},
-        }
-    }
-
-    // loading functions section end
-
-    pub fn table_data_from_op(&self) -> Option<Vec<IssueRelatableObject>> {
+    pub fn table_data_from_op(&self) -> Option<Vec<IssueFieldObject>> {
         let obj_data_lock = self.obj_data.lock().unwrap();
         match self.current_op {
             Some(IssueModificationOp::WorkflowState) => {
                 Some(obj_data_lock.workflow_states
                     .iter()
-                    .map(|state| { IssueRelatableObject::WorkflowState(state.clone()) })
+                    .map(|state| { IssueFieldObject::State(state.clone()) })
                     .collect())
             },
             Some(IssueModificationOp::Assignee) => {
                 Some(obj_data_lock.users
                     .iter()
-                    .map(|user| { IssueRelatableObject::Assignee(user.clone()) })
+                    .map(|member| { IssueFieldObject::TeamMember(member.clone()) })
                     .collect())
             },
             Some(IssueModificationOp::Project) => {
                 Some(obj_data_lock.projects
                     .iter()
-                    .map(|project| { IssueRelatableObject::Project(project.clone()) })
+                    .map(|project| { IssueFieldObject::Project(project.clone()) })
                     .collect())
             },
             Some(IssueModificationOp::Cycle) => {
                 Some(obj_data_lock.cycles
                     .iter()
-                    .map(|cycle| { IssueRelatableObject::Cycle(cycle.clone()) })
+                    .map(|cycle| { IssueFieldObject::Cycle(cycle.clone()) })
                     .collect())
             },
             _ => { None }
@@ -157,13 +95,10 @@ impl LinearIssueOpInterface {
     }
 
 
-    pub fn is_valid_selection_for_update(&self, issue_title_input: &str) -> bool {
+    pub fn is_valid_selection_for_update(&self, title_input: &str) -> bool {
         match self.current_op {
             Some(IssueModificationOp::Title) => {
-                let grapheme_len: usize = issue_title_input
-                    .graphemes(true)
-                    .count();
-                grapheme_len > 0
+                title_input.graphemes(true).count() > 0
             },
             Some(IssueModificationOp::WorkflowState) => {
                 self.selected_idx.is_some()
@@ -211,88 +146,68 @@ impl LinearIssueOpInterface {
         self.current_op = None;
 
         self.data_state = TableState::default();
-        self.cursor = Arc::new(Mutex::new(GraphQLCursor::default()));
+        self.cursor = Arc::new(Mutex::new(GraphQLCursor::with_platform(Platform::Linear)));
     }
 
     // render helper functions
-    fn cell_fields_from_row(row: &IssueRelatableObject, widths: &[Constraint]) -> Vec<String> {
-        let cell_fields: Vec<String>;
-        match row {
-            IssueRelatableObject::WorkflowState(state) => {
-                cell_fields = empty_str_to_fallback(
-                    &[
-                        &state.name.clone(),
-                        &state.state_type.clone(),
-                        state.description.as_deref().unwrap_or(""),
-                    ],
-                    &WORKFLOW_STATE_SELECT_COLUMNS
-                );
+    fn cell_fields_from_row(row: &IssueFieldObject, widths: &[Constraint]) -> Vec<String> {
 
-                let row_height = row_min_render_height(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS);
+        let columns_from_row = |row| match row {
+            IssueFieldObject::Cycle(_) => &*CYCLE_SELECT_COLUMNS,
+            IssueFieldObject::Project(_) => &*PROJECT_SELECT_COLUMNS,
+            IssueFieldObject::TeamMember(_) => &*ASSIGNEE_SELECT_COLUMNS,
+            IssueFieldObject::State(_) => &*WORKFLOW_STATE_SELECT_COLUMNS,
+        };
 
-                // Get the formatted Strings for each cell field
-                format_cell_fields(&cell_fields, widths, &WORKFLOW_STATE_SELECT_COLUMNS, Some(row_height))
+        let values = match row {
+            IssueFieldObject::State(state) => {
+                vec![
+                    state.name.as_str(),
+                    state.type_.as_str(),
+                    state.description.as_deref().unwrap_or(""),
+                ]
             },
-            IssueRelatableObject::Assignee(assignee) => {
-                cell_fields = empty_str_to_fallback(
-                    &[
-                        assignee.name.as_deref().unwrap_or(""),
-                        assignee.display_name.as_deref().unwrap_or(""),
-                    ],
-                    &ASSIGNEE_SELECT_COLUMNS
-                );
-
-                let row_height = row_min_render_height(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS);
-
-                format_cell_fields(&cell_fields, widths, &ASSIGNEE_SELECT_COLUMNS, Some(row_height))
+            IssueFieldObject::TeamMember(member) => {
+                vec![
+                    member.name.as_str(),
+                    member.display_name.as_str(),
+                ]
             },
-            IssueRelatableObject::Project(project) => {
-                cell_fields = empty_str_to_fallback(
-                    &[
-                        project.name.as_deref().unwrap_or(""),
-                        project.state.as_deref().unwrap_or(""),
-                    ],
-                    &PROJECT_SELECT_COLUMNS
-                );
-
-                let row_height = row_min_render_height(&cell_fields, widths, &PROJECT_SELECT_COLUMNS);
-
-                format_cell_fields(&cell_fields, widths, &PROJECT_SELECT_COLUMNS, Some(row_height))
+            IssueFieldObject::Project(project) => {
+                vec![
+                    project.name.as_str(),
+                    project.state.as_str(),
+                ]
             },
-            IssueRelatableObject::Cycle(cycle) => {
-                cell_fields = empty_str_to_fallback(
-                    &[
-                        cycle.name.as_deref().unwrap_or(""),
-                        &cycle.number.to_string().clone(),
-                        &cycle.starts_at.clone(),
-                        &cycle.ends_at.clone(),
-                    ],
-                    &CYCLE_SELECT_COLUMNS
-                );
-
-                let row_height = row_min_render_height(&cell_fields, widths, &CYCLE_SELECT_COLUMNS);
-
-                format_cell_fields(&cell_fields, widths, &CYCLE_SELECT_COLUMNS, Some(row_height))
+            IssueFieldObject::Cycle(cycle) => {
+                vec![
+                    cycle.name.as_deref().unwrap_or(""),
+                    //cycle.number.to_string().as_str(),
+                    cycle.starts_at.as_str(),
+                    cycle.ends_at.as_str(),
+                ]
             },
-        }
+        };
+
+        let cell_fields: Vec<String> = empty_str_to_fallback(&values[..], columns_from_row(row.clone()));
+
+        let row_height = row_min_render_height(&cell_fields, widths, columns_from_row(row.clone()));
+        format_cell_fields(&cell_fields, widths, columns_from_row(row.clone()), Some(row_height))
+
     }
 
     pub fn widths_from_rect_op(bbox: &Rect, op: &IssueModificationOp) -> Vec<Constraint> {
-        match op {
-            IssueModificationOp::WorkflowState => {
-                widths_from_rect(bbox, &WORKFLOW_STATE_SELECT_COLUMNS)
-            },
-            IssueModificationOp::Assignee => {
-                widths_from_rect(bbox, &ASSIGNEE_SELECT_COLUMNS)
-            },
-            IssueModificationOp::Project => {
-                widths_from_rect(bbox, &PROJECT_SELECT_COLUMNS)
-            },
-            IssueModificationOp::Cycle => {
-                widths_from_rect(bbox, &CYCLE_SELECT_COLUMNS)
-            },
-            _ => {panic!("Not ready")}
-        }
+
+        widths_from_rect(
+            bbox,
+    match op {
+                IssueModificationOp::WorkflowState => &WORKFLOW_STATE_SELECT_COLUMNS,
+                IssueModificationOp::Assignee => &ASSIGNEE_SELECT_COLUMNS,
+                IssueModificationOp::Project => &PROJECT_SELECT_COLUMNS,
+                IssueModificationOp::Cycle => &CYCLE_SELECT_COLUMNS,
+                _ => panic!("Not ready")
+            }
+        )
     }
 
     pub fn title_from_op(op: &IssueModificationOp) -> String {
@@ -348,29 +263,30 @@ impl LinearIssueOpInterface {
 
         let mut max_seen_row_size: usize = 0;
 
-        let obj_vec_to_iter: Vec<IssueRelatableObject> = match op {
+        // TODO: This approach seems goofy
+        let obj_vec_to_iter: Vec<IssueFieldObject> = match op {
             IssueModificationOp::WorkflowState => {
                 table_data.workflow_states
                     .iter()
-                    .map(|state| { IssueRelatableObject::WorkflowState(state.clone()) })
+                    .map(|state| { IssueFieldObject::State(state.clone()) })
                     .collect()
             },
             IssueModificationOp::Assignee => {
                 table_data.users
                     .iter()
-                    .map(|user| { IssueRelatableObject::Assignee(user.clone()) })
+                    .map(|user| { IssueFieldObject::TeamMember(user.clone()) })
                     .collect()
-            }
+            },
             IssueModificationOp::Project => {
                 table_data.projects
                     .iter()
-                    .map(|project| { IssueRelatableObject::Project(project.clone()) })
+                    .map(|project| { IssueFieldObject::Project(project.clone()) })
                     .collect()
-            }
+            },
             IssueModificationOp::Cycle => {
                 table_data.cycles
                     .iter()
-                    .map(|cycle| { IssueRelatableObject::Cycle(cycle.clone()) })
+                    .map(|cycle| { IssueFieldObject::Cycle(cycle.clone()) })
                     .collect()
             },
             _ => {
@@ -382,6 +298,7 @@ impl LinearIssueOpInterface {
             .map(|row| {
 
                 let cell_fields_formatted = LinearIssueOpInterface::cell_fields_from_row(row, widths);
+                let name_str: String = cell_fields_formatted[0].clone();
 
                 max_seen_row_size = max(get_row_height(&cell_fields_formatted), max_seen_row_size);
 
@@ -392,32 +309,12 @@ impl LinearIssueOpInterface {
 
                 // gen relevant cell colored & replace uncolored edition with colored
                 match row {
-                    IssueRelatableObject::WorkflowState(state) => {
-        
-                        let name: String = cell_fields_formatted[0].clone();
-                        let color = state.color.clone();
-        
-                        // Insert new "name" cell, and remove unformatted version
-                        cells.insert(0, colored_cell(name, &color));
-                        cells.remove(1);
-                    },
-                    IssueRelatableObject::Assignee(_assignee) => {
-                        // No colored cell for users
-                    },
-                    IssueRelatableObject::Project(project) => {
-                        let name: String = cell_fields_formatted[0].clone();
-                        let color = project.color.clone();
-        
-                        // Insert new "name" cell, and remove unformatted version
-                        cells.insert(0, colored_cell(name, color.as_deref().unwrap_or("")));
-                        cells.remove(1);
-                    },
-                    IssueRelatableObject::Cycle(_cycle) => {
-                        // No colored cell for cycles
-                    },
+                    IssueFieldObject::Cycle(_cycle) => {},
+                    IssueFieldObject::Project(project) => { cells[0] = colored_cell(name_str, &project.color); },
+                    IssueFieldObject::TeamMember(_member) => {},
+                    IssueFieldObject::State(state) => { cells[0] = colored_cell(name_str, &state.color); },
                 };
     
-
                 Row::new(cells)
                     .bottom_margin(bottom_margin)
                     .style(Style::default().fg(colors::ISSUE_MODIFICATION_TABLE_TITLE))
@@ -454,7 +351,7 @@ impl Default for LinearIssueOpInterface {
             selected_idx: None,
             data_state: TableState::default(),
             loading: Arc::new(AtomicBool::new(false)),
-            cursor: Arc::new(Mutex::new(GraphQLCursor::default())),
+            cursor: Arc::new(Mutex::new(GraphQLCursor::with_platform(Platform::Linear))),
 
             obj_data: Arc::new(Mutex::new(ModificationOpData::default())),
         }

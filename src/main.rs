@@ -7,44 +7,33 @@ extern crate lazy_static;
 
 use std::io;
 use std::fs;
-use std::sync::{
-    atomic::{ Ordering },
-};
+use std::sync::{Arc, atomic::{Ordering}};
 
 mod app;
-mod graphql;
 mod linear;
 mod ui;
 mod constants;
 mod util;
-mod errors;
 mod command;
-mod network;
 
 mod components;
 
 use crate::components::{
-    linear_issue_op_interface::LinearIssueOpInterface,
-    linear_custom_view_select::LinearCustomViewSelect,
+    InputComponent,
 };
 
 use crate::linear::{
-    client::LinearClient,
+    client::{LinearClient},
     config::LinearConfig,
-    view_resolver,
 };
 
-use app::{ Route };
+use app::{ Route, InputMode };
 
-use serde_json::Value;
 
 extern crate dotenv;
 use dotenv::dotenv;
 
-use tokio::{
-    sync::{ mpsc, oneshot },
-    time::{ sleep, Duration }
-};
+use tokio::{sync::Mutex as tMutex,};
 
 // use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 // use tui::{ backend::TermionBackend, Terminal, };
@@ -75,7 +64,7 @@ use std::fs::File;
 use command::{ Command,
                 get_cmd,
 
-                exec_editor_enter_cmd,
+                exec_editor_focus_cmd,
                 exec_editor_input_cmd,
                 exec_editor_delete_cmd,
                 exec_editor_move_forward_cmd,
@@ -97,8 +86,6 @@ use command::{ Command,
                 exec_scroll_down_cmd,
                 exec_scroll_up_cmd,
 };
-use network::IOEvent;
-
 
 
 fn get_platform() -> io::Result<String> {
@@ -131,127 +118,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create default app state
     let mut app = app::App::default();
 
-    // Create a new channel with a capacity of at most 8.
-    let (tx, mut rx) = mpsc::channel(8);
-
     // Attempt to load access token, if successful bypass access token entry route
     {
-        let mut linear_config_lock = app.linear_client.config.lock().unwrap();
+        // Access Token found, continue
+        match LinearConfig::load_config() {
+            Some(config) => {
+                // with_config() can return Err() if token file contains non visible ASCII chars (32-127)
+                match LinearClient::with_config(config) {
+                    Ok(client) => {
+                        *app.viewer_obj_render.lock().unwrap() = client.config.viewer_object.clone();
 
-        if linear_config_lock.load_config().is_some() {
-            drop(linear_config_lock);
-            app.change_route(Route::ActionSelect, &tx);
+                        app.input_mode = InputMode::Normal;
+                        app.linear_client = Arc::new(tMutex::new(Some(client)));
+                        app.change_route(Route::ActionSelect);
+                    },
+                    Err(_) => {
+                        app.input_mode = InputMode::Edit;
+                        app.active_input = InputComponent::TokenEntry;
+                    }
+                }
+            },
+            None => {
+                app.input_mode = InputMode::Edit;
+                app.active_input = InputComponent::TokenEntry;
+            }
         }
     }
-    let _manager = tokio::spawn(async move {
-        // Start receiving messages
-        while let Some(cmd) = rx.recv().await {
-
-            info!("Manager received IOEvent::{:?}", cmd);
-            match cmd {
-                IOEvent::LoadLinearTeamTimeZones { linear_config, resp } => {
-                    let tz_list = linear::load_linear_team_timezones(linear_config).await;
-                    info!("LoadLinearTeamTimeZones data: {:?}", tz_list);
-
-                    let _ = resp.send(tz_list);
-                },
-                IOEvent::LoadCustomViews { linear_config, linear_cursor, resp } => {
-                    // let option_stateful = LinearCustomViewSelect::load_custom_views(linear_config, Some(linear_cursor)).await;
-
-                    let option_stateful = linear::client::LinearClient::get_custom_views(linear_config, Some(linear_cursor)).await;
-                    info!("LoadCustomViews data: {:?}", option_stateful);
-
-                    let _ = resp.send(option_stateful);
-                },
-                IOEvent::LoadViewer { api_key, resp } => {
-                    let viewer_resp = linear::client::LinearClient::fetch_viewer(&api_key).await;
-                    
-                    let _ = resp.send(viewer_resp.ok());
-                },
-                IOEvent::LoadViewIssues { linear_config, view, view_cursor, resp } => {
-                    let issue_list = view_resolver::optimized_view_issue_fetch(&view, view_cursor, linear_config).await;
-
-                    info!("LoadViewIssues data: {:?}", issue_list);
-
-                    let _ = resp.send(issue_list);
-                },
-                IOEvent::LoadOpData { op, linear_config, linear_cursor, team_id, resp } => {
-                    let option_stateful = LinearIssueOpInterface::load_op_data(&op, linear_config, Some(linear_cursor), team_id).await;
-                    info!("load_op_data data: {:?}", option_stateful);
-
-                    let _ = resp.send(option_stateful);
-                },
-
-                IOEvent::UpdateIssue { op, linear_config, issue_id, ref_id, resp } => {
-
-                    let mut issue_update_variables = serde_json::Map::new();
-
-                    issue_update_variables.insert(String::from("issueId"), Value::String(issue_id));
-                    issue_update_variables.insert(String::from("ref"), Value::String(ref_id));
-
-                    let option_stateful = LinearClient::update_issue(&op, linear_config, issue_update_variables).await;                
-
-                    info!("UpdateIssue-{:?} data: {:?}", op, option_stateful);
-
-                    let _ = resp.send(option_stateful.ok());
-                },
-            }
-        }
-    });
-
-
-    // Load Linear Team Timezones for all teams within organization and add to app.team_tz_map
-
-    let tx2 = tx.clone();
-
-    let linear_config_handle = app.linear_client.config.clone();
-
-
-    let team_tz_map_handle = app.team_tz_map.clone();
-    let team_tz_load_done_handle = app.team_tz_load_done.clone();
-    let team_tz_load_in_progress_handle = app.team_tz_load_in_progress.clone();
-
-    
-    let _time_zone_load = tokio::spawn(async move {
-        let (resp_tx, resp_rx) = oneshot::channel();
-
-        loop {
-            sleep(Duration::from_millis(100)).await;
-            {
-                let linear_config_lock = linear_config_handle.lock().unwrap();
-                if linear_config_lock.is_valid_token {
-                    break;
-                }
-                drop(linear_config_lock);
-            }
-        }
-
-        team_tz_load_in_progress_handle.store(true, Ordering::Relaxed);
-
-        let linear_config: LinearConfig;
-        {
-            let linear_config_lock = linear_config_handle.lock().unwrap();
-            linear_config = linear_config_lock.clone();
-        }
-        
-        let cmd = IOEvent::LoadLinearTeamTimeZones {    linear_config,
-                                                        resp: resp_tx };
-
-        tx2.send(cmd).await.unwrap();
-        let res = resp_rx.await.ok();
-
-        info!("LoadLinearTeamTimeZones IOEvent returned: {:?}", res);
-
-        let mut team_tz_map_lock = team_tz_map_handle.lock().unwrap();
-
-        if let Some(id_tz_pairs) = res {
-            for pair in id_tz_pairs.iter() {
-                team_tz_map_lock.insert(pair.0.clone(), pair.1.clone());
-            }
-            team_tz_load_in_progress_handle.store(false, Ordering::Relaxed);
-            team_tz_load_done_handle.store(true, Ordering::Relaxed);
-        }
-    });
 
     // Terminal initialization
 
@@ -278,7 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
 
         terminal.draw(|f| {
-            match app.route {
+            let cur_route: Route = app.route.lock().unwrap().clone();
+            match cur_route {
                 Route::ConfigInterface => {
                     ui::draw_config_interface(f, &mut app);
                 },
@@ -290,12 +183,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
         })?;
+
+        // Change Route if some other task changed it
+        if app.change_route.load(Ordering::Relaxed) {
+            app.change_route.store(false, Ordering::Relaxed);
+            let cur_route: Route = app.route.lock().unwrap().clone();
+            app.change_route(cur_route);
+        }
+
         let event_next = events.next()?;
 
         match event_next {
             Event::Input(input) => {
+
+                let cur_route: Route = app.route.lock().unwrap().clone();
+
                 // Update Command String / Get Command to apply
-                cmd_option = get_cmd(&mut app.cmd_str, input, & app.route, &app.input_mode);
+                cmd_option = get_cmd(&mut app.cmd_str, input, & cur_route, &app.input_mode);
                 info!("cmd_option: {:?}", cmd_option);
 
                 if let Some(cmd) = cmd_option {
@@ -304,7 +208,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // Execute Command
                     match cmd {
-                        
                         Command::Quit => {
                             disable_raw_mode()?;
                             execute!(
@@ -319,7 +222,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // Editor-related Commands
                         Command::EditorEnter => {
-                            exec_editor_enter_cmd(&mut app, &mut events);
+                            exec_editor_focus_cmd(&mut app, &mut events);
                         },
                         Command::EditorInput(ch) => {
                             exec_editor_input_cmd(&mut app, &ch);
@@ -334,10 +237,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             exec_editor_move_back_cmd(&mut app);
                         },
                         Command::EditorSubmit => {
-                            exec_editor_submit_cmd(&mut app, &mut events, &tx);
+                            exec_editor_submit_cmd(&mut app, &mut events);
                         },
                         Command::EditorExit => {
-                            exec_editor_exit_cmd(&mut app, &mut events, &tx);
+                            exec_editor_exit_cmd(&mut app, &mut events);
                         },
 
 
@@ -350,7 +253,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
 
                         Command::RefreshViewPanel => {
-                            exec_refresh_view_panel_cmd(&mut app, &tx);
+                            exec_refresh_view_panel_cmd(&mut app);
                         },
                         Command::ExpandIssue => {
                             exec_expand_issue_cmd(&mut app);
@@ -363,16 +266,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             exec_select_custom_view_select_cmd(&mut app);
                         },
                         Command::OpenIssueOpInterface(x) => {
-                            exec_open_issue_op_interface_cmd(&mut app, x, &tx);
+                            exec_open_issue_op_interface_cmd(&mut app, x);
                         },
                         Command::MoveBack => {
-                            exec_move_back_cmd(&mut app, &tx);
+                            exec_move_back_cmd(&mut app);
                         },
                         Command::Confirm => {
-                            exec_confirm_cmd(&mut app, &tx).await;
+                            exec_confirm_cmd(&mut app).await;
                         },
                         Command::ScrollDown => {
-                            exec_scroll_down_cmd(&mut app, &tx);
+                            exec_scroll_down_cmd(&mut app);
                         },
                         Command::ScrollUp => {
                             exec_scroll_up_cmd(&mut app);

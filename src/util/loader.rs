@@ -6,7 +6,6 @@ pub fn loader_from_state(loading: bool, state: u16) -> char {
         return '✓';
     }
 
-    
     if !(0..LOADER_STATE_MAX).contains(&state) {
         error!("loader_from_state - invalid state - LOADER_STATE_MAX, state: {:?}, {:?}", LOADER_STATE_MAX, state);
         panic!("loader_from_state - invalid state - LOADER_STATE_MAX, state: {:?}, {:?}", LOADER_STATE_MAX, state);

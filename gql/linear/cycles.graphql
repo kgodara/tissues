@@ -1,0 +1,15 @@
+query CyclesQuery($firstNum: Int, $afterCursor: String, $cycleFilter: CycleFilter) {
+	cycles(first: $firstNum, after: $afterCursor, filter: $cycleFilter) {
+		nodes {
+			id
+			name
+			number
+			startsAt
+			endsAt
+		}
+		pageInfo {
+			hasNextPage
+			endCursor
+		}
+	}
+}

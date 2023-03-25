@@ -3,14 +3,14 @@ use unicode_segmentation::UnicodeSegmentation;
 
 const ELLIPSIS_LEN: usize = 2;
 
+// TODO: Replace graphemes with chars()?
+
 // Accepts:
 //     content - string 
 // Returns:
 //     Some(String) with the last ELLIPSIS_LEN chars set to ellipsis
 //     None if String grapheme_len < ELLIPSIS_LEN
 pub fn set_str_end_as_ellipsis(content: &str, max_width: usize) -> Option<String> {
-
-    // debug!("set_str_end_as_ellipsis - content: {:?}", content);
 
     let grapheme_len: usize = content
         .graphemes(true)
@@ -19,7 +19,6 @@ pub fn set_str_end_as_ellipsis(content: &str, max_width: usize) -> Option<String
     let final_len: usize = cmp::min(grapheme_len, max_width);
 
     if final_len < ELLIPSIS_LEN {
-        // debug!("set_str_end_as_ellipsis - content, result_str: {:?}, None", content);
         return None;
     }
 
@@ -32,15 +31,12 @@ pub fn set_str_end_as_ellipsis(content: &str, max_width: usize) -> Option<String
         }
 
         // are we in the range of chars to be replaced by ellipsis
-        // debug!("set_str_end_as_ellipsis - {:?} - ({:?}+1) <= {:?}", final_len, idx, ELLIPSIS_LEN);
         if idx+ELLIPSIS_LEN >= final_len {
             result_str.push('.');
         } else {
             result_str.push_str(g);
         }
     }
-
-    // debug!("set_str_end_as_ellipsis - content, result_str: {:?}, {:?}", content, result_str);
 
     Some(result_str)
 

@@ -65,7 +65,7 @@ pub fn initialize() {
         // take a lock on config, and call load_config which has &mut self
         {
             let mut linear_config_lock = LINEAR_CLIENT.config.lock().unwrap();
-            if linear_config_lock.load_config().is_none() {
+            if !linear_config_lock.load_config() {
                 panic!("Failed to load config");
             }
             // set issue_page_size to 50, to simplify pagination requirements

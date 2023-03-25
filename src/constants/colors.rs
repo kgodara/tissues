@@ -13,7 +13,6 @@ pub const DASHBOARD_VIEW_LIST_TABLE_TITLE: Color = Color::Rgb(255u8, 255u8, 255u
 
 // View Panel Colors
 pub const SELECTED_COMPONENT_BORDER: Color = Color::Yellow;
-pub const API_REQ_NUM: Color = Color::Rgb(173u8, 252u8, 3u8);
 
 
 // Command Bar Colors

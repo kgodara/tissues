@@ -3,20 +3,15 @@ use std::sync::atomic::{ Ordering };
 use crate::app;
 use crate::util;
 
-use app::{ App, InputMode };
+use app::{ App };
 
 use crate::components::{
-    user_input::{ UserInput, InputContext, ValidationState, TokenValidationState },
-
     dashboard_view_config_display::DashboardViewConfigDisplay,
     dashboard_view_panel::DashboardViewPanel,
     linear_custom_view_select::LinearCustomViewSelect,
 
     linear_issue_op_interface::{ LinearIssueOpInterface, ModificationOpData },
     linear_issue_modal,
-
-    task_status_modal,
-    task_status_modal::TaskStatus,
 };
 
 use crate::util::{
@@ -38,14 +33,12 @@ use crate::linear::schema::CustomView;
 
 use tui::{
   backend::Backend,
-  layout::{Alignment, Constraint, Direction, Layout, Rect},
+  layout::{Constraint, Direction, Layout, Rect, Alignment},
   style::{ Modifier, Style },
-  text::{Span, Spans},
-  widgets::{Block, Borders, Clear, List, ListItem, Paragraph, TableState, Wrap},
+  text::{ Spans, Span },
+  widgets::{Block, Borders, Clear, List, ListItem, TableState, Paragraph, Wrap},
   Frame,
 };
-
-use serde_json::Value;
 
 
 
@@ -58,53 +51,7 @@ pub fn draw_config_interface<B>(f: &mut Frame<B>, app: & mut App)
 where
   B: Backend,
 {
-
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints(
-            [
-                Constraint::Length(2),
-                Constraint::Length(3),
-                // Constraint::Min(1),
-            ]
-            .as_ref(),
-        )
-        .split(f.size());
-    
-    {
-        let token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
-
-        f.render_widget(UserInput::render_help_msg(&app.input_mode, InputContext::Token, &ValidationState::Token(token_validation_state_lock.clone())), chunks[0]);
-        f.render_widget(UserInput::render_input_box(&app.config_interface_input.input, InputContext::Token, &app.input_mode), chunks[1]);
-    }
-
-    match app.input_mode {
-        InputMode::Normal =>
-            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
-            {}
-
-        InputMode::Editing => {
-            // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-            f.set_cursor(
-                // Put cursor past the end of the input text
-                chunks[1].x + app.config_interface_input.cursor_offset as u16,
-                // Move one line down, from the border to the input line
-                chunks[1].y + 1,
-            )
-        }
-    }
-
-    let token_validation_state_lock = app.config_interface_input.token_validation_state.lock().unwrap();
-    if *token_validation_state_lock == TokenValidationState::Validating {
-        let task_area = util::ui::centered_rect(40, 20, f.size());
-
-        f.render_widget(Clear, task_area); //this clears out the background
-
-        let task_p: Paragraph = task_status_modal::render(TaskStatus::ValidatingToken, app.loader_tick);
-
-        f.render_widget(task_p, task_area);
-    }
+    app.token_entry.render(f,app.loader_tick);
 
 }
 
@@ -118,35 +65,31 @@ where
         .constraints([Constraint::Percentage(5), Constraint::Percentage(20), Constraint::Percentage(70), Constraint::Percentage(5)].as_ref())
         .split(f.size());
 
-    
+
     // Render the viewer displayName and organization name
+    // TODO: Re-enable this
+    let viewer_obj_render_lock = app.viewer_obj_render.lock().unwrap();
+    if let Some(viewer_obj) = &*viewer_obj_render_lock {
+        let display_name = &viewer_obj.display_name;
+        let org_name = &viewer_obj.organization.name;
 
-    let linear_config_lock = app.linear_client.config.lock().unwrap();
-    if let Some(viewer_obj) = &linear_config_lock.viewer_object {
-        let display_name = &viewer_obj["displayName"];
-        let org_name = &viewer_obj["organization"]["name"];
+        let mut viewer_label: String = String::new();
+        viewer_label.push_str(display_name);
+        viewer_label.push_str(" - ");
+        viewer_label.push_str(org_name);
 
-        if let Value::String(display_name_str) = display_name {
-            if let Value::String(org_name_str) = org_name {
-
-                let mut viewer_label: String = String::new();
-                viewer_label.push_str(display_name_str);
-                viewer_label.push_str(" - ");
-                viewer_label.push_str(org_name_str);
-
-                let viewer_block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default());
-            
-                let viewer_p = Paragraph::new(Span::from(viewer_label))
-                    .block(viewer_block)
-                    .alignment(Alignment::Left)
-                    .wrap(Wrap { trim: true });
-                
-                f.render_widget(viewer_p, chunks[0]);
-            }
-        }
+        let viewer_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default());
+    
+        let viewer_p = Paragraph::new(Span::from(viewer_label))
+            .block(viewer_block)
+            .alignment(Alignment::Left)
+            .wrap(Wrap { trim: true });
+        
+        f.render_widget(viewer_p, chunks[0]);
     }
+
 
 
 
@@ -218,11 +161,6 @@ where
         let selected_view_idx = if let Some(selected_idx) = app.linear_dashboard_view_panel_selected { Some(selected_idx as u16)}
                                     else {None};
 
-        // Clone request_num to a u32
-        let req_num_handle = e.request_num.lock().unwrap();
-        let req_num: u32 = *req_num_handle;
-        drop(req_num_handle);
-
         // Get bounding-box for view panel
         let view_panel_rect = match num_views {
             1 => { ui::single_view_layout(i, chunks[2]) },
@@ -258,7 +196,6 @@ where
             row_bottom_margin: Some(0),
             view_idx: Some((i as u16)+1),
             highlight_table,
-            req_num: Some(req_num as u16),
             loading: loading_state,
             loader_state: app.loader_tick
         };
@@ -317,17 +254,6 @@ where
 
     f.render_stateful_widget(items, chunks[3], &mut app.actions.state);
 
-    // If timezone load is occurring, draw task modal
-    if app.team_tz_load_in_progress.load(Ordering::Relaxed) {
-        let task_area = util::ui::centered_rect(40, 20, f.size());
-
-        f.render_widget(Clear, task_area); //this clears out the background
-
-        let task_p: Paragraph = task_status_modal::render(TaskStatus::LoadingTeamTimezones, app.loader_tick);
-
-        f.render_widget(task_p, task_area);
-    }
-
     // Draw Issue Expanded Modal
     if let Some(issue_obj) = &app.issue_to_expand {
         let area = util::ui::centered_rect(40, 40, f.size());
@@ -349,41 +275,9 @@ where
     if app.modifying_issue && app.linear_issue_op_interface.current_op == Some(IssueModificationOp::Title) {
         let area = util::ui::centered_rect(50, 40, f.size());
 
-        let input_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .margin(2)
-            .constraints(
-                [
-                    Constraint::Length(3),
-                    Constraint::Length(1),
-                ]
-                .as_ref(),
-            )
-            .split(area);
-
         f.render_widget(Clear, area); //this clears out the background
 
-        f.render_widget(
-            UserInput::render_help_msg(&app.input_mode, InputContext::IssueTitle, &ValidationState::Title(app.issue_title_input.title_validation_state))
-                .block(Block::default().borders(Borders::ALL)),
-            input_chunks[0]);
-        f.render_widget(UserInput::render_input_box(&app.issue_title_input.input, InputContext::IssueTitle, &app.input_mode), input_chunks[1]);
-
-        match app.input_mode {
-            InputMode::Normal =>
-                // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
-                {}
-    
-            InputMode::Editing => {
-                // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-                f.set_cursor(
-                    // Put cursor past the end of the input text
-                    input_chunks[1].x + app.issue_title_input.cursor_offset as u16,
-                    // Move one line down, from the border to the input line
-                    input_chunks[1].y + 1,
-                )
-            }
-        }
+        app.title_entry.render(f, area);
     }
 
     else if app.modifying_issue {
@@ -413,7 +307,6 @@ where
             row_bottom_margin: Some(0),
             view_idx: None,
             highlight_table: true,
-            req_num: None,
             loading: app.linear_issue_op_interface.loading.load(Ordering::Relaxed),
             loader_state: app.loader_tick
         };
@@ -511,7 +404,6 @@ where
         row_bottom_margin: Some(0),
         view_idx: Some(1),
         highlight_table: app.linear_dashboard_view_list_selected,
-        req_num: None,
         loading: false,
         loader_state: app.loader_tick,
     };
@@ -552,7 +444,6 @@ where
         row_bottom_margin: Some(0),
         view_idx: Some(2),
         highlight_table: !app.linear_dashboard_view_list_selected,
-        req_num: None,
         loading: app.linear_custom_view_select.loading.load(Ordering::Relaxed),
         loader_state: app.loader_tick,
     };

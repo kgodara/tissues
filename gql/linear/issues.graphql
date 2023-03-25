@@ -1,0 +1,56 @@
+query IssuesQuery($filter: IssueFilter!, $firstNum: Int, $afterCursor: String) {
+    issues(filter: $filter, first: $firstNum, after: $afterCursor) {
+        nodes {
+            id
+            createdAt
+            number
+            dueDate
+            title
+            description
+            priority
+            estimate
+            team {
+                id
+                name
+            }
+            cycle {
+                id
+                name
+                description
+            }            
+            state {
+                id
+                name
+                type
+                description
+                color
+            }
+            creator {
+                id
+                displayName
+            }
+            assignee {
+                id
+                displayName
+            }
+            labels {
+                nodes {
+                    id
+                    name
+                    color
+                }
+            }
+            project {
+                id
+                name
+                color
+            }
+        }
+        pageInfo {
+            hasPreviousPage
+            hasNextPage
+            startCursor
+            endCursor
+        }
+    }
+}

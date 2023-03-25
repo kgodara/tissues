@@ -1,7 +1,7 @@
 
 use crate::app::App;
 
-use crate::linear::types::{ IssueRelatableObject, Issue };
+use crate::linear::{ schema::{ Issue }, client::{ IssueFieldObject } };
 
 // Accepts:
 //     app
@@ -81,23 +81,16 @@ pub fn fetch_selected_view_panel_idx(app: &App) -> Option<usize> {
 //     app
 // Returns:
 //     full JSON object (as specified in GraphQL request), or None if a Value is not selected
-pub fn fetch_selected_value(app: &App) -> Option<IssueRelatableObject> {
-    let obj_vec;
+pub fn fetch_selected_value(app: &App) -> Option<IssueFieldObject> {
 
-    if let Some(result) = app.linear_issue_op_interface.table_data_from_op() {
-        obj_vec = result
-    } else {
-        return None;
-    }
-
-    let state_idx: usize;
-
-    if let Some(x) = app.linear_issue_op_interface.selected_idx {
-        state_idx = x;
-    }
-    else {
-        return None;
-    }
+    let obj_vec = match app.linear_issue_op_interface.table_data_from_op() {
+        Some(result) => result,
+        _ => return None
+    };
+    let state_idx: usize = match app.linear_issue_op_interface.selected_idx {
+        Some(x) => x,
+        _ => return None
+    };
 
     obj_vec.get(state_idx).cloned()
 }

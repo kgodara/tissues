@@ -1,0 +1,11 @@
+mutation IssueUpdateMut($issueId: String!, $update: IssueUpdateInput!) {
+  issueUpdate(input: $update, id: $issueId) {
+    success
+    issue {
+      id
+      title
+      createdAt
+      number
+    }
+  }
+}

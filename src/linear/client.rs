@@ -1,179 +1,266 @@
-use super::config::{ LinearConfig, MAX_PAGE_SIZE };
+use super::config::{ LinearConfig };
 
-use anyhow::Result;
+use anyhow::{anyhow,Result};
+use std::{boxed::Box};
 
-use super::schema::CustomViewResponseData;
-
-// Timezone query
-
-
-// Custom View Resolver Queries
-
-use super::query::{
-    exec_fetch_custom_views,
-
-
-    exec_fetch_team_timezones,
-    exec_fetch_viewer,
-    exec_fetch_workflow_states,
-
-    exec_fetch_issue_single_endpoint,
-
-    exec_get_issue_op_data,
-    exec_update_issue,
+use crate::{
+    util::{ GraphQLCursor },
 };
 
-use std::sync::{ Arc, Mutex };
+use reqwest::header;
+use graphql_client::reqwest::post_graphql;
 
-use super::error::LinearClientError;
+use super::schema::{
 
-use serde_json::{ Value, json, Map};
+    // Custom Views
+    ViewQuery, CustomViewVariables, CustomViewResponseData,
+    // Viewer
+    ViewerQuery, ViewerVariables, ViewerResponseData,
 
+    // Cycles
+    cycles_query,
+    CyclesQuery, CyclesVariables, CyclesResponseData, Cycle,
 
-use crate::util::{
-    GraphQLCursor,
-    verify_linear_api_key_present
+    // Projects By Team
+    TeamProjectsQuery, ProjectsVariables, ProjectsResponseData, Project,
+
+    // Users By Team (Members)
+    TeamMembersQuery, TeamMembersVariables, TeamMembersResponseData, TeamMember,
+
+    // Workflow States
+    states_query,
+    StatesQuery, StatesVariables, StatesResponseData, State,
+
+    // Update Issue
+    IssueUpdateMut, IssueUpdateInput, IssueUpdateVariables, IssueUpdateResponseData,
+
+    // Issues
+    IssuesQuery, IssuesVariables, IssueFilter, IssuesResponseData,
 };
 
-use crate::constants::{
-    IssueModificationOp
-};
-
-
-pub type ClientResult = std::result::Result<Value, LinearClientError>;
-
-pub struct LinearClient {
-    pub config: Arc<Mutex<LinearConfig>>,
+pub enum IssueFieldResponse {
+    Cycles(Result<Option<CyclesResponseData>>),
+    Projects(Result<Option<ProjectsResponseData>>),
+    TeamMembers(Result<Option<TeamMembersResponseData>>),
+    States(Result<Option<StatesResponseData>>),
 }
 
-impl Default for LinearClient {
-    fn default() -> LinearClient {
-        LinearClient { config: Arc::new(Mutex::new(LinearConfig::default())) }
-    }
+#[derive(Debug, Clone)]
+pub enum IssueFieldObject {
+    Cycle(Cycle),
+    Project(Project),
+    TeamMember(TeamMember),
+    State(State),
+}
+
+
+pub struct LinearClient {
+    pub client: reqwest::Client,
+    pub config: LinearConfig,
 }
 
 impl LinearClient {
 
-    pub async fn get_custom_views(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> Result<CustomViewResponseData> {
+    pub fn with_config(config: LinearConfig) -> Result<LinearClient> {
 
-        let linear_api_key = &verify_linear_api_key_present(&linear_config)?;
-        exec_fetch_custom_views(&linear_api_key, linear_cursor.clone(), linear_config.custom_view_page_size).await
+        let linear_api_key = match &config.api_key {
+            Some(x) => x.to_string(),
+            None => return Err(anyhow!("LinearConfig missing API key")),
+        };
+
+        let mut headers = header::HeaderMap::new();
+
+        let mut auth_value = header::HeaderValue::from_str(&format!("{}", linear_api_key))?;
+        auth_value.set_sensitive(true);
+    
+        headers.insert(header::AUTHORIZATION, auth_value);
+        headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/json"));
+        
+
+        Ok(LinearClient {
+            client: reqwest::Client::builder()
+                .user_agent("tissues")
+                .default_headers(headers.clone())
+                .build()
+                .unwrap(),
+            config: config
+        })
     }
 
-    pub async fn fetch_team_timezones(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
+    pub async fn custom_views(&self, cursor_opt: Option<GraphQLCursor>) -> Result<Option<CustomViewResponseData>> {
 
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
+        let variables = CustomViewVariables {
+            first_num: Some(self.config.custom_view_page_size as i64),
+            after_cursor: if let Some(cursor) = cursor_opt { cursor.end_cursor } else { None },
+        };
+        
+        debug!("custom_views() - Variables: {:?}", variables);
 
-        let query_response = exec_fetch_team_timezones(&linear_api_key, linear_cursor, linear_config.team_timezone_page_size).await?;
-
-        let team_nodes = &query_response["data"]["teams"]["nodes"];
-        let cursor_info = &query_response["data"]["teams"]["pageInfo"];
-
-
-        Ok( json!( { "team_nodes": team_nodes, "cursor_info": cursor_info } ))
+        Ok(
+            post_graphql::<ViewQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
     }
 
-    // api_key here since hasn't been set to LinearConfig yet
-    pub async fn fetch_viewer(api_key: &str) -> ClientResult {
+    pub async fn viewer(&self) -> Result<Option<ViewerResponseData>> {
 
-        let query_response = exec_fetch_viewer(api_key).await?;
-
-        let viewer_node = &query_response["data"]["viewer"];
-        let error_node = &query_response["errors"];
-
-
-        Ok( json!( { "viewer_node": viewer_node, "error_node": error_node } ))
+        let variables = ViewerVariables{};
+        Ok(
+            post_graphql::<ViewerQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
     }
 
-    pub async fn get_issues_by_filter_data(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
+    pub async fn issues(&self, filter: IssueFilter, cursor_opt: Option<GraphQLCursor>) -> Result<Option<IssuesResponseData>> {
+        let variables = IssuesVariables {
+            first_num: Some(self.config.view_panel_page_size as i64),
+            after_cursor: if let Some(cursor) = cursor_opt { cursor.end_cursor } else { None },
+            filter: filter,
+        };
 
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
+        debug!("issues() - Variables: {:?}", variables);
 
-        let query_response = exec_fetch_issue_single_endpoint(&linear_api_key, linear_cursor, variables, linear_config.issue_page_size).await?;
-
-        let issue_nodes = &query_response["data"]["issues"]["nodes"];
-        let cursor_info = &query_response["data"]["issues"]["pageInfo"];
-
-        Ok( json!( { "issue_nodes": issue_nodes, "cursor_info": cursor_info } ))
+        Ok(
+            post_graphql::<IssuesQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
     }
 
-    // view_resolver 'filter_data' support query (workflow state name case-sensitivity)
-    pub async fn fetch_workflow_states(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>) -> ClientResult {
-        debug!("fetch_workflow_states initalized");
+    pub async fn team_cycles(&self, team_id: &str, cursor: Option<GraphQLCursor>) -> Result<Option<CyclesResponseData>> {
 
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
+        type CycleFilter = cycles_query::CycleFilter;
+        type TeamFilter = cycles_query::TeamFilter;
+        type IDComparator = cycles_query::IDComparator;
+    
+        let filter = CycleFilter {
+            id: None,
+            created_at: None,
+            updated_at: None,
+            number: None,
+            name: None,
+            starts_at: None,
+            ends_at: None,
+            completed_at: None,
+            is_active: None,
+            is_next: None,
+            is_previous: None,
+            is_future: None,
+            is_past: None,
+            team: Box::new(Some(TeamFilter{
+                id: Some( IDComparator {
+                    eq: Some(team_id.to_string()),
+                    neq: None,
+                    in_: None,
+                    nin: None,
+                }),
+                created_at: None,
+                updated_at: None,
+                name: None,
+                key: None,
+                description: None,
+                issues: Box::new(None),
+                and: Box::new(None),
+                or: Box::new(None),
+            })),
+            issues: Box::new(None),
+            and: None,
+            or: None,
+        };
+    
+        self.cycles(Some(filter), cursor).await
+    }
+    pub async fn cycles(&self, cycle_filter: Option<cycles_query::CycleFilter>, cursor_opt: Option<GraphQLCursor>) -> Result<Option<CyclesResponseData>> {
 
-        let query_response = exec_fetch_workflow_states(&linear_api_key, linear_cursor, MAX_PAGE_SIZE).await?;
-
-        let state_nodes = &query_response["data"]["workflowStates"]["nodes"];
-        let cursor_info = &query_response["data"]["workflowStates"]["pageInfo"];
-
-        Ok( json!( { "state_nodes": state_nodes, "cursor_info": cursor_info } ))
+        let variables = CyclesVariables {
+            first_num: Some(self.config.issue_op_page_size as i64),
+            after_cursor: if let Some(cursor) = cursor_opt { cursor.end_cursor } else { None },
+            cycle_filter: cycle_filter,
+        };
+        Ok(
+            post_graphql::<CyclesQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
     }
 
-    // Issue Modification Queries
-
-    pub async fn get_workflow_states_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::WorkflowState, variables);
-
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
-
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::WorkflowState, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
-
-        let workflow_state_nodes = &query_response["data"]["team"]["states"]["nodes"];
-        let cursor_info = &query_response["data"]["team"]["states"]["pageInfo"];
-
-        Ok( json!( { "data_nodes": workflow_state_nodes, "cursor_info": cursor_info } ))
-    }
-    pub async fn get_users_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::Assignee, variables);
-
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
-
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::Assignee, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
-
-        let user_nodes = &query_response["data"]["team"]["members"]["nodes"];
-        let cursor_info = &query_response["data"]["team"]["members"]["pageInfo"];
-
-        Ok( json!( { "data_nodes": user_nodes, "cursor_info": cursor_info } ))
-    }
-    pub async fn get_projects_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::Project, variables);
-
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
-
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::Project, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
-
-        let project_nodes = &query_response["data"]["team"]["projects"]["nodes"];
-        let cursor_info = &query_response["data"]["team"]["projects"]["pageInfo"];
-
-        Ok( json!( { "data_nodes": project_nodes, "cursor_info": cursor_info } ))
-    }
-    pub async fn get_cycles_by_team(linear_config: LinearConfig, linear_cursor: Option<GraphQLCursor>, variables: Map<String, Value>) -> ClientResult {
-        info!("Calling exec_get_issue_op_data - {:?} - variables: {:?}", IssueModificationOp::Cycle, variables);
-
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
-
-        let query_response = exec_get_issue_op_data(&IssueModificationOp::Cycle, &linear_api_key, linear_cursor, variables, linear_config.issue_op_page_size).await?;
-
-        let cycle_nodes = &query_response["data"]["team"]["cycles"]["nodes"];
-        let cursor_info = &query_response["data"]["team"]["cycles"]["pageInfo"];
-
-        Ok( json!( { "data_nodes": cycle_nodes, "cursor_info": cursor_info } ))
+    pub async fn team_projects(&self, team_id: &str, cursor_opt: Option<GraphQLCursor>) -> Result<Option<ProjectsResponseData>> {
+        let variables = ProjectsVariables {
+            first_num: Some(self.config.issue_op_page_size as i64),
+            after_cursor: if let Some(cursor) = cursor_opt { cursor.end_cursor } else { None },
+            ref_: team_id.to_string(),
+        };
+        
+        Ok(
+            post_graphql::<TeamProjectsQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
     }
 
-    // Note: These operations generally don't return a different response even if trying to set a property to the currently set value
-    pub async fn update_issue(op: &IssueModificationOp, linear_config: LinearConfig, variables: Map<String, Value>) -> ClientResult {
-        debug!("update_issue - {:?} - variables: {:?}", op, variables);
-
-        let linear_api_key = verify_linear_api_key_present(&linear_config)?;
-
-        let query_response = exec_update_issue(op, &linear_api_key, variables).await?;
-
-        let issue_node = &query_response["data"]["issueUpdate"]["issue"];
-        let success = &query_response["data"]["issueUpdate"]["success"];
-
-        Ok( json!( { "issue_response": issue_node, "success": success } ) )
+    pub async fn team_members(&self, team_id: &str, cursor_opt: Option<GraphQLCursor>) -> Result<Option<TeamMembersResponseData>> {
+        let variables = TeamMembersVariables {
+            first_num: Some(self.config.issue_op_page_size as i64),
+            after_cursor: if let Some(cursor) = cursor_opt { cursor.end_cursor } else { None },
+            ref_: team_id.to_string(),
+        };
+        Ok(
+            post_graphql::<TeamMembersQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
     }
+
+    pub async fn team_states(&self, team_id: &str, cursor: Option<GraphQLCursor>) -> Result<Option<StatesResponseData>> {
+
+        type StateFilter = states_query::WorkflowStateFilter;
+        type TeamFilter = states_query::TeamFilter;
+        type IDComparator = states_query::IDComparator;
+    
+        let filter = StateFilter {
+            id: None,
+            created_at: None,
+            updated_at: None,
+            name: None,
+            description: None,
+            position: None,
+            type_: None,
+            team: Box::new(Some(TeamFilter{
+                id: Some( IDComparator {
+                    eq: Some(team_id.to_string()),
+                    neq: None,
+                    in_: None,
+                    nin: None,
+                }),
+                created_at: None,
+                updated_at: None,
+                name: None,
+                key: None,
+                description: None,
+                issues: Box::new(None),
+                and: Box::new(None),
+                or: Box::new(None),
+            })),
+            issues: Box::new(None),
+            and: Box::new(None),
+            or: Box::new(None),
+        };
+    
+        self.states(filter, cursor).await
+    
+    }
+    pub async fn states(&self, state_filter: states_query::WorkflowStateFilter, cursor_opt: Option<GraphQLCursor>) -> Result<Option<StatesResponseData>> {
+    
+        let variables = StatesVariables {
+            first_num: Some(self.config.issue_op_page_size as i64),
+            after_cursor: if let Some(cursor) = cursor_opt { cursor.end_cursor } else { None },
+            state_filter: Some(state_filter)
+        };
+        Ok(
+            post_graphql::<StatesQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
+    }
+
+    // Note: Idempotent
+    pub async fn update_issue(&self, issue_id: &str, update: IssueUpdateInput) -> Result<Option<IssueUpdateResponseData>> {
+
+        let variables = IssueUpdateVariables {
+            issue_id: issue_id.to_string(),
+            update,
+        };
+        Ok(
+            post_graphql::<IssueUpdateMut, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+        )
+    }
+
 }

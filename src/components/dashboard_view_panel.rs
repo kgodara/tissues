@@ -15,8 +15,7 @@ use tui::{
 
 
 use crate::linear::{
-    types::{ Issue },
-    schema::CustomView,
+    schema::{ Issue, CustomView }
 };
 
 use crate::util::{
@@ -35,7 +34,6 @@ pub struct DashboardViewPanel {
     pub view: CustomView,
     pub issue_table_data: Arc<Mutex<Vec<Issue>>>,
     pub view_cursor: Arc<Mutex<Option<GraphQLCursor>>>,
-    pub request_num: Arc<Mutex<u32>>,
     pub loading: Arc<AtomicBool>,
 }
 
@@ -45,7 +43,6 @@ impl DashboardViewPanel {
             view: f,
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
             view_cursor: Arc::new(Mutex::new(None)),
-            request_num: Arc::new(Mutex::new(0)),
             loading: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -157,7 +154,6 @@ impl Default for DashboardViewPanel {
             view: CustomView::default(),
             issue_table_data: Arc::new(Mutex::new(Vec::new())),
             view_cursor: Arc::new(Mutex::new(None)),
-            request_num: Arc::new(Mutex::new(0)),
             loading: Arc::new(AtomicBool::new(false)),
         }
     }
