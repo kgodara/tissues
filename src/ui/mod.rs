@@ -156,21 +156,13 @@ where
     let view_panel_handle = app.linear_dashboard_view_panel_list.lock().unwrap();
     let num_views = view_panel_handle.len();
 
+    let mut layout_rects = ui::view_layout(num_views, chunks[2]);
+
     for (i, e) in view_panel_handle.iter().enumerate() {
         let view_data_handle = e.issue_table_data.lock().unwrap();
-        let selected_view_idx = if let Some(selected_idx) = app.linear_dashboard_view_panel_selected { Some(selected_idx as u16)}
-                                    else {None};
 
         // Get bounding-box for view panel
-        let view_panel_rect = match num_views {
-            1 => { ui::single_view_layout(i, chunks[2]) },
-            2 => { ui::double_view_layout(i, chunks[2]) },
-            3 => { ui::three_view_layout(i, chunks[2]) },
-            4 => { ui::four_view_layout(i, chunks[2]) },
-            5 => { ui::five_view_layout(i, chunks[2]) },
-            6 => { ui::six_view_layout(i, chunks[2]) },
-            _ => {continue;},
-        };
+        let view_panel_rect = layout_rects.pop().unwrap();
 
         // subtract 2 from width to account for single character table borders
         let view_panel_content_rect = Rect::new(view_panel_rect.x, view_panel_rect.y, view_panel_rect.width-2, view_panel_rect.height);
@@ -179,12 +171,10 @@ where
 
 
         // Create TableStyle for ViewPanel
-
         let highlight_table: bool = 
-            if let Some(selected_idx) = selected_view_idx {
-                selected_idx == ((i as u16)+1)
-            } else {
-                false
+            match app.linear_dashboard_view_panel_selected {
+                Some(selected_idx) => selected_idx == i+1,
+                None => false
             };
 
         // Get 'loading' bool from ViewPanel
@@ -207,22 +197,15 @@ where
                 view_panel_table_style
             )
         {
-
             // Determine if this view panel is currently selected
-            let mut is_selected = false;
-            if let Some(selected_view_panel_idx) = app.linear_dashboard_view_panel_selected {
-                if selected_view_panel_idx == (i+1) {
-                    is_selected = true;
-                }
-            }
+            let is_selected: bool = 
+                match app.linear_dashboard_view_panel_selected {
+                    Some(selected_view_panel_idx) => selected_view_panel_idx == (i+1),
+                    None => false
+                };
 
             // Determine the correct TableState, depending on if this view is selected or not
-            let table_state_option = if is_selected { app.view_panel_issue_selected.clone() } else { None };
-
-            let mut table_state = match table_state_option {
-                Some(table_state_val) => { table_state_val },
-                None => { TableState::default() }
-            };
+            let mut table_state = if is_selected { app.view_panel_issue_selected.clone().unwrap_or_default() } else { TableState::default() };
 
             view_panel_table = view_panel_table.widths(&widths);
 

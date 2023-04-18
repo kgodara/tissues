@@ -5,10 +5,10 @@ use tui::{
 
 use colorsys::{Rgb};
 
-
-
 // Useful for modals
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+
+
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -62,191 +62,49 @@ pub fn hex_str_from_style_color(color: &Color) -> Option<String> {
     }
 }
 
-// View Panel Arrangements
-pub fn single_view_layout(idx: usize, r: Rect) -> Rect {
-    if idx != 0 {
-        panic!("idx must be 0 for single view layout, requested {:?}", idx);
+
+pub fn view_layout(num_views: usize, r: Rect) -> Vec<Rect> {
+
+    // TODO: make this configurable
+    let views_per_row: usize = 2;
+    let num_rows: usize = (num_views / views_per_row) + (num_views % views_per_row);
+
+    let mut vertical_constraints: Vec<Constraint> = Vec::new();
+
+    for _row in 0..num_rows {
+        vertical_constraints.push(Constraint::Percentage(100/(num_rows as u16)));
     }
-    r
-}
 
-pub fn double_view_layout(idx: usize, r: Rect) -> Rect {
-
-    if idx > 1 {
-        panic!("double_view_layout invalid idx: {:?}", idx);
-    }
-
-    let popup_layout = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints(
-        [
-            Constraint::Percentage(100)
-        ]
-        .as_ref(),
-    )
-    .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
+    let mut row_rects = Layout::default()
+        .direction(Direction::Vertical)
         .constraints(
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ]
-            .as_ref(),
+            vertical_constraints,
         )
-        .split(popup_layout[0])[idx]
-}
+        .split(r);
+    row_rects.reverse();
 
-pub fn three_view_layout(idx: usize, r: Rect) -> Rect {
-    if idx > 2 {
-        panic!("three_view_layout invalid idx: {:?}", idx);
-    }
+    let mut final_rects: Vec<Rect> = Vec::new();
+    
+    let mut rem: usize = num_views;
+    for row_idx in 0..num_rows {
+        let mut horizontal_constraints: Vec<Constraint> = Vec::new();
 
-    let popup_layout = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints(
-        [
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ]
-        .as_ref(),
-    )
-    .split(r);
+        for _col in 0..rem.min(views_per_row) {
+            horizontal_constraints.push(Constraint::Percentage(100/(rem.min(views_per_row) as u16)));
+        }
 
-    if idx == 0 {
-        return Layout::default()
+        let mut row_cols = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(
-                [
-                    Constraint::Percentage(100),
-                ]
-                .as_ref(),
+                horizontal_constraints,
             )
-            .split(popup_layout[0])[0];
+            .split(row_rects[row_idx]);
+        row_cols.reverse();
+        
+        final_rects.extend(row_cols);
+
+        rem = rem.saturating_sub(views_per_row);
     }
 
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[1])[idx-1]
-}
-
-pub fn four_view_layout(idx: usize, r: Rect) -> Rect {
-    if idx > 3 {
-        panic!("four_view_layout invalid idx: {:?}", idx);
-    }
-
-    let vertical_idx = if idx < 2 { 0 } else { 1 };
-    let horizontal_idx = if idx % 2 == 0 { 0 } else { 1 };
-
-    let popup_layout = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints(
-        [
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ]
-        .as_ref(),
-    )
-    .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[vertical_idx])[horizontal_idx]
-}
-
-pub fn five_view_layout(idx: usize, r: Rect) -> Rect {
-    if idx > 4 {
-        panic!("five_view_layout invalid idx: {:?}", idx);
-    }
-
-    let mut vertical_idx = 0;
-    let mut horizontal_idx = 0;
-
-    if idx > 0 {
-        vertical_idx = if (idx-1) < 2 { 0 } else { 1 };
-        horizontal_idx = if (idx-1) % 2 == 0 { 0 } else { 1 };
-    }
-
-    let popup_layout = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints(
-        [
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
-            Constraint::Percentage(34),
-        ]
-        .as_ref(),
-    )
-    .split(r);
-
-    if idx == 0 {
-        return Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(
-                    [
-                        Constraint::Percentage(100),
-                    ]
-                    .as_ref(),
-                )
-                .split(popup_layout[0])[0]
-    }
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[vertical_idx+1])[horizontal_idx]
-    
-}
-
-pub fn six_view_layout(idx: usize, r: Rect) -> Rect {
-    if idx > 5 {
-        panic!("six_view_layout invalid idx: {:?}", idx);
-    }
-
-    let vertical_idx = if idx < 2 { 0 } else if idx < 4 { 1 } else { 2 };
-    let horizontal_idx = if idx % 2 == 0 { 0 } else { 1 };
-
-    let popup_layout = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints(
-        [
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
-            Constraint::Percentage(34),
-        ]
-        .as_ref(),
-    )
-    .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[vertical_idx])[horizontal_idx]
+    final_rects
 }
