@@ -22,6 +22,7 @@ use crate::linear::{
 };
 
 use crate::util::{
+    error_panic,
     table::{ empty_str_to_fallback, format_cell_fields,
         get_row_height, row_min_render_height, colored_cell,
         TableStyle, gen_table_title_spans,
@@ -137,8 +138,7 @@ impl LinearIssueOpInterface {
                 obj_data_lock.cycles = Vec::default();
             },
             _ => {
-                error!("reset_op: invalid LinearIssueOpInterface::current_op: {:?}", self.current_op);
-                panic!("reset_op: invalid LinearIssueOpInterface::current_op: {:?}", self.current_op);
+                error_panic!("reset_op: invalid LinearIssueOpInterface::current_op: {:?}", self.current_op);
             }
         };
 
@@ -247,9 +247,8 @@ impl LinearIssueOpInterface {
                 IssueModificationOp::Assignee => { &*ASSIGNEE_SELECT_COLUMNS },
                 IssueModificationOp::Project => { &*PROJECT_SELECT_COLUMNS },
                 IssueModificationOp::Cycle => { &*CYCLE_SELECT_COLUMNS },
-                _ => { 
-                    error!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
-                    panic!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
+                _ => {
+                    error_panic!("LinearIssueOpInterface::render - header_cells invalid IssueModificationOp: {:?}", op);
                 }
             }
             .iter()

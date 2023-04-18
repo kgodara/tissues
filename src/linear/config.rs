@@ -9,6 +9,8 @@ use crate::linear::schema::{CustomView, Viewer};
 
 use crate::constants::LINEAR_TOKEN_LEN;
 
+use crate::util::error_panic;
+
 const CONFIG_DIR: &str = ".config";
 const APP_CONFIG_DIR: &str = "rust-cli";
 
@@ -95,16 +97,14 @@ impl LinearConfig {
                 if !home_config_dir.exists() {
                     let res = fs::create_dir(&home_config_dir);
                     if res.is_err() {
-                        error!("get_or_build_paths() fs::create_dir() failed: {:?}", home_config_dir);
-                        panic!("get_or_build_paths() fs::create_dir() failed: {:?}", home_config_dir);
+                        error_panic!("get_or_build_paths() fs::create_dir() failed: {:?}", home_config_dir);
                     }
                 }
 
                 if !app_config_dir.exists() {
                     let res = fs::create_dir(&app_config_dir);
                     if res.is_err() {
-                        error!("get_or_build_paths() fs::create_dir() failed: {:?}", app_config_dir);
-                        panic!("get_or_build_paths() fs::create_dir() failed: {:?}", app_config_dir);
+                        error_panic!("get_or_build_paths() fs::create_dir() failed: {:?}", app_config_dir);
                     }
                 }
                 let file_path = match data_file {
@@ -115,8 +115,7 @@ impl LinearConfig {
                 file_path.to_path_buf()
             }
             None => {
-                error!("No $HOME directory found for config");
-                panic!("No $HOME directory found for config");
+                error_panic!("No $HOME directory found for config");
             },
         }
     }
@@ -168,8 +167,7 @@ impl LinearConfig {
                     config.api_key = Some(token_val);
                 },
                 Err(_) => {
-                    error!("load_config - fs::read_to_string() failed: {:?}", config_file_path);
-                    panic!("load_config - fs::read_to_string() failed: {:?}", config_file_path);
+                    error_panic!("load_config - fs::read_to_string() failed: {:?}", config_file_path);
                 },
             }
         } else {
@@ -190,8 +188,7 @@ impl LinearConfig {
                     config.viewer_object = Some(viewer_obj);
                 },
                 Err(_) => {
-                    error!("load_config - fs::read_to_string() failed: {:?}", viewer_obj_file_path);
-                    panic!("load_config - fs::read_to_string() failed: {:?}", viewer_obj_file_path);
+                    error_panic!("load_config - fs::read_to_string() failed: {:?}", viewer_obj_file_path);
                 },
             }
         }
@@ -224,15 +221,13 @@ impl LinearConfig {
                     },
                     // Return None if file is not found, otherwise panic
                     Err(io_err) => {
-                        // error!("read_view_list() error - {:?}", io_err);
-                        // panic!("read_view_list() error - {:?}", io_err);
+                        // error_panic!("read_view_list() error - {:?}", io_err);
                         match io_err.kind() {
                             std::io::ErrorKind::NotFound => {
                                 return None;
                             },
                             _ => {
-                                error!("read_view_list() error - {:?}", io_err);
-                                panic!("read_view_list() error - {:?}", io_err);
+                                error_panic!("read_view_list() error - {:?}", io_err);
                             }
                         }
                     }

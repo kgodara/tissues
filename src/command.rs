@@ -7,7 +7,7 @@ use std::sync::atomic::{ Ordering };
 
 use crate::app::{App, Platform, AppEvent, Route, InputMode};
 use crate::util::{
-    state_table,
+    table_state,
     dashboard::{ fetch_selected_view_panel_issue, fetch_selected_view_panel_idx, },
     event_crossterm::{ Events },
 };
@@ -359,7 +359,7 @@ pub fn exec_select_view_panel_cmd(app: &mut App<'_>, view_panel_idx: usize) {
             // select initial issue in newly selected view panel
             if !view_panel_handle.is_empty() {
                 let mut table_state = TableState::default();
-                state_table::next(&mut table_state, &view_panel_handle);
+                table_state::next(&mut table_state, &view_panel_handle);
 
                 app.view_panel_issue_selected = Some( table_state );
             }
@@ -392,7 +392,7 @@ pub fn exec_select_custom_view_select_cmd(app: &mut App) {
 
     if !custom_view_select_handle.is_empty() {
         let mut table_state = TableState::default();
-        state_table::next(&mut table_state, &custom_view_select_handle);
+        table_state::next(&mut table_state, &custom_view_select_handle);
 
         app.linear_selected_custom_view_idx = table_state.selected();
         app.linear_custom_view_select.view_table_state = table_state;
@@ -674,7 +674,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                     }
 
                     // if called with len()=0, panics
-                    let is_last_element = state_table::is_last_element(& app.linear_issue_op_interface.data_state, &issue_op_obj_vec);
+                    let is_last_element = table_state::is_last_element(& app.linear_issue_op_interface.data_state, &issue_op_obj_vec);
                     let cursor_has_next_page;
 
                     {
@@ -688,7 +688,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                         load_paginated = true;
                     }
                     else {
-                        state_table::next(&mut app.linear_issue_op_interface.data_state, &issue_op_obj_vec);
+                        table_state::next(&mut app.linear_issue_op_interface.data_state, &issue_op_obj_vec);
                         app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
                     }
                 }
@@ -715,7 +715,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                         //      If true: dispatch event to load next page view panel
                         //          and merge with current app.view_panel_list_handle[view_panel_selected_idx-1].issue_table_data
 
-                        let is_last_element = state_table::is_last_element(table_state, &view_panel_issue_handle);
+                        let is_last_element = table_state::is_last_element(table_state, &view_panel_issue_handle);
                         let cursor_is_exhausted = if let Some(cursor) = &*view_panel_cursor_handle {
                                 cursor.platform == Platform::Linear && !cursor.has_next_page
                             }
@@ -732,7 +732,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                         // Not at end of list, scroll down
                         else {
                             // debug!("exec_scroll_down_cmd() attempting to scroll down");
-                            app.view_panel_issue_selected = Some(state_table::with_next(table_state, &view_panel_issue_handle));
+                            app.view_panel_issue_selected = Some(table_state::with_next(table_state, &view_panel_issue_handle));
                         }
                     }
                 }
@@ -740,7 +740,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                 //     select next issue
                 else if !view_panel_issue_handle.is_empty() {
                     let mut table_state = TableState::default();
-                    state_table::next(&mut table_state, &view_panel_issue_handle);
+                    table_state::next(&mut table_state, &view_panel_issue_handle);
 
                     app.view_panel_issue_selected = Some( table_state );
                 }
@@ -765,7 +765,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
         // Select next Custom View Slot
         Route::DashboardViewDisplay => {
             if app.linear_dashboard_view_list_selected {
-                state_table::next(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+                table_state::next(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
                 app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
             }
             // Select next custom view from list of Linear custom views and update 'app.linear_selected_custom_view_idx'
@@ -787,7 +787,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                     }
 
                     // if called with len()=0, panics
-                    let is_last_element = state_table::is_last_element(& app.linear_custom_view_select.view_table_state, handle);
+                    let is_last_element = table_state::is_last_element(& app.linear_custom_view_select.view_table_state, handle);
                     let cursor_has_next_page;
 
                     {
@@ -799,7 +799,7 @@ pub fn exec_scroll_down_cmd(app: &mut App) {
                         load_paginated = true;
                     }
                     else {
-                        state_table::next(&mut app.linear_custom_view_select.view_table_state, handle);
+                        table_state::next(&mut app.linear_custom_view_select.view_table_state, handle);
                         app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
                     }
                 }
@@ -837,7 +837,7 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
                 debug!("Attempting to scroll up on IssueOpInterface - data_lock, data_state: {:?}, {:?}", obj_vec, data_state);
 
-                state_table::previous(data_state, &obj_vec);
+                table_state::previous(data_state, &obj_vec);
                 app.linear_issue_op_interface.selected_idx = app.linear_issue_op_interface.data_state.selected();
             }
 
@@ -849,14 +849,14 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
 
                 if let Some(table_state) = &app.view_panel_issue_selected {
                     if !view_panel_issue_handle.is_empty() {
-                        app.view_panel_issue_selected = Some(state_table::with_previous(table_state, &view_panel_issue_handle));
+                        app.view_panel_issue_selected = Some(table_state::with_previous(table_state, &view_panel_issue_handle));
                     }
                 }
                 // If a View panel is selected && no issue is selected && panel has issues:
                 //     select next issue
                 else if !view_panel_issue_handle.is_empty() {
                     let mut table_state = TableState::default();
-                    state_table::next(&mut table_state, &view_panel_issue_handle);
+                    table_state::next(&mut table_state, &view_panel_issue_handle);
 
                     app.view_panel_issue_selected = Some( table_state );
                 }
@@ -874,7 +874,7 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
         // Select previous Custom View Slot
         Route::DashboardViewDisplay => {
             if app.linear_dashboard_view_list_selected {
-                state_table::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
+                table_state::previous(&mut app.dashboard_view_display.view_table_state, &app.linear_dashboard_view_list);
                 app.linear_dashboard_view_idx = app.dashboard_view_display.view_table_state.selected();
             }
             else {
@@ -887,7 +887,7 @@ pub fn exec_scroll_up_cmd(app: &mut App) {
                 }
 
                 // if called with len()=0, panics
-                state_table::previous(&mut app.linear_custom_view_select.view_table_state, handle);
+                table_state::previous(&mut app.linear_custom_view_select.view_table_state, handle);
                 app.linear_selected_custom_view_idx = app.linear_custom_view_select.view_table_state.selected();
             }
         }

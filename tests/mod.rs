@@ -1,3 +1,4 @@
+// TODO: Refactor this to account for querying changes
 
 #[macro_use] extern crate log;
 extern crate simplelog;

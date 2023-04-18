@@ -23,7 +23,7 @@ use std::collections::{HashSet};
 
 use crate::util::{
     dashboard::fetch_selected_value, dashboard::fetch_selected_view_panel_issue, GraphQLCursor,
-    StatefulList,
+    stateful_list::StatefulList,
 };
 
 use crate::components::{
@@ -197,7 +197,7 @@ impl<'a> Default for App<'a> {
             modifying_issue: false,
             linear_issue_op_interface: LinearIssueOpInterface::default(),
 
-            actions: util::StatefulList::with_items(vec!["Modify Dashboard"]).selected(),
+            actions: StatefulList::with_items(vec!["Modify Dashboard"]).selected(),
         }
     }
 }
@@ -356,8 +356,7 @@ impl<'a> App<'a> {
                                 .end_cursor,
                         };
                     } else {
-                        error!("LoadCustomViews error: {:?}", res);
-                        panic!("LoadCustomViews error: {:?}", res);
+                        util::error_panic!("LoadCustomViews error: {:?}",res);
                     }
 
                     info!(
@@ -735,8 +734,7 @@ impl<'a> App<'a> {
                         }
                         _ => {
                             // TODO: Improve message
-                            error!("IssueFieldResponse Error");
-                            panic!("IssueFieldResponse Error");
+                            util::error_panic!("IssueFieldResponse Error");
                         }
                     }
                 });

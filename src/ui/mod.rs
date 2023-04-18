@@ -146,8 +146,7 @@ where
     if let Ok(cmd_items) = app.view_panel_cmd_bar.render() {
         f.render_widget(cmd_items, chunks[1]);
     } else {
-        error!("draw_action_select - app.view_panel_cmd_bar.render() failed");
-        panic!("draw_action_select - app.view_panel_cmd_bar.render() failed");
+        util::error_panic!("draw_action_select - app.view_panel_cmd_bar.render() failed"); 
     }
 
     
@@ -270,8 +269,7 @@ where
         let current_op: &IssueModificationOp = if let Some(op) = &app.linear_issue_op_interface.current_op {
             op
         } else {
-            error!("draw_action_select - app.linear_issue_op_interface.current_op must be Some(): {:?}", &app.linear_issue_op_interface.current_op);
-            panic!("draw_action_select - app.linear_issue_op_interface.current_op must be Some(): {:?}", &app.linear_issue_op_interface.current_op)
+            util::error_panic!("draw_action_select - app.linear_issue_op_interface.current_op must be Some(): {:?}", &app.linear_issue_op_interface.current_op);
         };
 
         let issue_op_chunks = Layout::default()
@@ -357,8 +355,7 @@ where
     if let Ok(cmd_items) = app.dashboard_view_config_cmd_bar.render() {
         f.render_widget(cmd_items, chunks[0]);
     } else {
-        error!("draw_dashboard_view_config - app.dashboard_view_config_cmd_bar.render() failed");
-        panic!("draw_dashboard_view_config - app.dashboard_view_config_cmd_bar.render() failed");
+        util::error_panic!("draw_dashboard_view_config - app.dashboard_view_config_cmd_bar.render() failed");
     }
 
 
@@ -409,8 +406,7 @@ where
 
         f.render_stateful_widget(view_display_table, bottom_row_chunks[0], &mut table_state);
     } else {
-        error!("draw_dashboard_view_config - DashboardViewConfigDisplay::get_rendered_view_table failed");
-        panic!("draw_dashboard_view_config - DashboardViewConfigDisplay::get_rendered_view_table failed");
+        util::error_panic!("draw_dashboard_view_config - DashboardViewConfigDisplay::get_rendered_view_table failed");
     }
 
 
@@ -448,8 +444,7 @@ where
 
         f.render_stateful_widget(view_select_table, bottom_row_chunks[1], &mut custom_view_table_state);
     } else {
-        error!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
-        panic!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
+        util::error_panic!("draw_dashboard_view_config - LinearCustomViewSelect::get_rendered_view_data failed");
     }
 
 }

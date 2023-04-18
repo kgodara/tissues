@@ -1,10 +1,10 @@
-use tui::widgets::ListState;
-
 // pub mod event;
 pub mod event_crossterm;
 
-pub mod state_list;
-pub mod state_table;
+pub mod stateful_list;
+
+pub mod list_state;
+pub mod table_state;
 
 pub mod ui;
 
@@ -19,66 +19,10 @@ pub mod loader;
 
 pub mod table;
 
-
-
-// StatefulList with non-instance methods
-#[derive(Debug)]
-pub struct StatefulList<T> {
-    pub state: ListState,
-    pub items: Vec<T>,
+macro_rules! error_panic {
+    ($($arg:tt)*) => {
+        error!($($arg)*);
+        panic!($($arg)*);
+    };
 }
-
-impl<T> StatefulList<T> {
-    pub fn new() -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items: Vec::new(),
-        }
-    }
-
-    pub fn with_items(items: Vec<T>) -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items,
-        }
-    }
-
-    pub fn selected(mut self) -> StatefulList<T> {
-        self.next();
-        self
-    }
-
-    pub fn next(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i >= self.items.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-
-    pub fn previous(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.items.len() - 1
-                } else {
-                    i - 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    pub fn unselect(&mut self) {
-        self.state.select(None);
-    }
-
-}
+pub(crate) use error_panic;

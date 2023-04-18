@@ -9,6 +9,8 @@ use crate::constants::{
     command_list::{ Command, DashboardCommand, ViewListCommand, CommandList }
 };
 
+use crate::util::error_panic;
+
 #[derive(Debug)]
 pub enum CommandBarType {
     Dashboard,
@@ -65,8 +67,7 @@ impl<'a> CommandBar<'a> {
                 self.refresh_panel_active = state;
             },
             _ => {
-                error!("'set_refresh_panel_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_refresh_panel_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_refresh_panel_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -77,8 +78,7 @@ impl<'a> CommandBar<'a> {
                 self.expand_issue_active = state;
             },
             _ => {
-                error!("'set_expand_issue_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_expand_issue_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_expand_issue_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -89,8 +89,7 @@ impl<'a> CommandBar<'a> {
                 self.modify_title_active = state;
             },
             _ => {
-                error!("'set_modify_title_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_modify_title_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_modify_title_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -101,8 +100,7 @@ impl<'a> CommandBar<'a> {
                 self.modify_workflow_state_active = state;
             },
             _ => {
-                error!("'set_modify_workflow_state_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_modify_workflow_state_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_modify_workflow_state_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -113,8 +111,7 @@ impl<'a> CommandBar<'a> {
                 self.modify_assignee_active = state;
             },
             _ => {
-                error!("'set_modify_assignee_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_modify_assignee_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_modify_assignee_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -125,8 +122,7 @@ impl<'a> CommandBar<'a> {
                 self.modify_project_active = state;
             },
             _ => {
-                error!("'set_modify_project_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_modify_project_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_modify_project_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -137,8 +133,7 @@ impl<'a> CommandBar<'a> {
                 self.modify_cycle_active = state;
             },
             _ => {
-                error!("'set_modify_cycle_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_modify_cycle_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_modify_cycle_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         }
     }
@@ -151,8 +146,7 @@ impl<'a> CommandBar<'a> {
                 self.remove_view_active = state;
             },
             _ => {
-                error!("'set_remove_view_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
-                panic!("'set_remove_view_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
+                error_panic!("'set_remove_view_active' called on CommandBar with invalid CommandBarType: {:?}", self.command_bar_type);
             },
         };
     }
@@ -216,8 +210,7 @@ impl<'a> CommandBar<'a> {
                         }
                     },
                     _ => {
-                        error!("get_command_style - CommandBarType::Dashboard requires Command::Dashboard(), received: {:?}", cmd);
-                        panic!("get_command_style - CommandBarType::Dashboard requires Command::Dashboard(), received: {:?}", cmd);
+                        error_panic!("get_command_style - CommandBarType::Dashboard requires Command::Dashboard(), received: {:?}", cmd);
                     }
                 }
             },
@@ -236,8 +229,7 @@ impl<'a> CommandBar<'a> {
                     },
                     // Error
                     _ => {
-                        error!("get_command_style - CommandBarType::ViewList requires Command::ViewList(), received: {:?}", cmd);
-                        panic!("get_command_style - CommandBarType::ViewList requires Command::ViewList(), received: {:?}", cmd);
+                        error_panic!("get_command_style - CommandBarType::ViewList requires Command::ViewList(), received: {:?}", cmd);
                     }
                 }
             }

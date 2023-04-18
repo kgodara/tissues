@@ -12,6 +12,7 @@ use tui::{
 use crate::util::{
     ui::{ style_color_from_hex_str },
     layout::{ format_str_with_wrap },
+    error_panic,
 };
 
 use crate::util::loader::{ loader_from_state };
@@ -105,8 +106,7 @@ pub fn format_cell_fields(cell_fields: &[String], widths: &[Constraint], columns
                     if let Some(uniform_height) = col_height { uniform_height } else { columns[idx].max_height }
                 )
             } else {
-                error!("format_cell_fields - Constraint must be Constraint::Length: {:?}", widths[idx]);
-                panic!("format_cell_fields - Constraint must be Constraint::Length: {:?}", widths[idx]);
+                error_panic!("format_cell_fields - Constraint must be Constraint::Length: {:?}", widths[idx]);
             }
         })
         .collect()
@@ -122,8 +122,7 @@ pub fn row_min_render_height(cell_fields: &[String], widths: &[Constraint], col_
         if let Constraint::Length(width_num) = widths[field_idx] {
             min( wrap( &cell_fields[field_idx], width_num as usize).len(), col_defs[field_idx].max_height as usize ) as u16
         } else {
-            error!("row_max_render_height() - Constraint must be Constraint::Length: {:?}", widths[field_idx]);
-            panic!("row_max_render_height() - Constraint must be Constraint::Length: {:?}", widths[field_idx]);
+            error_panic!("row_max_render_height() - Constraint must be Constraint::Length: {:?}", widths[field_idx]);
         }
     })
     .max()

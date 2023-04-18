@@ -24,9 +24,9 @@ pub enum Event<I> {
 /// type is handled in its own thread and returned to a common `Receiver`
 pub struct Events {
     rx: mpsc::Receiver<Event<KeyCode>>,
-    input_handle: thread::JoinHandle<()>,
+    _input_handle: thread::JoinHandle<()>,
     ignore_exit_key: Arc<AtomicBool>,
-    tick_handle: thread::JoinHandle<()>,
+    _tick_handle: thread::JoinHandle<()>,
 }
 
 const DEFAULT_TICK_RATE: u64 = 250;
@@ -60,7 +60,7 @@ impl Events {
         let ignore_exit_key = Arc::new(AtomicBool::new(false));
 
 
-        let input_handle = {
+        let _input_handle = {
             let tx = tx.clone();
             let ignore_exit_key = ignore_exit_key.clone();
             thread::spawn(move || {
@@ -84,7 +84,7 @@ impl Events {
             })
         };
 
-        let tick_handle = {
+        let _tick_handle = {
             thread::spawn(move || loop {
                 if tx.send(Event::Tick).is_err() {
                     break;
@@ -96,8 +96,8 @@ impl Events {
         Events {
             rx,
             ignore_exit_key,
-            input_handle,
-            tick_handle,
+            _input_handle,
+            _tick_handle,
         }
     }
 

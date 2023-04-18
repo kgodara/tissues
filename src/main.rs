@@ -4,6 +4,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+extern crate log;
+
 
 use std::io;
 use std::fs;
@@ -13,9 +16,8 @@ mod app;
 mod linear;
 mod ui;
 mod constants;
-mod util;
 mod command;
-
+mod util;
 mod components;
 
 use crate::components::{
@@ -54,9 +56,8 @@ use util::{
 
 use crate::constants::{ SCROLL_TICK_MAX };
 
-#[macro_use] extern crate log;
-extern crate simplelog;
 
+extern crate simplelog;
 use simplelog::*;
 
 use std::fs::File;
