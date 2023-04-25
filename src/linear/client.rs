@@ -1,3 +1,5 @@
+// TODO: LinearClient needs better error propagation on requests rather than burying them
+
 use super::config::{ LinearConfig };
 
 use anyhow::{anyhow,Result};
@@ -116,10 +118,12 @@ impl LinearClient {
             filter: filter,
         };
 
-        debug!("issues() - Variables: {:?}", variables);
+        // debug!("issues() - Variables: {:?}", variables);
 
+        let x = post_graphql::<IssuesQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?;
+        // debug!("issues() - Response<ResponseData>: {:?}", x);
         Ok(
-            post_graphql::<IssuesQuery, _>(&self.client, "https://api.linear.app/graphql", variables).await?.data
+            x.data
         )
     }
 

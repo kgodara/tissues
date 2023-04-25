@@ -19,10 +19,11 @@ pub mod loader;
 
 pub mod table;
 
+#[macro_export]
 macro_rules! error_panic {
     ($($arg:tt)*) => {
         error!($($arg)*);
         panic!($($arg)*);
     };
 }
-pub(crate) use error_panic;
+pub use error_panic;

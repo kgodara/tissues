@@ -1,10 +1,6 @@
 ---
 source: tests/mod.rs
-expression: view_issues
+expression: view_issues.issues.nodes
 ---
-- createdAt: "2021-02-13T03:42:47.758Z"
-  id: ae0b7451-c176-4bec-a09a-f52e824ead11
-  number: 1
-  team:
-    id: acab4638-da68-4ed1-b00a-9401ddeb8fc7
+[]
 

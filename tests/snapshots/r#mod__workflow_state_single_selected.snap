@@ -1,20 +1,84 @@
 ---
 source: tests/mod.rs
-expression: view_issues
+expression: view_issues.issues.nodes
 ---
-- createdAt: "2021-01-11T04:43:21.270Z"
-  id: eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3
+- id: eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 4
+  dueDate: 2021-09-07
+  title: Connect GitHub or GitLab
+  description: ~
+  priority: 3
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle:
+    id: 92482ae3-cb27-42c0-9ee4-1f94721d0825
+    name: ~
+    description: ~
   state:
     id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
-- createdAt: "2021-01-11T04:43:21.270Z"
-  id: 63234ed0-035a-4aec-914b-19802c066b5a
+    name: In Progress
+    type: started
+    description: ~
+    color: "#f2c94c"
+  creator: ~
+  assignee: ~
+  labels:
+    nodes: []
+  project: ~
+- id: 63234ed0-035a-4aec-914b-19802c066b5a
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 7
+  dueDate: 2021-05-16
+  title: Use Projects to organize work for features or releases
+  description: ~
+  priority: 4
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
   state:
     id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
-- createdAt: "2021-01-11T04:43:21.270Z"
-  id: 13bfaa1c-4cf0-40d6-9d70-6c76b948261b
+    name: In Progress
+    type: started
+    description: ~
+    color: "#f2c94c"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes:
+      - id: 5e948c53-e672-46d7-b2a7-dc2194ae67b4
+        name: Bug
+        color: "#EB5757"
+  project: ~
+- id: 13bfaa1c-4cf0-40d6-9d70-6c76b948261b
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 1
+  dueDate: 2021-05-15
+  title: Welcome to Linear 👋
+  description: ~
+  priority: 2
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
   state:
     id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+    name: In Progress
+    type: started
+    description: ~
+    color: "#f2c94c"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes: []
+  project: ~
 

@@ -1,25 +1,126 @@
 ---
 source: tests/mod.rs
-expression: view_issues
+expression: view_issues.issues.nodes
 ---
-- createdAt: "2021-06-30T20:18:14.800Z"
-  dueDate: 2021-09-16
-  id: a1d909f3-21c1-4654-af2b-5a3daadd5ee3
+- id: a1d909f3-21c1-4654-af2b-5a3daadd5ee3
+  createdAt: "2021-06-30T20:18:14.800Z"
   number: 13
-- createdAt: "2021-02-13T03:42:47.758Z"
-  dueDate: 2021-05-10
-  id: ae0b7451-c176-4bec-a09a-f52e824ead11
-  number: 1
-- createdAt: "2021-01-11T04:43:21.270Z"
-  dueDate: 2021-09-07
-  id: eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3
+  dueDate: 2021-09-16
+  title: Insomnia Test 4.6 V2
+  description: Made from Insomnia
+  priority: 0
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
+  state:
+    id: f114725a-1dee-4236-927b-1001c8e98003
+    name: Test-Column-2
+    type: canceled
+    description: "Canceled Column #2"
+    color: "#bec2c8"
+  creator:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  assignee:
+    id: 1b581539-2c14-4639-b727-0acd22f67f93
+    displayName: arbygungun
+  labels:
+    nodes:
+      - id: 3c053660-ea0c-4804-9fe5-e206ee40bd17
+        name: Test-Label-1
+        color: "#bec2c8"
+      - id: de7d624c-7fe7-458f-9b23-f4f8896f6026
+        name: Improvement
+        color: "#4EA7FC"
+      - id: 5e948c53-e672-46d7-b2a7-dc2194ae67b4
+        name: Bug
+        color: "#EB5757"
+      - id: 5993f24c-cf45-46ef-a076-0f01eeeafe3b
+        name: Feature
+        color: "#BB87FC"
+  project:
+    id: 2a40437b-73be-45f1-81ad-83379c3d9e3f
+    name: Test Project 2
+    color: "#bec2c8"
+- id: eea7a43a-e4d3-4ebf-8f0d-e6538f4f5ae3
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 4
-- createdAt: "2021-01-11T04:43:21.270Z"
-  dueDate: 2021-05-16
-  id: 63234ed0-035a-4aec-914b-19802c066b5a
+  dueDate: 2021-09-07
+  title: Connect GitHub or GitLab
+  description: ~
+  priority: 3
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle:
+    id: 92482ae3-cb27-42c0-9ee4-1f94721d0825
+    name: ~
+    description: ~
+  state:
+    id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+    name: In Progress
+    type: started
+    description: ~
+    color: "#f2c94c"
+  creator: ~
+  assignee: ~
+  labels:
+    nodes: []
+  project: ~
+- id: 63234ed0-035a-4aec-914b-19802c066b5a
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 7
-- createdAt: "2021-01-11T04:43:21.270Z"
-  dueDate: 2021-05-15
-  id: 13bfaa1c-4cf0-40d6-9d70-6c76b948261b
+  dueDate: 2021-05-16
+  title: Use Projects to organize work for features or releases
+  description: ~
+  priority: 4
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
+  state:
+    id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+    name: In Progress
+    type: started
+    description: ~
+    color: "#f2c94c"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes:
+      - id: 5e948c53-e672-46d7-b2a7-dc2194ae67b4
+        name: Bug
+        color: "#EB5757"
+  project: ~
+- id: 13bfaa1c-4cf0-40d6-9d70-6c76b948261b
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 1
+  dueDate: 2021-05-15
+  title: Welcome to Linear 👋
+  description: ~
+  priority: 2
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
+  state:
+    id: c2e0a6dc-d8e9-40f9-9a39-6a55a995fc9e
+    name: In Progress
+    type: started
+    description: ~
+    color: "#f2c94c"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes: []
+  project: ~
 

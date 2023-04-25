@@ -1,35 +1,173 @@
 ---
 source: tests/mod.rs
-expression: view_issues
+expression: view_issues.issues.nodes
 ---
-- createdAt: "2021-06-30T20:18:14.800Z"
-  id: a1d909f3-21c1-4654-af2b-5a3daadd5ee3
+- id: a1d909f3-21c1-4654-af2b-5a3daadd5ee3
+  createdAt: "2021-06-30T20:18:14.800Z"
   number: 13
+  dueDate: 2021-09-16
+  title: Insomnia Test 4.6 V2
+  description: Made from Insomnia
+  priority: 0
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
   state:
     id: f114725a-1dee-4236-927b-1001c8e98003
-- createdAt: "2021-02-13T03:42:47.758Z"
-  id: ae0b7451-c176-4bec-a09a-f52e824ead11
-  number: 1
-  state:
-    id: faa3e8df-e54f-43de-a5c4-633bf9340fbf
-- createdAt: "2021-02-09T20:05:52.185Z"
-  id: ca14857a-b88e-4108-b97d-1c759358b9e7
+    name: Test-Column-2
+    type: canceled
+    description: "Canceled Column #2"
+    color: "#bec2c8"
+  creator:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  assignee:
+    id: 1b581539-2c14-4639-b727-0acd22f67f93
+    displayName: arbygungun
+  labels:
+    nodes:
+      - id: 3c053660-ea0c-4804-9fe5-e206ee40bd17
+        name: Test-Label-1
+        color: "#bec2c8"
+      - id: de7d624c-7fe7-458f-9b23-f4f8896f6026
+        name: Improvement
+        color: "#4EA7FC"
+      - id: 5e948c53-e672-46d7-b2a7-dc2194ae67b4
+        name: Bug
+        color: "#EB5757"
+      - id: 5993f24c-cf45-46ef-a076-0f01eeeafe3b
+        name: Feature
+        color: "#BB87FC"
+  project:
+    id: 2a40437b-73be-45f1-81ad-83379c3d9e3f
+    name: Test Project 2
+    color: "#bec2c8"
+- id: ca14857a-b88e-4108-b97d-1c759358b9e7
+  createdAt: "2021-02-09T20:05:52.185Z"
   number: 12
+  dueDate: ~
+  title: Test Rust-CLI
+  description: Made From Rust
+  priority: 0
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle:
+    id: 7a1bebd3-4197-4e4f-a93a-3c9d51b9b044
+    name: ~
+    description: ~
   state:
     id: e4d5a438-381e-44b0-945f-211481f769e6
-- createdAt: "2021-01-11T04:43:21.270Z"
-  id: f8a8309b-bc06-4c87-a19f-282aa7bff614
+    name: Test-Column-1
+    type: canceled
+    description: Test-Column-1-Desc
+    color: "#4cb782"
+  creator:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes:
+      - id: de7d624c-7fe7-458f-9b23-f4f8896f6026
+        name: Improvement
+        color: "#4EA7FC"
+  project: ~
+- id: f8a8309b-bc06-4c87-a19f-282aa7bff614
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 5
+  dueDate: ~
+  title: "Customize your team's workflow in team settings"
+  description: ~
+  priority: 3
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
   state:
     id: 012b9b0c-584b-4684-96a8-810aec0db40e
-- createdAt: "2021-01-11T04:43:21.270Z"
-  id: 9ec131be-f97e-4110-b9f1-39a3b61723ef
+    name: Done
+    type: completed
+    description: ~
+    color: "#5e6ad2"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes: []
+  project:
+    id: 34197686-1d88-47ec-a1e0-321d9144eacd
+    name: Test Project 1
+    color: "#bec2c8"
+- id: 9ec131be-f97e-4110-b9f1-39a3b61723ef
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 2
+  dueDate: ~
+  title: "Try 3 ways to navigate Linear: Command line, keyboard or mouse"
+  description: ~
+  priority: 3
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
   state:
     id: e4d5a438-381e-44b0-945f-211481f769e6
-- createdAt: "2021-01-11T04:43:21.270Z"
-  id: 1872404c-c3be-4938-a259-43ba8deb511e
+    name: Test-Column-1
+    type: canceled
+    description: Test-Column-1-Desc
+    color: "#4cb782"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes:
+      - id: de7d624c-7fe7-458f-9b23-f4f8896f6026
+        name: Improvement
+        color: "#4EA7FC"
+  project:
+    id: 34197686-1d88-47ec-a1e0-321d9144eacd
+    name: Test Project 1
+    color: "#bec2c8"
+- id: 1872404c-c3be-4938-a259-43ba8deb511e
+  createdAt: "2021-01-11T04:43:21.270Z"
   number: 3
+  dueDate: ~
+  title: Connect to Slack!!
+  description: ~
+  priority: 3
+  estimate: ~
+  team:
+    id: 3e2c3a3a-c883-432f-9877-dcbb8785650a
+    name: Test-1
+  cycle: ~
   state:
     id: 406c3b3c-cbe4-4cbc-8712-0b3fd396913f
+    name: Todo
+    type: unstarted
+    description: ~
+    color: "#e2e2e2"
+  creator: ~
+  assignee:
+    id: ce943fa6-e9e1-4bc5-8131-ebf3ab1928bf
+    displayName: porsliana
+  labels:
+    nodes:
+      - id: 5e948c53-e672-46d7-b2a7-dc2194ae67b4
+        name: Bug
+        color: "#EB5757"
+      - id: 5993f24c-cf45-46ef-a076-0f01eeeafe3b
+        name: Feature
+        color: "#BB87FC"
+  project:
+    id: 34197686-1d88-47ec-a1e0-321d9144eacd
+    name: Test Project 1
+    color: "#bec2c8"
 
